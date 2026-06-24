@@ -56,6 +56,29 @@ From a clean clone, a new engineer should reach a governed Codex session with th
 
 7. Use only synthetic data in prompts, examples, tests, fixtures, logs, and documentation. Do not paste real customer data, production data, payment data, bank-feed transaction data, credentials, tokens, API keys, or private identifiers into Codex.
 
+## Development Scripts
+
+Install dependencies with npm:
+
+```sh
+npm install
+```
+
+ExpenseFlow requires Node.js `>=24.0.0`.
+
+Use the documented project scripts from the repository root:
+
+- `npm run build` compiles the TypeScript source with the strict `tsconfig.json` settings.
+- `npm run lint` runs ESLint with zero warnings allowed and checks formatting with Prettier.
+- `npm test` runs the Vitest test suite.
+- `npm run check` runs build, lint, and tests as the full local verification workflow.
+
+After building, run the async entrypoint with:
+
+```sh
+npm start
+```
+
 ## Governance Links
 
 - [Agent contract](AGENTS.md)
