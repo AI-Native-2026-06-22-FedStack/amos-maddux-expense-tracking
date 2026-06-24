@@ -2,9 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   ExpenseReportTransaction,
+  ExpenseReportTransactionStore,
   InMemoryExpenseReportTransactionStore,
   summarizeExpenseReportTransactions
 } from "./expense-report-transactions.js";
+
+class FailingExpenseReportTransactionStore implements ExpenseReportTransactionStore {
+  public async listTransactions(): Promise<readonly unknown[]> {
+    throw new Error("Synthetic store failure.");
+  }
+}
 
 describe("summarizeExpenseReportTransactions", () => {
   it("summarizes valid synthetic expense report transactions", async () => {
@@ -63,5 +70,20 @@ describe("summarizeExpenseReportTransactions", () => {
     const result = await summarizeExpenseReportTransactions(store);
 
     expect(result.ok).toBe(true);
+  });
+
+  it("returns typed error details when the async store rejects", async () => {
+    const store = new FailingExpenseReportTransactionStore();
+
+    const result = await summarizeExpenseReportTransactions(store);
+
+    expect(result.ok).toBe(false);
+
+    if (!result.ok) {
+      expect(result.error).toEqual({
+        message: "Expense Report transaction summary failed.",
+        issues: ["Synthetic store failure."]
+      });
+    }
   });
 });
