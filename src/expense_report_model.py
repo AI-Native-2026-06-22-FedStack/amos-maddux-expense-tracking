@@ -15,6 +15,15 @@ ExpenseReportStage = Literal[
 ]
 
 
+class MoneyLineItem(BaseModel):
+    """Validated monetary line item boundary for an Expense Report."""
+
+    model_config = ConfigDict(frozen=True, strict=True, str_strip_whitespace=True)
+
+    amount: Decimal = Field(gt=Decimal(0), max_digits=12, decimal_places=2)
+    currency: Literal["USD"]
+
+
 class ExpenseReport(BaseModel):
     """Validated external boundary for an Expense Report."""
 

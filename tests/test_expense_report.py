@@ -10,7 +10,21 @@ from expense_report import (
     ExpenseReportReviewError,
     prepare_expense_report_review,
 )
-from expense_report_model import ExpenseReport
+from expense_report_model import ExpenseReport, MoneyLineItem
+
+
+def test_money_line_item_model_accepts_valid_boundary_input() -> None:
+    """Money line item boundary accepts valid synthetic input."""
+    line_item = MoneyLineItem(amount=Decimal("125.50"), currency="USD")
+
+    assert line_item.amount == Decimal("125.50")
+    assert line_item.currency == "USD"
+
+
+def test_money_line_item_model_rejects_negative_amount() -> None:
+    """Money line item boundary rejects negative amounts."""
+    with pytest.raises(ValidationError):
+        MoneyLineItem(amount=Decimal("-1.00"), currency="USD")
 
 
 def test_expense_report_model_accepts_valid_boundary_input() -> None:
