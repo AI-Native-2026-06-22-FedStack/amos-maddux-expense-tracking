@@ -1,0 +1,29 @@
+{
+  "name": "expenseflow",
+  "version": "0.1.0",
+  "description": "ExpenseFlow TypeScript Node bootstrap.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint . --max-warnings=0 && prettier . --check",
+    "test": "vitest run",
+    "check": "npm run build && npm run lint && npm test",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/node": "^24.0.0",
+    "eslint": "^9.18.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.20.0",
+    "vitest": "^3.0.4"
+  }
+}
