@@ -58,6 +58,18 @@ From a clean clone, a new engineer should reach a governed Codex session with th
 
 ## Development Scripts
 
+Recreate the Python 3.13 environment from the committed lock file:
+
+```sh
+uv sync
+```
+
+Run the Python lint, type-check, and test workflow:
+
+```sh
+make check
+```
+
 Install dependencies with npm:
 
 ```sh

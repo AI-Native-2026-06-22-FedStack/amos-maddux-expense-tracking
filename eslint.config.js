@@ -3,7 +3,17 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist/**", "eslint.config.js", "node_modules/**"]
+    ignores: [
+      ".mypy_cache/**",
+      ".pytest_cache/**",
+      ".ruff_cache/**",
+      ".uv-cache/**",
+      ".uv-python/**",
+      ".venv/**",
+      "dist/**",
+      "eslint.config.js",
+      "node_modules/**"
+    ]
   },
   eslint.configs.recommended,
   ...tseslint.configs.strict,
