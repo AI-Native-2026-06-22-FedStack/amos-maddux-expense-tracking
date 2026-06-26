@@ -18,13 +18,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Validate PR checklist acknowledgement
-        env:
-          EVENT_PATH: ${{ github.event_path }}
         run: |
           node <<'NODE'
           const fs = require("fs");
 
-          const event = JSON.parse(fs.readFileSync(process.env.EVENT_PATH, "utf8"));
+          const eventPath = process.env.GITHUB_EVENT_PATH;
+          if (!eventPath) {
+            console.error("GITHUB_EVENT_PATH is not set; cannot read the pull_request event payload.");
+            process.exit(1);
+          }
+
+          const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
           const body = event.pull_request?.body || "";
           const requiredItems = [
             "I confirm this PR links the relevant Jira ticket in the description.",
