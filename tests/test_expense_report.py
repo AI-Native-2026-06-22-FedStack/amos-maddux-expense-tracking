@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from expense_report import (
     ExpenseReportReview,
     ExpenseReportReviewError,
+    get_health_status,
     prepare_expense_report_review,
 )
 from expense_report_model import ExpenseReport, MoneyLineItem
@@ -78,3 +79,20 @@ async def test_prepare_expense_report_review_returns_error_for_wrong_stage() -> 
 
     assert isinstance(result, ExpenseReportReviewError)
     assert result.message == "Expense Report must be Submitted for review."
+
+
+async def test_get_health_status_returns_happy_path() -> None:
+    """Health status returns an ok payload for local runtime checks."""
+    result = await get_health_status()
+
+    assert result.status == "ok"
+    assert result.service == "ExpenseFlow"
+    assert result.checks["runtime"] == "ok"
+
+
+async def test_get_health_status_returns_degraded_for_failed_local_check() -> None:
+    """Health status reports degraded when a local check fails."""
+    result = await get_health_status({"synthetic_local_check": False})
+
+    assert result.status == "degraded"
+    assert result.checks["synthetic_local_check"] == "failed"
