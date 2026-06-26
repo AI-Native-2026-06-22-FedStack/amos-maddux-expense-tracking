@@ -6,12 +6,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 ExpenseReportStage = Literal[
-    "Draft",
+    "Drafted",
     "Submitted",
-    "Manager Review",
-    "Finance Review",
-    "Approved",
-    "Reimbursed",
+    "Manager Approval",
+    "AP Review",
+    "Paid",
+    "Reconciled",
 ]
 
 

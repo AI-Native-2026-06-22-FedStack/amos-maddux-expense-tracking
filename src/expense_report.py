@@ -28,7 +28,7 @@ class ExpenseReportReview:
     """Successful review decision for an Expense Report."""
 
     status: ReviewStatus
-    next_stage: Literal["Manager Review", "Finance Review"]
+    next_stage: Literal["Manager Approval", "AP Review"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +58,6 @@ async def prepare_expense_report_review(report: ExpenseReport) -> ExpenseReportR
         return ExpenseReportReviewError(message="Expense Report must be Submitted for review.")
 
     if report.claimed_amount > FINANCE_REVIEW_LIMIT:
-        return ExpenseReportReview(status="ready", next_stage="Finance Review")
+        return ExpenseReportReview(status="ready", next_stage="AP Review")
 
-    return ExpenseReportReview(status="ready", next_stage="Manager Review")
+    return ExpenseReportReview(status="ready", next_stage="Manager Approval")
