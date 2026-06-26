@@ -58,15 +58,33 @@ From a clean clone, a new engineer should reach a governed Codex session with th
 
 ## Development Scripts
 
-Install dependencies with npm:
+ExpenseFlow keeps the Python and Node stacks governed by documented setup and verification commands.
+
+### Python
+
+ExpenseFlow Python uses Python 3.13, selected by [.python-version](.python-version). Recreate the Python environment from the committed [uv.lock](uv.lock):
+
+```sh
+uv sync
+```
+
+Run the required Python quality gates with one command:
+
+```sh
+make check
+```
+
+`make check` runs Ruff first, strict mypy second, and pytest third. The target exits non-zero if any step fails.
+
+### Node
+
+ExpenseFlow requires Node.js `>=24.0.0`. Install dependencies with npm:
 
 ```sh
 npm install
 ```
 
-ExpenseFlow requires Node.js `>=24.0.0`.
-
-Use the documented project scripts from the repository root:
+Use the documented Node project scripts from the repository root:
 
 - `npm run build` compiles the TypeScript source with the strict `tsconfig.json` settings.
 - `npm run lint` runs ESLint with zero warnings allowed and checks formatting with Prettier.
