@@ -99,5 +99,6 @@ npm start
 
 ## Governance Links
 
-- [Agent contract](AGENTS.md)
-- [Data classification note](docs/data-classification.md)
+- [AI-assistant guide](AGENTS.md)
+- [Contribution workflow](CONTRIBUTING.md)
+- [Data classification posture note](docs/data-classification.md)
