@@ -47,13 +47,13 @@ def test_expense_report_model_rejects_invalid_stage() -> None:
     with pytest.raises(ValidationError):
         ExpenseReport(
             title="Synthetic conference supplies",
-            stage="Paid",
+            stage="Manager Review",
             claimed_amount=Decimal("125.50"),
         )
 
 
 async def test_prepare_expense_report_review_returns_happy_path() -> None:
-    """Submitted Expense Reports advance to Manager Review under the finance threshold."""
+    """Submitted Expense Reports advance to Manager Approval under the finance threshold."""
     report = ExpenseReport(
         title="Synthetic conference supplies",
         stage="Submitted",
@@ -64,14 +64,29 @@ async def test_prepare_expense_report_review_returns_happy_path() -> None:
 
     assert isinstance(result, ExpenseReportReview)
     assert result.status == "ready"
-    assert result.next_stage == "Manager Review"
+    assert result.next_stage == "Manager Approval"
+
+
+async def test_prepare_expense_report_review_returns_ap_review_for_large_claim() -> None:
+    """Submitted Expense Reports above the finance threshold advance to AP Review."""
+    report = ExpenseReport(
+        title="Synthetic team offsite",
+        stage="Submitted",
+        claimed_amount=Decimal("5000.01"),
+    )
+
+    result = await prepare_expense_report_review(report)
+
+    assert isinstance(result, ExpenseReportReview)
+    assert result.status == "ready"
+    assert result.next_stage == "AP Review"
 
 
 async def test_prepare_expense_report_review_returns_error_for_wrong_stage() -> None:
     """Expense Reports outside Submitted stage return a typed error."""
     report = ExpenseReport(
         title="Synthetic conference supplies",
-        stage="Draft",
+        stage="Drafted",
         claimed_amount=Decimal("125.50"),
     )
 

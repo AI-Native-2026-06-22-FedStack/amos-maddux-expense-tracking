@@ -99,5 +99,9 @@ npm start
 
 ## Governance Links
 
-- [Agent contract](AGENTS.md)
-- [Data classification note](docs/data-classification.md)
+- [AI-assistant guide](AGENTS.md)
+- [Contribution workflow](CONTRIBUTING.md)
+- [Data classification posture note](docs/data-classification.md)
+- [ADR template](docs/adr/0000-template.md)
+- [ADR-0001: Store Expense Report Case in PostgreSQL with Drizzle](docs/adr/0001-store-expense-report-case-in-postgresql-with-drizzle.md)
+- [ADR-0002: Sprint-2 Polyglot Service Split](docs/adr/0002-sprint-2-polyglot-service-split.md)
