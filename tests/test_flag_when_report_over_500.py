@@ -1,8 +1,9 @@
-""" Tests that any amounts over the threshold will be flagged and returned for review """
+"""Tests that amounts over 500 are returned for review."""
+
 from decimal import Decimal
+
 from expense_report_model import ExpenseReport
-from expense_report import ExpenseReportReview
-from flag_over_threshold import flag_over_threshold
+from flag_when_report_over_500 import flag_when_report_over_500
 
 
 def test_flags__when_report_over_500() -> None:
@@ -18,10 +19,7 @@ def test_flags__when_report_over_500() -> None:
         claimed_amount=Decimal("501"),
     )
 
- 
     reports = [at_threshold_report, over_threshold_report]
-    
-    flagged_reports = flag_over_threshold(reports)
-
+    flagged_reports = flag_when_report_over_500(reports)
 
     assert flagged_reports == [over_threshold_report]
