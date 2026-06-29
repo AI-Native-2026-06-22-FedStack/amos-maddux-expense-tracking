@@ -32,4 +32,5 @@ class ExpenseReport(BaseModel):
     title: str = Field(min_length=1, max_length=120)
     stage: ExpenseReportStage
     claimed_amount: Decimal = Field(gt=Decimal(0), max_digits=12, decimal_places=2)
+    line_items: list[MoneyLineItem] = Field(default_factory=list)
     currency: Literal["USD"] = "USD"
