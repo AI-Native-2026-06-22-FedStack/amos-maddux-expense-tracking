@@ -14,11 +14,11 @@
 
 <!-- List the local checks, tests, or review steps completed for this PR. -->
 
-## Gitflow Checklist
+## Trunk-Based Checklist
 
 - [ ] I confirm this PR links the relevant Jira ticket in the description.
 - [ ] I confirm this PR covers one Jira ticket, or all related Jira tickets are linked and explained above.
-- [ ] I confirm the source and target branches follow `CONTRIBUTING.md` rules: `feature/*` to `develop`, `release/*` to `develop` and `main`, or `hotfix/*` to `main` and `develop`.
+- [ ] I confirm this PR targets `main` from a short-lived branch named with an approved type: `feat/*`, `fix/*`, `docs/*`, `test/*`, `chore/*`, or `refactor/*`.
 - [ ] I confirm this PR is within 400 changed lines excluding lockfiles and generated files, or the exception is documented in the summary.
 - [ ] I confirm required checks are expected to pass before merge.
 

@@ -12,6 +12,11 @@ Describe the forces that led to this decision.
 
 Describe what was chosen.
 
+## Alternatives Considered
+
+- Option considered: Explain why it was not chosen.
+- Another option considered: Explain why it was not chosen.
+
 ## Consequences
 
 POSITIVE: State a beneficial outcome of the decision.
