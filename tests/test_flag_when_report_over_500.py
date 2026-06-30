@@ -39,17 +39,17 @@ def test_flags_report_with_line_items_when_total_is_over_500() -> None:
         title="Synthetic conference supplies at boundary",
         stage="Submitted",
         claimed_amount=Decimal("500.00"),
-        line_items=at_boundary_line_items,
+        money_line_items=at_boundary_line_items,
     )
     over_boundary_report = ExpenseReport(
         title="Synthetic conference supplies over boundary",
         stage="Submitted",
         claimed_amount=Decimal("500.01"),
-        line_items=over_boundary_line_items,
+        money_line_items=over_boundary_line_items,
     )
 
     flagged_reports = flag_when_report_over_500([at_boundary_report, over_boundary_report])
 
     assert flagged_reports == [over_boundary_report]
     assert flagged_reports[0] is over_boundary_report
-    assert flagged_reports[0].line_items == over_boundary_line_items
+    assert flagged_reports[0].money_line_items == over_boundary_line_items
