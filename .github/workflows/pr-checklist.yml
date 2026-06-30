@@ -1,0 +1,63 @@
+name: PR checklist acknowledgement
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    name: PR checklist acknowledgement
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR checklist acknowledgement
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+
+          const eventPath = process.env.GITHUB_EVENT_PATH;
+          if (!eventPath) {
+            console.error("GITHUB_EVENT_PATH is not set; cannot read the pull_request event payload.");
+            process.exit(1);
+          }
+
+          const event = JSON.parse(fs.readFileSync(eventPath, "utf8"));
+          const body = event.pull_request?.body || "";
+          const requiredItems = [
+            "I confirm this PR links the relevant Jira ticket in the description.",
+            "I confirm this PR covers one Jira ticket, or all related Jira tickets are linked and explained above.",
+            "I confirm this PR is within 400 changed lines excluding lockfiles and generated files, or the exception is documented in the summary.",
+            "I confirm required checks are expected to pass before merge.",
+            "I confirm tenant-scoped records and access paths prevent cross-tenant read, write, inference, search, export, and delivery.",
+            "I confirm all new or changed external inputs are validated at boundaries, and unsafe input is rejected or normalized.",
+            "I confirm privileged actions and workflow state changes remain auditable without exposing controlled data.",
+            "I confirm raw receipt data, payment data, bank-feed transaction data, secrets, credentials, tokens, and private identifiers are not logged in plaintext.",
+          ];
+
+          const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const unchecked = [];
+
+          for (const item of requiredItems) {
+            const checkedPattern = new RegExp(`^- \\[[xX]\\] ${escapeRegExp(item)}\\s*$`, "m");
+            if (!checkedPattern.test(body)) {
+              unchecked.push(item);
+            }
+          }
+
+          if (unchecked.length > 0) {
+            console.error("PR checklist acknowledgement failed. Complete these items before merge:");
+            for (const item of unchecked) {
+              console.error(`- ${item}`);
+            }
+            process.exit(1);
+          }
+
+          console.log("PR checklist acknowledgement passed.");
+          NODE
