@@ -35,4 +35,43 @@ ERROR:  duplicate key value violates unique constraint "attachment_metadata_stor
 DETAIL:  Key (storage_key)=(duplicate-test-storage-key) already exists.
 ```
 
+## Case Queue query plan
 
+The Case Queue index exists:
+
+```sql
+CREATE INDEX expense_report_case_queue_idx ON public.expense_report USING btree (tenant_id, current_stage, due_date)
+```
+
+The Case Queue query was tested with:
+
+```text
+tenant_id: 00000000-0000-4000-8000-000000000001
+current_stage: Drafted
+```
+
+Before adding the Case Queue index, the query plan used a sequential scan. After adding the index, PostgreSQL used the Case Queue index:
+
+```text
+Index Scan using expense_report_case_queue_idx on expense_report  (cost=0.14..8.16 rows=1 width=309) (actual time=0.014..0.014 rows=1 loops=1)
+  Index Cond: ((tenant_id = '00000000-0000-4000-8000-000000000001'::uuid) AND (current_stage = 'Drafted'::text))
+  Buffers: shared hit=2
+Planning:
+  Buffers: shared hit=155
+Planning Time: 0.264 ms
+Execution Time: 0.037 ms
+```
+
+Conclusion: PostgreSQL used an `Index Scan`, not a sequential scan.
+
+Proof line:
+
+```text
+Index Scan using expense_report_case_queue_idx on expense_report
+```
+
+The `Index Cond` line shows the query matched the leading index columns, `tenant_id` and `current_stage`:
+
+```text
+Index Cond: ((tenant_id = '00000000-0000-4000-8000-000000000001'::uuid) AND (current_stage = 'Drafted'::text))
+```
