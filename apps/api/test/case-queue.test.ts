@@ -26,13 +26,14 @@ describe("readCaseQueue integration", () => {
   beforeEach(async () => {
     client = new Client({ connectionString: getDatabaseUrl() });
     await client.connect();
+    await truncateDatabase(client);
   });
 
   afterEach(async () => {
     await client.end();
   });
 
-  it("returns tenant-scoped canonical stage counts with zero-count stages and derived overdue counts", async () => {
+  it("returns only the requested tenant's Case Queue counts", async () => {
     await insertExpenseReport(
       client,
       makeExpenseReport({
@@ -133,11 +134,27 @@ function getDatabaseUrl(): string {
 function toCaseQueueExecutor(client: pg.Client): CaseQueueQueryExecutor {
   return {
     async query(sql: string, params: readonly [tenantId: string]) {
-      const result = await client.query(sql, [...params]);
+      const queryParams = sql.includes("$1") ? [...params] : [];
+      const result = await client.query(sql, queryParams);
 
       return { rows: result.rows };
     }
   };
+}
+
+async function truncateDatabase(client: pg.Client): Promise<void> {
+  await client.query(`
+    truncate
+        expense_report,
+        expense_line_item,
+        attachment_metadata,
+        receipt,
+        mileage_entry,
+        audit_entry,
+        stage_transition,
+        comment
+    restart identity cascade;
+  `);
 }
 
 async function insertExpenseReport(client: pg.Client, report: ExpenseReportRow): Promise<void> {
