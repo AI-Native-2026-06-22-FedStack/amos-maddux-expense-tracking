@@ -6,3 +6,8 @@ sandbox_mode           = "workspace-write"
 
 # Reduces friction during development while maintaining security against unsafe actions (file changes, bash commands, network calls, etc.)
 approval_policy        = "on-request"
+
+[mcp_servers.postgres]
+command = "postgres-mcp"
+args = ["--access-mode=restricted"]
+env_vars = ["DATABASE_URI"]
