@@ -2,14 +2,14 @@
 
 ## Entities & relationships
 
-* `expense_report` is the parent Case entity. It stores the report lifecycle in `current_stage`, not in a separate status column. Each report belongs to one tenant and includes case-level fields such as assigned owner, priority, due date, hold state, submitter, approval chain, and payment reference.
-* `expense_line_item` belongs to exactly one `expense_report`; one report can have many line items. The foreign key lives on `expense_line_item.expense_report_id`.
-* `receipt` belongs to exactly one `expense_line_item`; one line item can have many receipts. The foreign key lives on `receipt.expense_line_item_id`.
-* `mileage_entry` belongs to exactly one `expense_report`; one report can have many mileage entries. The foreign key lives on `mileage_entry.expense_report_id`.
-* `audit_entry` belongs to exactly one `expense_report`; one report can have many audit entries. The foreign key lives on `audit_entry.expense_report_id`. This table is append-only and records who did what and when.
-* `stage_transition` belongs to exactly one `expense_report`; one report can have many stage transitions. The foreign key lives on `stage_transition.expense_report_id`. It stores `from_stage` and `to_stage` so backward transitions to `Drafted` can be represented.
-* `comment` belongs to exactly one `expense_report`; one report can have many comments. The foreign key lives on `comment.expense_report_id`.
-* `attachment_metadata` belongs to exactly one `expense_report`; one report can have many attachment records. The foreign key lives on `attachment_metadata.expense_report_id`.
+- `expense_report` is the parent Case entity. It stores the report lifecycle in `current_stage`, not in a separate status column. Each report belongs to one tenant and includes case-level fields such as assigned owner, priority, due date, hold state, submitter, approval chain, and payment reference.
+- `expense_line_item` belongs to exactly one `expense_report`; one report can have many line items. The foreign key lives on `expense_line_item.expense_report_id`.
+- `receipt` belongs to exactly one `expense_line_item`; one line item can have many receipts. The foreign key lives on `receipt.expense_line_item_id`.
+- `mileage_entry` belongs to exactly one `expense_report`; one report can have many mileage entries. The foreign key lives on `mileage_entry.expense_report_id`.
+- `audit_entry` belongs to exactly one `expense_report`; one report can have many audit entries. The foreign key lives on `audit_entry.expense_report_id` and restricts parent deletion to preserve audit history. This table is append-only and records who did what and when.
+- `stage_transition` belongs to exactly one `expense_report`; one report can have many stage transitions. The foreign key lives on `stage_transition.expense_report_id` and restricts parent deletion to preserve lifecycle history. It stores `from_stage` and `to_stage` so backward transitions to `Drafted` can be represented.
+- `comment` belongs to exactly one `expense_report`; one report can have many comments. The foreign key lives on `comment.expense_report_id`.
+- `attachment_metadata` belongs to exactly one `expense_report`; one report can have many attachment records. The foreign key lives on `attachment_metadata.expense_report_id`. Storage keys are unique per tenant.
 
 Every entity carries `tenant_id` as a required first-class column so tenant isolation can be enforced at the database layer.
 
@@ -136,10 +136,10 @@ The model does not store a cached report total. The total can be calculated from
 
 ## Cardinality examples
 
-* One synthetic Expense Report for an employee's monthly reimbursement can have three `expense_line_item` rows; each of those line items belongs to exactly that one Expense Report.
-* One synthetic hotel line item can have two `receipt` rows, such as an itemized receipt and a final folio; each receipt belongs to exactly that one line item.
-* One synthetic Expense Report can have two `mileage_entry` rows for separate work trips; each mileage entry belongs to exactly that one Expense Report.
-* One synthetic Expense Report can have many `audit_entry` rows recording submission, approval, and AP review actions; each audit entry belongs to exactly that one Expense Report.
-* One synthetic Expense Report can have several `stage_transition` rows as it moves from `Drafted` to `Submitted` to `Manager Approval`; each transition belongs to exactly that one Expense Report.
-* One synthetic Expense Report can have multiple `comment` rows from a Department Manager and a Finance Admin; each comment belongs to exactly that one Expense Report.
-* One synthetic Expense Report can have multiple `attachment_metadata` rows for supporting files; each attachment metadata record belongs to exactly that one Expense Report.
+- One synthetic Expense Report for an employee's monthly reimbursement can have three `expense_line_item` rows; each of those line items belongs to exactly that one Expense Report.
+- One synthetic hotel line item can have two `receipt` rows, such as an itemized receipt and a final folio; each receipt belongs to exactly that one line item.
+- One synthetic Expense Report can have two `mileage_entry` rows for separate work trips; each mileage entry belongs to exactly that one Expense Report.
+- One synthetic Expense Report can have many `audit_entry` rows recording submission, approval, and AP review actions; each audit entry belongs to exactly that one Expense Report.
+- One synthetic Expense Report can have several `stage_transition` rows as it moves from `Drafted` to `Submitted` to `Manager Approval`; each transition belongs to exactly that one Expense Report.
+- One synthetic Expense Report can have multiple `comment` rows from a Department Manager and a Finance Admin; each comment belongs to exactly that one Expense Report.
+- One synthetic Expense Report can have multiple `attachment_metadata` rows for supporting files; each attachment metadata record belongs to exactly that one Expense Report.
