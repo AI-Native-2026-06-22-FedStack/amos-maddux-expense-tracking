@@ -149,10 +149,7 @@ async function truncateDatabase(client: pg.Client): Promise<void> {
         expense_line_item,
         attachment_metadata,
         receipt,
-        mileage_entry,
-        audit_entry,
-        stage_transition,
-        comment
+        mileage_entry
     restart identity cascade;
   `);
 }

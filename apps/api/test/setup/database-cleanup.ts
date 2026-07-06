@@ -10,10 +10,7 @@ TRUNCATE
     expense_line_item,
     attachment_metadata,
     receipt,
-    mileage_entry,
-    audit_entry,
-    stage_transition,
-    comment
+    mileage_entry
 RESTART IDENTITY CASCADE;
 `;
 
