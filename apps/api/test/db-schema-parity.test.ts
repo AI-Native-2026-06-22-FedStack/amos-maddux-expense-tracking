@@ -215,8 +215,12 @@ async function readColumns(
         dataType: row.data_type,
         nullable: row.is_nullable === "YES",
         ...(row.column_default === null ? {} : { defaultExpression: row.column_default }),
-        ...(row.numeric_precision === null ? {} : { numericPrecision: row.numeric_precision }),
-        ...(row.numeric_scale === null ? {} : { numericScale: row.numeric_scale })
+        ...(row.data_type === "numeric" && row.numeric_precision !== null
+          ? { numericPrecision: row.numeric_precision }
+          : {}),
+        ...(row.data_type === "numeric" && row.numeric_scale !== null
+          ? { numericScale: row.numeric_scale }
+          : {})
       }
     ])
   );
@@ -229,6 +233,7 @@ async function readConstraintNames(client: pg.Client, tableName: string): Promis
     from information_schema.table_constraints
     where table_schema = 'public'
       and table_name = $1
+      and constraint_name not like '%_not_null'
     order by constraint_name;
     `,
     [tableName]

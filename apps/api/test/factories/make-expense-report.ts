@@ -14,19 +14,19 @@ export function makeExpenseReport(overrides: ExpenseReportOverrides = {}): Expen
 
   return {
     id: faker.string.uuid(),
-    tenant_id: faker.string.uuid(),
-    submitter_id: makeSyntheticActorId("submitter"),
-    assigned_owner_id: null,
-    manager_approver_id: null,
-    ap_reviewer_id: null,
-    payment_id: null,
-    current_stage: "Drafted",
+    tenantId: faker.string.uuid(),
+    submitterId: makeSyntheticActorId("submitter"),
+    assignedOwnerId: null,
+    managerApproverId: null,
+    apReviewerId: null,
+    paymentId: null,
+    currentStage: "Drafted",
     priority: "Normal",
-    due_date: formatDateOnly(faker.date.future()),
-    on_hold: false,
-    hold_reason: null,
-    created_at: createdAt,
-    updated_at: new Date(createdAt),
+    dueDate: formatDateOnly(faker.date.future()),
+    onHold: false,
+    holdReason: null,
+    createdAt: createdAt,
+    updatedAt: new Date(createdAt),
     ...overrides
   };
 }

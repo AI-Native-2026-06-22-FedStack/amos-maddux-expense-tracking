@@ -1,44 +1,53 @@
-import { randomUUID } from "node:crypto";
+import { and, eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import pg from "pg";
 
+import * as schema from "../db/schema.js";
+import { expenseReport } from "../db/schema.js";
 import type { ExpenseReportInsert, ExpenseReportSelect } from "../db/schema.js";
 
+const { Pool } = pg;
+
+type ExpenseReportDatabase = NodePgDatabase<typeof schema>;
+
 export interface ExpenseReportRepository {
-  createDraftReport(report: ExpenseReportInsert): ExpenseReportSelect;
-  findById(id: string): ExpenseReportSelect | null;
+  createDraftReport(report: ExpenseReportInsert): Promise<ExpenseReportSelect>;
+  findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null>;
 }
 
-class InMemoryExpenseReportRepository implements ExpenseReportRepository {
-  private readonly reports = new Map<string, ExpenseReportSelect>();
+class DrizzleExpenseReportRepository implements ExpenseReportRepository {
+  public constructor(private readonly db: ExpenseReportDatabase) {}
 
-  public createDraftReport(insert: ExpenseReportInsert): ExpenseReportSelect {
-    const now = new Date();
-    const report: ExpenseReportSelect = {
-      id: randomUUID(),
-      tenant_id: insert.tenant_id,
-      submitter_id: insert.submitter_id,
-      assigned_owner_id: insert.assigned_owner_id ?? null,
-      manager_approver_id: insert.manager_approver_id ?? null,
-      ap_reviewer_id: insert.ap_reviewer_id ?? null,
-      payment_id: insert.payment_id ?? null,
-      current_stage: insert.current_stage ?? "Drafted",
-      priority: insert.priority ?? "Normal",
-      due_date: insert.due_date ?? null,
-      on_hold: insert.on_hold ?? false,
-      hold_reason: insert.hold_reason ?? null,
-      created_at: now,
-      updated_at: now
-    };
-
-    this.reports.set(report.id, report);
+  public async createDraftReport(insert: ExpenseReportInsert): Promise<ExpenseReportSelect> {
+    const [report] = await this.db.insert(expenseReport).values(insert).returning();
 
     return report;
   }
 
-  public findById(id: string): ExpenseReportSelect | null {
-    return this.reports.get(id) ?? null;
+  public async findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null> {
+    const [report] = await this.db
+      .select()
+      .from(expenseReport)
+      .where(and(eq(expenseReport.id, id), eq(expenseReport.tenantId, tenantId)))
+      .limit(1);
+
+    return report ?? null;
   }
 }
 
-export function createExpenseReportRepository(): ExpenseReportRepository {
-  return new InMemoryExpenseReportRepository();
+export function createExpenseReportRepository(
+  db: ExpenseReportDatabase = createDefaultDatabase()
+): ExpenseReportRepository {
+  return new DrizzleExpenseReportRepository(db);
+}
+
+function createDefaultDatabase(): ExpenseReportDatabase {
+  if (process.env.DATABASE_URL === undefined) {
+    throw new Error("DATABASE_URL is required to create the Expense Report repository.");
+  }
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  return drizzle(pool, { schema });
 }

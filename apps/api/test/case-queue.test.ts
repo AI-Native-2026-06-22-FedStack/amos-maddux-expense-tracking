@@ -37,50 +37,50 @@ describe("readCaseQueue integration", () => {
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantA,
-        current_stage: "Drafted",
-        due_date: "2000-01-01"
+        tenantId: tenantA,
+        currentStage: "Drafted",
+        dueDate: "2000-01-01"
       })
     );
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantA,
-        current_stage: "Drafted",
-        due_date: "2999-01-01"
+        tenantId: tenantA,
+        currentStage: "Drafted",
+        dueDate: "2999-01-01"
       })
     );
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantA,
-        current_stage: "Submitted",
-        due_date: "2999-01-01"
+        tenantId: tenantA,
+        currentStage: "Submitted",
+        dueDate: "2999-01-01"
       })
     );
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantA,
-        current_stage: "AP Review",
-        due_date: "2999-01-01"
+        tenantId: tenantA,
+        currentStage: "AP Review",
+        dueDate: "2999-01-01"
       })
     );
 
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantB,
-        current_stage: "Manager Approval",
-        due_date: "2000-01-01"
+        tenantId: tenantB,
+        currentStage: "Manager Approval",
+        dueDate: "2000-01-01"
       })
     );
     await insertExpenseReport(
       client,
       makeExpenseReport({
-        tenant_id: tenantB,
-        current_stage: "Paid",
-        due_date: "2000-01-01"
+        tenantId: tenantB,
+        currentStage: "Paid",
+        dueDate: "2000-01-01"
       })
     );
 
@@ -99,8 +99,8 @@ describe("readCaseQueue integration", () => {
 
   it("rejects rows that violate the migrated Expense Report stage constraint", async () => {
     const invalidReport = {
-      ...makeExpenseReport({ tenant_id: tenantA }),
-      current_stage: "Archived" as ExpenseReportStage
+      ...makeExpenseReport({ tenantId: tenantA }),
+      currentStage: "Archived" as ExpenseReportStage
     };
 
     await expect(insertExpenseReport(client, invalidReport)).rejects.toMatchObject({
@@ -191,19 +191,19 @@ async function insertExpenseReport(client: pg.Client, report: ExpenseReportRow):
     `,
     [
       report.id,
-      report.tenant_id,
-      report.submitter_id,
-      report.assigned_owner_id,
-      report.manager_approver_id,
-      report.ap_reviewer_id,
-      report.payment_id,
-      report.current_stage,
+      report.tenantId,
+      report.submitterId,
+      report.assignedOwnerId,
+      report.managerApproverId,
+      report.apReviewerId,
+      report.paymentId,
+      report.currentStage,
       report.priority,
-      report.due_date,
-      report.on_hold,
-      report.hold_reason,
-      report.created_at,
-      report.updated_at
+      report.dueDate,
+      report.onHold,
+      report.holdReason,
+      report.createdAt,
+      report.updatedAt
     ]
   );
 }

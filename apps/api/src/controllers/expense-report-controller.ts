@@ -4,6 +4,7 @@ import { NotFoundError } from "../errors/problem-json.js";
 import {
   createExpenseReportRequestSchema,
   expenseReportIdParamSchema,
+  expenseReportReadQuerySchema,
   expenseReportResponseSchema
 } from "../schemas/expense-report.schema.js";
 import {
@@ -22,21 +23,28 @@ export class ExpenseReportController {
     private readonly expenseReportService: ExpenseReportService = createExpenseReportService()
   ) {}
 
-  public createExpenseReport = (request: Pick<Request, "body">, response: JsonResponse): void => {
+  public createExpenseReport = async (
+    request: Pick<Request, "body">,
+    response: JsonResponse
+  ): Promise<void> => {
     const parsedRequest = createExpenseReportRequestSchema.parse(request.body);
-    const report = this.expenseReportService.createDraftReport(parsedRequest);
+    const report = await this.expenseReportService.createDraftReport(parsedRequest);
     const parsedResponse = expenseReportResponseSchema.parse(report);
 
     response.status(201).json(parsedResponse);
   };
 
-  public readExpenseReport = (
-    request: Pick<Request, "params">,
+  public readExpenseReport = async (
+    request: Pick<Request, "params" | "query">,
     response: JsonResponse,
     next: NextFunction
-  ): void => {
+  ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
-    const report = this.expenseReportService.findReport(parsedParams.id);
+    const parsedQuery = expenseReportReadQuerySchema.parse(request.query);
+    const report = await this.expenseReportService.findReport(
+      parsedParams.id,
+      parsedQuery.tenantId
+    );
 
     if (report === null) {
       next(new NotFoundError("Expense Report not found."));

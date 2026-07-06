@@ -1,35 +1,30 @@
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { expenseReportPriorities, expenseReportStages } from "../db/schema.js";
+import { expenseReport, expenseReportPriorities, expenseReportStages } from "../db/schema.js";
 
 export const expenseReportStageSchema = z.enum(expenseReportStages);
 
 export const expenseReportPrioritySchema = z.enum(expenseReportPriorities);
 
-export const createExpenseReportRequestSchema = z.object({
-  tenantId: z.uuid(),
-  submitterId: z.string().trim().min(1)
+// The API omits id because the server/database generates it for new Expense Reports.
+export const createExpenseReportRequestSchema = createInsertSchema(expenseReport).omit({
+  id: true
 });
 
 export const expenseReportIdParamSchema = z.object({
   id: z.uuid()
 });
 
-export const expenseReportResponseSchema = z.object({
-  id: z.uuid(),
-  tenantId: z.uuid(),
-  submitterId: z.string().min(1),
-  stage: expenseReportStageSchema,
-  priority: expenseReportPrioritySchema,
-  dueDate: z.iso.date().nullable(),
-  onHold: z.boolean(),
-  holdReason: z.string().min(1).nullable(),
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
+export const expenseReportReadQuerySchema = z.object({
+  tenantId: z.uuid()
 });
+
+export const expenseReportResponseSchema = createSelectSchema(expenseReport);
 
 export type CreateExpenseReportRequest = z.infer<typeof createExpenseReportRequestSchema>;
 export type ExpenseReportIdParam = z.infer<typeof expenseReportIdParamSchema>;
+export type ExpenseReportReadQuery = z.infer<typeof expenseReportReadQuerySchema>;
 export type ExpenseReportResponse = z.infer<typeof expenseReportResponseSchema>;
 export type ExpenseReportStage = z.infer<typeof expenseReportStageSchema>;
 export type ExpenseReportPriority = z.infer<typeof expenseReportPrioritySchema>;

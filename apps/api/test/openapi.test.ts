@@ -38,17 +38,37 @@ describe("generateOpenApiDocument", () => {
     expect(readRouteSchema).toEqual({
       $ref: "#/components/schemas/ExpenseReportResponse"
     });
-    expect(Object.keys(createProperties).sort()).toEqual(["submitterId", "tenantId"]);
+    expect(Object.keys(createProperties).sort()).toEqual(
+      [
+        "apReviewerId",
+        "assignedOwnerId",
+        "createdAt",
+        "currentStage",
+        "dueDate",
+        "holdReason",
+        "managerApproverId",
+        "onHold",
+        "paymentId",
+        "priority",
+        "submitterId",
+        "tenantId",
+        "updatedAt"
+      ].sort()
+    );
     expect(createSchema.required).toEqual(["tenantId", "submitterId"]);
     expect(Object.keys(responseProperties).sort()).toEqual(
       [
+        "apReviewerId",
+        "assignedOwnerId",
         "createdAt",
+        "currentStage",
         "dueDate",
         "holdReason",
         "id",
+        "managerApproverId",
         "onHold",
+        "paymentId",
         "priority",
-        "stage",
         "submitterId",
         "tenantId",
         "updatedAt"
@@ -58,7 +78,11 @@ describe("generateOpenApiDocument", () => {
       "id",
       "tenantId",
       "submitterId",
-      "stage",
+      "assignedOwnerId",
+      "managerApproverId",
+      "apReviewerId",
+      "paymentId",
+      "currentStage",
       "priority",
       "dueDate",
       "onHold",

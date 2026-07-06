@@ -29,27 +29,25 @@ export const expenseReport = pgTable(
   "expense_report",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    tenant_id: uuid("tenant_id").notNull(),
-    submitter_id: text("submitter_id").notNull(),
-    assigned_owner_id: text("assigned_owner_id"),
-    manager_approver_id: text("manager_approver_id"),
-    ap_reviewer_id: text("ap_reviewer_id"),
-    payment_id: text("payment_id"),
-    current_stage: text("current_stage", { enum: expenseReportStages })
-      .notNull()
-      .default("Drafted"),
+    tenantId: uuid("tenant_id").notNull(),
+    submitterId: text("submitter_id").notNull(),
+    assignedOwnerId: text("assigned_owner_id"),
+    managerApproverId: text("manager_approver_id"),
+    apReviewerId: text("ap_reviewer_id"),
+    paymentId: text("payment_id"),
+    currentStage: text("current_stage", { enum: expenseReportStages }).notNull().default("Drafted"),
     priority: text("priority", { enum: expenseReportPriorities }).notNull().default("Normal"),
-    due_date: date("due_date"),
-    on_hold: boolean("on_hold").notNull().default(false),
-    hold_reason: text("hold_reason"),
-    created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updated_at: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+    dueDate: date("due_date"),
+    onHold: boolean("on_hold").notNull().default(false),
+    holdReason: text("hold_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    unique("expense_report_tenant_id_id_unique").on(table.tenant_id, table.id),
+    unique("expense_report_tenant_id_id_unique").on(table.tenantId, table.id),
     check(
       "expense_report_current_stage_check",
-      sql`${table.current_stage} in ('Drafted', 'Submitted', 'Manager Approval', 'AP Review', 'Paid', 'Reconciled')`
+      sql`${table.currentStage} in ('Drafted', 'Submitted', 'Manager Approval', 'AP Review', 'Paid', 'Reconciled')`
     ),
     check(
       "expense_report_priority_check",
@@ -57,9 +55,9 @@ export const expenseReport = pgTable(
     ),
     check(
       "expense_report_hold_reason_check",
-      sql`(${table.on_hold} = false and ${table.hold_reason} is null) or (${table.on_hold} = true and ${table.hold_reason} is not null)`
+      sql`(${table.onHold} = false and ${table.holdReason} is null) or (${table.onHold} = true and ${table.holdReason} is not null)`
     ),
-    index("expense_report_case_queue_idx").on(table.tenant_id, table.current_stage, table.due_date)
+    index("expense_report_case_queue_idx").on(table.tenantId, table.currentStage, table.dueDate)
   ]
 );
 
@@ -88,7 +86,7 @@ export const lineItem = pgTable(
     foreignKey({
       name: "expense_line_item_report_fk",
       columns: [table.tenant_id, table.expense_report_id],
-      foreignColumns: [expenseReport.tenant_id, expenseReport.id]
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
     }).onDelete("cascade"),
     check("expense_line_item_amount_cents_check", sql`${table.amount_cents} > 0`),
     check("expense_line_item_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
@@ -122,7 +120,7 @@ export const attachmentMetadata = pgTable(
     foreignKey({
       name: "attachment_metadata_report_fk",
       columns: [table.tenant_id, table.expense_report_id],
-      foreignColumns: [expenseReport.tenant_id, expenseReport.id]
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
     }).onDelete("cascade"),
     check("attachment_metadata_file_size_bytes_check", sql`${table.file_size_bytes} > 0`),
     unique("attachment_metadata_storage_key_unique").on(table.tenant_id, table.storage_key)
@@ -149,7 +147,7 @@ export const receipt = pgTable(
     foreignKey({
       name: "receipt_report_fk",
       columns: [table.tenant_id, table.expense_report_id],
-      foreignColumns: [expenseReport.tenant_id, expenseReport.id]
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
     }).onDelete("cascade"),
     foreignKey({
       name: "receipt_line_item_report_fk",
@@ -194,7 +192,7 @@ export const mileageEntry = pgTable(
     foreignKey({
       name: "mileage_entry_report_fk",
       columns: [table.tenant_id, table.expense_report_id],
-      foreignColumns: [expenseReport.tenant_id, expenseReport.id]
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
     }).onDelete("cascade"),
     check("mileage_entry_miles_check", sql`${table.miles} > 0`)
   ]
