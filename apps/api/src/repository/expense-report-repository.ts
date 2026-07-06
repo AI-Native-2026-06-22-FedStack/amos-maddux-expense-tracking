@@ -1,31 +1,32 @@
 import { randomUUID } from "node:crypto";
 
-import {
-  CreateExpenseReportRequest,
-  ExpenseReportResponse
-} from "../schemas/expense-report.schema.js";
+import type { ExpenseReportInsert, ExpenseReportSelect } from "../db/schema.js";
 
 export interface ExpenseReportRepository {
-  createDraftReport(request: CreateExpenseReportRequest): ExpenseReportResponse;
-  findById(id: string): ExpenseReportResponse | null;
+  createDraftReport(report: ExpenseReportInsert): ExpenseReportSelect;
+  findById(id: string): ExpenseReportSelect | null;
 }
 
 class InMemoryExpenseReportRepository implements ExpenseReportRepository {
-  private readonly reports = new Map<string, ExpenseReportResponse>();
+  private readonly reports = new Map<string, ExpenseReportSelect>();
 
-  public createDraftReport(request: CreateExpenseReportRequest): ExpenseReportResponse {
-    const now = new Date().toISOString();
-    const report: ExpenseReportResponse = {
+  public createDraftReport(insert: ExpenseReportInsert): ExpenseReportSelect {
+    const now = new Date();
+    const report: ExpenseReportSelect = {
       id: randomUUID(),
-      tenantId: request.tenantId,
-      submitterId: request.submitterId,
-      stage: "Drafted",
-      priority: "Normal",
-      dueDate: null,
-      onHold: false,
-      holdReason: null,
-      createdAt: now,
-      updatedAt: now
+      tenant_id: insert.tenant_id,
+      submitter_id: insert.submitter_id,
+      assigned_owner_id: insert.assigned_owner_id ?? null,
+      manager_approver_id: insert.manager_approver_id ?? null,
+      ap_reviewer_id: insert.ap_reviewer_id ?? null,
+      payment_id: insert.payment_id ?? null,
+      current_stage: insert.current_stage ?? "Drafted",
+      priority: insert.priority ?? "Normal",
+      due_date: insert.due_date ?? null,
+      on_hold: insert.on_hold ?? false,
+      hold_reason: insert.hold_reason ?? null,
+      created_at: now,
+      updated_at: now
     };
 
     this.reports.set(report.id, report);
@@ -33,7 +34,7 @@ class InMemoryExpenseReportRepository implements ExpenseReportRepository {
     return report;
   }
 
-  public findById(id: string): ExpenseReportResponse | null {
+  public findById(id: string): ExpenseReportSelect | null {
     return this.reports.get(id) ?? null;
   }
 }

@@ -1,35 +1,11 @@
 import { faker } from "@faker-js/faker";
 
-export const expenseReportStages = [
-  "Drafted",
-  "Submitted",
-  "Manager Approval",
-  "AP Review",
-  "Paid",
-  "Reconciled"
-] as const;
-
-export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as const;
+import { expenseReportPriorities, expenseReportStages } from "../../src/db/schema.js";
+import type { ExpenseReportSelect } from "../../src/db/schema.js";
 
 export type ExpenseReportStage = (typeof expenseReportStages)[number];
 export type ExpenseReportPriority = (typeof expenseReportPriorities)[number];
-
-export interface ExpenseReportRow {
-  id: string;
-  tenant_id: string;
-  submitter_id: string;
-  assigned_owner_id: string | null;
-  manager_approver_id: string | null;
-  ap_reviewer_id: string | null;
-  payment_id: string | null;
-  current_stage: ExpenseReportStage;
-  priority: ExpenseReportPriority;
-  due_date: string | null;
-  on_hold: boolean;
-  hold_reason: string | null;
-  created_at: Date;
-  updated_at: Date;
-}
+export type ExpenseReportRow = ExpenseReportSelect;
 
 export type ExpenseReportOverrides = Partial<ExpenseReportRow>;
 

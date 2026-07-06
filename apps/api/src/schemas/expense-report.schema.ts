@@ -1,15 +1,10 @@
 import { z } from "zod";
 
-export const expenseReportStageSchema = z.enum([
-  "Drafted",
-  "Submitted",
-  "Manager Approval",
-  "AP Review",
-  "Paid",
-  "Reconciled"
-]);
+import { expenseReportPriorities, expenseReportStages } from "../db/schema.js";
 
-export const expenseReportPrioritySchema = z.enum(["Low", "Normal", "High", "Urgent"]);
+export const expenseReportStageSchema = z.enum(expenseReportStages);
+
+export const expenseReportPrioritySchema = z.enum(expenseReportPriorities);
 
 export const createExpenseReportRequestSchema = z.object({
   tenantId: z.uuid(),
