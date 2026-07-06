@@ -198,6 +198,61 @@ export const mileageEntry = pgTable(
   ]
 );
 
+export const auditEntry = pgTable(
+  "audit_entry",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    expenseReportId: uuid("expense_report_id").notNull(),
+    actorId: text("actor_id").notNull(),
+    action: text("action").notNull(),
+    details: text("details"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("audit_entry_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({
+      name: "audit_entry_report_fk",
+      columns: [table.tenantId, table.expenseReportId],
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
+    }).onDelete("restrict")
+  ]
+);
+
+export const stageTransition = pgTable(
+  "stage_transition",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    expenseReportId: uuid("expense_report_id").notNull(),
+    fromStage: text("from_stage", { enum: expenseReportStages }),
+    toStage: text("to_stage", { enum: expenseReportStages }).notNull(),
+    actorId: text("actor_id").notNull(),
+    reason: text("reason"),
+    transitionedAt: timestamp("transitioned_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("stage_transition_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({
+      name: "stage_transition_report_fk",
+      columns: [table.tenantId, table.expenseReportId],
+      foreignColumns: [expenseReport.tenantId, expenseReport.id]
+    }).onDelete("restrict"),
+    check(
+      "stage_transition_from_stage_check",
+      sql`${table.fromStage} is null or ${table.fromStage} in ('Drafted', 'Submitted', 'Manager Approval', 'AP Review', 'Paid', 'Reconciled')`
+    ),
+    check(
+      "stage_transition_to_stage_check",
+      sql`${table.toStage} in ('Drafted', 'Submitted', 'Manager Approval', 'AP Review', 'Paid', 'Reconciled')`
+    ),
+    check(
+      "stage_transition_stage_change_check",
+      sql`${table.fromStage} is null or ${table.fromStage} <> ${table.toStage}`
+    )
+  ]
+);
+
 export type ExpenseReportSelect = typeof expenseReport.$inferSelect;
 export type ExpenseReportInsert = typeof expenseReport.$inferInsert;
 export type LineItemSelect = typeof lineItem.$inferSelect;
@@ -206,3 +261,7 @@ export type ReceiptSelect = typeof receipt.$inferSelect;
 export type ReceiptInsert = typeof receipt.$inferInsert;
 export type MileageEntrySelect = typeof mileageEntry.$inferSelect;
 export type MileageEntryInsert = typeof mileageEntry.$inferInsert;
+export type AuditEntrySelect = typeof auditEntry.$inferSelect;
+export type AuditEntryInsert = typeof auditEntry.$inferInsert;
+export type StageTransitionSelect = typeof stageTransition.$inferSelect;
+export type StageTransitionInsert = typeof stageTransition.$inferInsert;

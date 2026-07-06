@@ -22,6 +22,19 @@ describe("createApp", () => {
     });
   });
 
+  it("returns the dependency readiness body from GET /ready", async () => {
+    const response = await inject(createApp(), {
+      method: "GET",
+      url: "/ready"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      service: "ExpenseFlow API",
+      status: "ready"
+    });
+  });
+
   it("serves the generated OpenAPI document", async () => {
     const response = await inject(createApp(), {
       method: "GET",

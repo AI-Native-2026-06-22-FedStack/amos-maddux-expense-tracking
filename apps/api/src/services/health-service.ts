@@ -1,11 +1,13 @@
 import {
   HealthRepository,
+  ReadinessStatusRecord,
   ServiceStatusRecord,
   createHealthRepository
 } from "../repository/health-repository.js";
 
 export interface HealthService {
   readStatus(): ServiceStatusRecord;
+  readReadiness(): Promise<ReadinessStatusRecord>;
   throwSyntheticFailure(): never;
 }
 
@@ -14,6 +16,10 @@ class RepositoryHealthService implements HealthService {
 
   public readStatus(): ServiceStatusRecord {
     return this.healthRepository.readServiceStatus();
+  }
+
+  public readReadiness(): Promise<ReadinessStatusRecord> {
+    return this.healthRepository.readReadinessStatus();
   }
 
   public throwSyntheticFailure(): never {

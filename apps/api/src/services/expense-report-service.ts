@@ -18,7 +18,10 @@ class RepositoryExpenseReportService implements ExpenseReportService {
   public async createDraftReport(
     request: CreateExpenseReportRequest
   ): Promise<ExpenseReportResponse> {
-    const report = await this.expenseReportRepository.createDraftReport(request);
+    const report = await this.expenseReportRepository.createDraftReport({
+      ...request,
+      currentStage: "Drafted"
+    });
 
     return report;
   }

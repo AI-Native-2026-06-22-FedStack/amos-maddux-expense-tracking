@@ -3,7 +3,14 @@ import { describe, expect, it } from "vitest";
 import { getTableColumns, getTableName } from "drizzle-orm";
 import pg from "pg";
 
-import { expenseReport, lineItem, mileageEntry, receipt } from "../src/db/schema.js";
+import {
+  auditEntry,
+  expenseReport,
+  lineItem,
+  mileageEntry,
+  receipt,
+  stageTransition
+} from "../src/db/schema.js";
 
 const { Client } = pg;
 
@@ -135,6 +142,50 @@ const tableShapes = [
       "mileage_entry_tenant_id_id_unique"
     ],
     indexes: ["mileage_entry_pkey", "mileage_entry_tenant_id_id_unique"]
+  },
+  {
+    table: auditEntry,
+    columns: {
+      id: { dataType: "uuid", nullable: false, defaultExpression: "gen_random_uuid()" },
+      tenant_id: { dataType: "uuid", nullable: false },
+      expense_report_id: { dataType: "uuid", nullable: false },
+      actor_id: { dataType: "text", nullable: false },
+      action: { dataType: "text", nullable: false },
+      details: { dataType: "text", nullable: true },
+      occurred_at: {
+        dataType: "timestamp with time zone",
+        nullable: false,
+        defaultExpression: "now()"
+      }
+    },
+    constraints: ["audit_entry_pkey", "audit_entry_report_fk", "audit_entry_tenant_id_id_unique"],
+    indexes: ["audit_entry_pkey", "audit_entry_tenant_id_id_unique"]
+  },
+  {
+    table: stageTransition,
+    columns: {
+      id: { dataType: "uuid", nullable: false, defaultExpression: "gen_random_uuid()" },
+      tenant_id: { dataType: "uuid", nullable: false },
+      expense_report_id: { dataType: "uuid", nullable: false },
+      from_stage: { dataType: "text", nullable: true },
+      to_stage: { dataType: "text", nullable: false },
+      actor_id: { dataType: "text", nullable: false },
+      reason: { dataType: "text", nullable: true },
+      transitioned_at: {
+        dataType: "timestamp with time zone",
+        nullable: false,
+        defaultExpression: "now()"
+      }
+    },
+    constraints: [
+      "stage_transition_from_stage_check",
+      "stage_transition_pkey",
+      "stage_transition_report_fk",
+      "stage_transition_stage_change_check",
+      "stage_transition_tenant_id_id_unique",
+      "stage_transition_to_stage_check"
+    ],
+    indexes: ["stage_transition_pkey", "stage_transition_tenant_id_id_unique"]
   }
 ] as const;
 

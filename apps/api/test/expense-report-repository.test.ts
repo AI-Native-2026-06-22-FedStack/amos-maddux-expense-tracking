@@ -4,6 +4,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import * as schema from "../src/db/schema.js";
+import { lineItem } from "../src/db/schema.js";
 import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
 
@@ -66,7 +67,83 @@ describe("ExpenseReportRepository integration", () => {
 
     await expect(repository.findById(created.id, tenantB)).resolves.toBeNull();
   });
+
+  it("lists Expense Reports with line items in a single tenant-scoped left join query", async () => {
+    const logger = new QueryCountingLogger();
+    const db = drizzle(client, { schema, logger });
+    const repository = createExpenseReportRepository(db);
+    const firstReport = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000411"
+    });
+    const secondReport = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000412"
+    });
+    const otherTenantReport = await repository.createDraftReport({
+      tenantId: tenantB,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000413"
+    });
+
+    await db.insert(lineItem).values([
+      {
+        tenant_id: tenantA,
+        expense_report_id: firstReport.id,
+        merchant: "Synthetic Office Supply",
+        amount_cents: 1200,
+        currency: "USD",
+        category: "Office"
+      },
+      {
+        tenant_id: tenantA,
+        expense_report_id: secondReport.id,
+        merchant: "Synthetic Team Lunch",
+        amount_cents: 2400,
+        currency: "USD",
+        category: "Meals"
+      },
+      {
+        tenant_id: tenantB,
+        expense_report_id: otherTenantReport.id,
+        merchant: "Synthetic Other Tenant Vendor",
+        amount_cents: 3600,
+        currency: "USD",
+        category: "Travel"
+      }
+    ]);
+
+    logger.reset();
+    const reports = await repository.listWithLineItems(tenantA);
+
+    expect(reports).toHaveLength(2);
+    expect(reports.map((report) => report.id).sort()).toEqual(
+      [firstReport.id, secondReport.id].sort()
+    );
+
+    for (const report of reports) {
+      expect(report.tenantId).toBe(tenantA);
+      expect(report.lineItems).toHaveLength(1);
+
+      for (const item of report.lineItems) {
+        expect(item.tenant_id).toBe(tenantA);
+        expect(item.expense_report_id).toBe(report.id);
+      }
+    }
+    expect(logger.queryCount).toBe(1);
+  });
 });
+
+class QueryCountingLogger {
+  public queryCount = 0;
+
+  public logQuery(): void {
+    this.queryCount += 1;
+  }
+
+  public reset(): void {
+    this.queryCount = 0;
+  }
+}
 
 function getDatabaseUrl(): string {
   if (process.env.DATABASE_URL === undefined) {
