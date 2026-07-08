@@ -1,10 +1,18 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { db as defaultDb } from "../db/client.js";
 import * as schema from "../db/schema.js";
-import { credential, mfaEnrollment, refreshToken, role, user } from "../db/schema.js";
+import {
+  authAuditEntry,
+  credential,
+  mfaEnrollment,
+  refreshToken,
+  role,
+  user
+} from "../db/schema.js";
 import type {
+  AuthAuditEntrySelect,
   CredentialSelect,
   MfaEnrollmentSelect,
   RefreshTokenSelect,
@@ -44,6 +52,14 @@ export interface CreateRefreshTokenInput {
   expiresAt: Date;
 }
 
+export interface CreateAuthAuditEntryInput {
+  tenantId: string;
+  userId: string | null;
+  eventType: string;
+  outcome: "success" | "failure";
+  reason: string | null;
+}
+
 export interface AuthRepository {
   createRegisteredUser(input: CreateRegisteredUserInput): Promise<RegisteredUserRecord>;
   findCredentialByEmail(tenantId: string, email: string): Promise<UserCredentialRecord | null>;
@@ -54,6 +70,8 @@ export interface AuthRepository {
   ): Promise<AuthenticatedUserRoleRecord | null>;
   createRefreshToken(input: CreateRefreshTokenInput): Promise<RefreshTokenSelect>;
   revokeRefreshToken(tenantId: string, tokenHash: string): Promise<void>;
+  acceptTotpTimeStep(tenantId: string, userId: string, timeStep: number): Promise<boolean>;
+  createAuthAuditEntry(input: CreateAuthAuditEntryInput): Promise<AuthAuditEntrySelect>;
 }
 
 class DrizzleAuthRepository implements AuthRepository {
@@ -102,6 +120,27 @@ class DrizzleAuthRepository implements AuthRepository {
         mfaEnrollment: createdMfaEnrollment
       };
     });
+  }
+
+  public async createAuthAuditEntry(
+    input: CreateAuthAuditEntryInput
+  ): Promise<AuthAuditEntrySelect> {
+    const [createdAuditEntry] = await this.db
+      .insert(authAuditEntry)
+      .values({
+        tenantId: input.tenantId,
+        userId: input.userId,
+        eventType: input.eventType,
+        outcome: input.outcome,
+        reason: input.reason
+      })
+      .returning();
+
+    if (createdAuditEntry === undefined) {
+      throw new Error("Auth audit entry creation failed.");
+    }
+
+    return createdAuditEntry;
   }
 
   public async findCredentialByEmail(
@@ -177,6 +216,34 @@ class DrizzleAuthRepository implements AuthRepository {
       .update(refreshToken)
       .set({ revokedAt: new Date() })
       .where(and(eq(refreshToken.tenantId, tenantId), eq(refreshToken.tokenHash, tokenHash)));
+  }
+
+  public async acceptTotpTimeStep(
+    tenantId: string,
+    userId: string,
+    timeStep: number
+  ): Promise<boolean> {
+    const acceptedAt = new Date();
+    const acceptedRows = await this.db
+      .update(mfaEnrollment)
+      .set({
+        lastAcceptedTotpTimeStep: timeStep,
+        lastAcceptedTotpAt: acceptedAt
+      })
+      .where(
+        and(
+          eq(mfaEnrollment.tenantId, tenantId),
+          eq(mfaEnrollment.userId, userId),
+          isNull(mfaEnrollment.disabledAt),
+          or(
+            isNull(mfaEnrollment.lastAcceptedTotpTimeStep),
+            lt(mfaEnrollment.lastAcceptedTotpTimeStep, timeStep)
+          )
+        )
+      )
+      .returning({ id: mfaEnrollment.id });
+
+    return acceptedRows.length === 1;
   }
 }
 

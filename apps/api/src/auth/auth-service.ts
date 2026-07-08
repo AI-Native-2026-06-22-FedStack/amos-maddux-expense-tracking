@@ -1,11 +1,23 @@
 import { AuthRepository, createAuthRepository } from "./auth-repository.js";
 import { hashPassword, verifyPasswordHash } from "./hashing.js";
-import { createTotpEnrollment, verifyTotpCode } from "./mfa.js";
+import { createTotpEnrollment, getCurrentTotpTimeStep, verifyTotpCode } from "./mfa.js";
 import { AuthenticatedPrincipal, IssuedTokenPair, issueTokenPair } from "./tokens.js";
 
 export const genericUnauthorizedMessage = "Invalid email or password.";
 
 const defaultTotpSecretKeyId = "totp-secret-key-unconfigured";
+
+const authAuditEvents = {
+  registrationSucceeded: "registration_succeeded",
+  passwordVerifiedMfaRequired: "password_verified_mfa_required",
+  mfaSucceeded: "mfa_succeeded",
+  loginFailedUnknownUser: "login_failed_unknown_user",
+  loginFailedWrongPassword: "login_failed_wrong_password",
+  mfaFailedWrongTotp: "mfa_failed_wrong_totp",
+  mfaFailedReplay: "mfa_failed_replay",
+  mfaFailedMissingEnrollment: "mfa_failed_missing_enrollment",
+  mfaFailedUserLookup: "mfa_failed_user_lookup"
+} as const;
 
 export interface TotpSecretProtector {
   protect(secret: string): Promise<string>;
@@ -103,6 +115,11 @@ class RepositoryAuthService implements AuthService {
       protectedTotpSecret,
       totpSecretKeyId: this.totpSecretProtector.keyId()
     });
+    await this.auditSuccess({
+      tenantId: registered.user.tenantId,
+      userId: registered.user.id,
+      eventType: authAuditEvents.registrationSucceeded
+    });
 
     return {
       tenantId: registered.user.tenantId,
@@ -119,6 +136,12 @@ class RepositoryAuthService implements AuthService {
     const record = await this.authRepository.findCredentialByEmail(request.tenantId, request.email);
 
     if (record === null) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: null,
+        eventType: authAuditEvents.loginFailedUnknownUser,
+        reason: "unknown_user"
+      });
       return unauthorizedLoginResult();
     }
 
@@ -128,8 +151,20 @@ class RepositoryAuthService implements AuthService {
     );
 
     if (!passwordMatches) {
+      await this.auditFailure({
+        tenantId: record.user.tenantId,
+        userId: record.user.id,
+        eventType: authAuditEvents.loginFailedWrongPassword,
+        reason: "wrong_password"
+      });
       return unauthorizedLoginResult();
     }
+
+    await this.auditSuccess({
+      tenantId: record.user.tenantId,
+      userId: record.user.id,
+      eventType: authAuditEvents.passwordVerifiedMfaRequired
+    });
 
     return {
       status: "mfa_required",
@@ -146,13 +181,62 @@ class RepositoryAuthService implements AuthService {
     );
 
     if (enrollment === null) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.mfaFailedMissingEnrollment,
+        reason: "missing_mfa_enrollment"
+      });
       return invalidMfaResult();
     }
 
     const secret = await this.totpSecretProtector.reveal(enrollment.encryptedTotpSecret);
-    const validCode = await verifyTotpCode({ secret, code: request.code });
+    const currentTotpTimeStep = getCurrentTotpTimeStep();
+    const validNotReplayedCode = await verifyTotpCode({
+      secret,
+      code: request.code,
+      afterTimeStep: enrollment.lastAcceptedTotpTimeStep
+    });
 
-    if (!validCode) {
+    if (!validNotReplayedCode) {
+      const validCurrentCode = await verifyTotpCode({ secret, code: request.code });
+
+      if (
+        validCurrentCode &&
+        enrollment.lastAcceptedTotpTimeStep !== null &&
+        enrollment.lastAcceptedTotpTimeStep >= currentTotpTimeStep
+      ) {
+        await this.auditFailure({
+          tenantId: request.tenantId,
+          userId: request.userId,
+          eventType: authAuditEvents.mfaFailedReplay,
+          reason: "totp_replay"
+        });
+        return invalidMfaResult();
+      }
+
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.mfaFailedWrongTotp,
+        reason: "wrong_totp"
+      });
+      return invalidMfaResult();
+    }
+
+    const acceptedTimeStep = await this.authRepository.acceptTotpTimeStep(
+      request.tenantId,
+      request.userId,
+      currentTotpTimeStep
+    );
+
+    if (!acceptedTimeStep) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.mfaFailedReplay,
+        reason: "totp_replay"
+      });
       return invalidMfaResult();
     }
 
@@ -162,6 +246,12 @@ class RepositoryAuthService implements AuthService {
     );
 
     if (authenticatedUser === null) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.mfaFailedUserLookup,
+        reason: "user_lookup_failed"
+      });
       return invalidMfaResult();
     }
 
@@ -178,6 +268,11 @@ class RepositoryAuthService implements AuthService {
       tokenHash: tokenPair.refreshTokenHash,
       expiresAt: tokenPair.refreshTokenExpiresAt
     });
+    await this.auditSuccess({
+      tenantId: authenticatedUser.user.tenantId,
+      userId: authenticatedUser.user.id,
+      eventType: authAuditEvents.mfaSucceeded
+    });
 
     return {
       status: "authenticated",
@@ -187,6 +282,30 @@ class RepositoryAuthService implements AuthService {
       accessToken: tokenPair.accessToken,
       refreshToken: tokenPair.refreshToken
     };
+  }
+
+  private async auditSuccess(input: {
+    tenantId: string;
+    userId: string;
+    eventType: string;
+  }): Promise<void> {
+    await this.authRepository.createAuthAuditEntry({
+      ...input,
+      outcome: "success",
+      reason: null
+    });
+  }
+
+  private async auditFailure(input: {
+    tenantId: string;
+    userId: string | null;
+    eventType: string;
+    reason: string;
+  }): Promise<void> {
+    await this.authRepository.createAuthAuditEntry({
+      ...input,
+      outcome: "failure"
+    });
   }
 }
 

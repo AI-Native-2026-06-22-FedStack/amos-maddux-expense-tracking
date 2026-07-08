@@ -13,7 +13,7 @@ import { TotpSecretProtector, createAuthService } from "../../src/auth/auth-serv
 import { generateTotpCode } from "../../src/auth/mfa.js";
 import { hashRefreshToken, issueTokenPair, loadJwtRuntimeConfig } from "../../src/auth/tokens.js";
 import * as schema from "../../src/db/schema.js";
-import { expenseReport, refreshToken, role } from "../../src/db/schema.js";
+import { authAuditEntry, expenseReport, refreshToken, role } from "../../src/db/schema.js";
 
 const { Client } = pg;
 
@@ -163,6 +163,22 @@ describe("authentication attack regression suite", () => {
     expect(unknownUserResult).toEqual(wrongPasswordResult);
     expect("accessToken" in unknownUserResult).toBe(false);
     expect("accessToken" in wrongPasswordResult).toBe(false);
+    await expect(findAuthAuditEvents(tenantA)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "login_failed_unknown_user",
+          outcome: "failure",
+          reason: "unknown_user",
+          userId: null
+        }),
+        expect.objectContaining({
+          eventType: "login_failed_wrong_password",
+          outcome: "failure",
+          reason: "wrong_password",
+          userId: expect.any(String)
+        })
+      ])
+    );
   });
 
   it("rejects a wrong TOTP code and issues no token", async () => {
@@ -190,6 +206,12 @@ describe("authentication attack regression suite", () => {
     });
     expect("accessToken" in result).toBe(false);
     await expectRefreshTokenCount(tenantA, registered.userId, 0);
+    await expect(findAuthAuditEvents(tenantA)).resolves.toContainEqual({
+      eventType: "mfa_failed_wrong_totp",
+      outcome: "failure",
+      reason: "wrong_totp",
+      userId: registered.userId
+    });
   });
 
   it("issues tokens after valid password and TOTP and persists only the refresh token hash", async () => {
@@ -281,6 +303,28 @@ async function expectRefreshTokenCount(
     .where(and(eq(refreshToken.tenantId, tenantId), eq(refreshToken.userId, refreshTokenUserId)));
 
   expect(rows).toHaveLength(expectedCount);
+}
+
+async function findAuthAuditEvents(tenantId: string): Promise<
+  Array<{
+    eventType: string;
+    outcome: string;
+    reason: string | null;
+    userId: string | null;
+  }>
+> {
+  const db = drizzle(client, { schema });
+  const rows = await db
+    .select({
+      eventType: authAuditEntry.eventType,
+      outcome: authAuditEntry.outcome,
+      reason: authAuditEntry.reason,
+      userId: authAuditEntry.userId
+    })
+    .from(authAuditEntry)
+    .where(eq(authAuditEntry.tenantId, tenantId));
+
+  return rows;
 }
 
 async function findRefreshToken(

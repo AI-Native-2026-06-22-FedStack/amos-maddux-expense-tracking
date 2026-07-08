@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -11,7 +11,7 @@ import { verifyPasswordHash } from "../src/auth/hashing.js";
 import { generateTotpCode } from "../src/auth/mfa.js";
 import { hashRefreshToken } from "../src/auth/tokens.js";
 import * as schema from "../src/db/schema.js";
-import { credential, refreshToken, role } from "../src/db/schema.js";
+import { authAuditEntry, credential, mfaEnrollment, refreshToken, role } from "../src/db/schema.js";
 
 const { Client } = pg;
 
@@ -31,6 +31,7 @@ describe("AuthService integration", () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await client.end();
   });
 
@@ -47,9 +48,16 @@ describe("AuthService integration", () => {
     });
 
     const storedCredential = await findCredential(db, registered.userId);
+    const auditEvents = await findAuthAuditEvents(db);
 
     expect(storedCredential.passwordHash).not.toBe(syntheticPassword);
     expect(storedCredential.passwordHash).toContain("$argon2id$");
+    expect(auditEvents).toContainEqual({
+      eventType: "registration_succeeded",
+      outcome: "success",
+      reason: null,
+      userId: registered.userId
+    });
   });
 
   it("stores an argon2id hash that verifies with the correct password", async () => {
@@ -92,8 +100,21 @@ describe("AuthService integration", () => {
       email: unknownSyntheticEmail,
       password: syntheticPassword
     });
+    const auditEvents = await findAuthAuditEvents(drizzle(client, { schema }));
 
     expect(wrongPasswordResult).toEqual(unknownUserResult);
+    expect(auditEvents).toContainEqual({
+      eventType: "login_failed_wrong_password",
+      outcome: "failure",
+      reason: "wrong_password",
+      userId: expect.any(String)
+    });
+    expect(auditEvents).toContainEqual({
+      eventType: "login_failed_unknown_user",
+      outcome: "failure",
+      reason: "unknown_user",
+      userId: null
+    });
   });
 
   it("requires MFA after a correct password and does not issue a token", async () => {
@@ -113,6 +134,7 @@ describe("AuthService integration", () => {
       email: syntheticEmail,
       password: syntheticPassword
     });
+    const auditEvents = await findAuthAuditEvents(drizzle(client, { schema }));
 
     expect(loginResult).toEqual({
       status: "mfa_required",
@@ -121,6 +143,12 @@ describe("AuthService integration", () => {
       message: "MFA required."
     });
     expect("accessToken" in loginResult).toBe(false);
+    expect(auditEvents).toContainEqual({
+      eventType: "password_verified_mfa_required",
+      outcome: "success",
+      reason: null,
+      userId: registered.userId
+    });
   });
 
   it("completes authentication with a valid TOTP code and persists a refresh token hash", async () => {
@@ -157,9 +185,20 @@ describe("AuthService integration", () => {
     }
 
     const storedRefreshToken = await findRefreshToken(db, result.refreshToken);
+    const storedMfaEnrollment = await findMfaEnrollment(db, registered.userId);
+    const auditEvents = await findAuthAuditEvents(db);
+
     expect(storedRefreshToken.userId).toBe(registered.userId);
     expect(storedRefreshToken.tokenHash).toBe(hashRefreshToken(result.refreshToken));
     expect(storedRefreshToken.tokenHash).not.toBe(result.refreshToken);
+    expect(storedMfaEnrollment.lastAcceptedTotpTimeStep).toEqual(expect.any(Number));
+    expect(storedMfaEnrollment.lastAcceptedTotpAt).toBeInstanceOf(Date);
+    expect(auditEvents).toContainEqual({
+      eventType: "mfa_succeeded",
+      outcome: "success",
+      reason: null,
+      userId: registered.userId
+    });
   });
 
   it("rejects an invalid TOTP code and does not issue a token", async () => {
@@ -187,6 +226,55 @@ describe("AuthService integration", () => {
       message: "Invalid MFA code."
     });
     expect("accessToken" in result).toBe(false);
+
+    await expect(findAuthAuditEvents(drizzle(client, { schema }))).resolves.toContainEqual({
+      eventType: "mfa_failed_wrong_totp",
+      outcome: "failure",
+      reason: "wrong_totp",
+      userId: registered.userId
+    });
+  });
+
+  it("rejects a replayed TOTP code and writes a safe audit entry", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:05.000Z"));
+
+    const db = drizzle(client, { schema });
+    const { service } = createServiceContext(client);
+    const roleId = await createTenantRole(db);
+
+    const registered = await service.register({
+      tenantId,
+      roleId,
+      email: syntheticEmail,
+      displayName: syntheticDisplayName,
+      password: syntheticPassword
+    });
+    const code = await generateTotpCode(registered.mfa.secret);
+    const firstResult = await service.completeMfaLogin({
+      tenantId,
+      userId: registered.userId,
+      code
+    });
+    const replayResult = await service.completeMfaLogin({
+      tenantId,
+      userId: registered.userId,
+      code
+    });
+
+    expect(firstResult).toMatchObject({ status: "authenticated" });
+    expect(replayResult).toEqual({
+      status: "unauthorized",
+      message: "Invalid MFA code."
+    });
+    expect("accessToken" in replayResult).toBe(false);
+    await expect(findRefreshTokenCount(db, registered.userId)).resolves.toBe(1);
+    await expect(findAuthAuditEvents(db)).resolves.toContainEqual({
+      eventType: "mfa_failed_replay",
+      outcome: "failure",
+      reason: "totp_replay",
+      userId: registered.userId
+    });
   });
 });
 
@@ -256,6 +344,53 @@ async function findRefreshToken(
   }
 
   return storedRefreshToken;
+}
+
+async function findRefreshTokenCount(db: TestDatabase, userId: string): Promise<number> {
+  const rows = await db
+    .select()
+    .from(refreshToken)
+    .where(and(eq(refreshToken.tenantId, tenantId), eq(refreshToken.userId, userId)));
+
+  return rows.length;
+}
+
+async function findMfaEnrollment(
+  db: TestDatabase,
+  userId: string
+): Promise<typeof mfaEnrollment.$inferSelect> {
+  const [storedMfaEnrollment] = await db
+    .select()
+    .from(mfaEnrollment)
+    .where(and(eq(mfaEnrollment.tenantId, tenantId), eq(mfaEnrollment.userId, userId)))
+    .limit(1);
+
+  if (storedMfaEnrollment === undefined) {
+    throw new Error("Synthetic MFA enrollment setup failed.");
+  }
+
+  return storedMfaEnrollment;
+}
+
+async function findAuthAuditEvents(db: TestDatabase): Promise<
+  Array<{
+    eventType: string;
+    outcome: string;
+    reason: string | null;
+    userId: string | null;
+  }>
+> {
+  const rows = await db
+    .select({
+      eventType: authAuditEntry.eventType,
+      outcome: authAuditEntry.outcome,
+      reason: authAuditEntry.reason,
+      userId: authAuditEntry.userId
+    })
+    .from(authAuditEntry)
+    .where(eq(authAuditEntry.tenantId, tenantId));
+
+  return rows;
 }
 
 class SyntheticNoOpTotpSecretProtector implements TotpSecretProtector {

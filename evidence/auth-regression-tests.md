@@ -24,13 +24,20 @@ Test suite: `apps/api/test/auth/auth.attacks.test.ts`
 | Wrong password login                           | Generic failure                                    | Response matches unknown-user failure and has no token fields                         |
 | Wrong TOTP code                                | Authentication fails                               | Unauthorized result and no refresh token is persisted                                 |
 | Valid password plus valid TOTP                 | Authentication succeeds                            | Access token and refresh token are returned; only the refresh-token hash is persisted |
+| Replayed TOTP code                             | Authentication fails                               | Unauthorized result, no second refresh token, and `mfa_failed_replay` is audited      |
+| Auth identity migration                        | Migration applies and auth tables exist            | Fresh PostgreSQL container applies migrations and finds all identity/auth tables      |
+| Seeded role catalog                            | Fixed roles exist for system tenant                | Migration verification finds the four required role names                             |
 
-## Limitations
+## Hardening Evidence
 
-- Authentication audit logging is not implemented yet, so the suite cannot assert failed or
-  successful authentication audit entries through persistence.
-- TOTP replay protection is not implemented because the schema does not store accepted TOTP time
-  steps, so replay rejection is not asserted.
+- Authentication outcomes write safe `auth_audit_entry` rows with event type, outcome, tenant id,
+  optional user id, and generic reason category only.
+- Persisted TOTP replay protection stores the last accepted TOTP time step on the MFA enrollment.
+  A reused code in the same time step is rejected before token issuance.
+- Migration verification uses a fresh PostgreSQL container and the real Drizzle migrations. It
+  verifies `user`, `credential`, `role`, `refresh_token`, and `mfa_enrollment`; `tenant_id not null`;
+  seeded role names; `credential.password_hash`; absence of plaintext password columns; and the
+  protected MFA secret storage boundary.
 - Public HTTP registration/login routes do not exist yet. Login-flow regressions are therefore
   tested through the real auth service, repository, and database rather than an HTTP auth endpoint.
 

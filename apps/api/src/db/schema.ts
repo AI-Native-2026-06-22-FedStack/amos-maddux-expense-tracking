@@ -115,6 +115,8 @@ export const mfaEnrollment = pgTable(
     userId: uuid("user_id").notNull(),
     encryptedTotpSecret: text("encrypted_totp_secret").notNull(),
     totpSecretKeyId: text("totp_secret_key_id").notNull(),
+    lastAcceptedTotpTimeStep: integer("last_accepted_totp_time_step"),
+    lastAcceptedTotpAt: timestamp("last_accepted_totp_at", { withTimezone: true }),
     enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
     disabledAt: timestamp("disabled_at", { withTimezone: true })
   },
@@ -126,6 +128,24 @@ export const mfaEnrollment = pgTable(
       columns: [table.tenantId, table.userId],
       foreignColumns: [user.tenantId, user.id]
     }).onDelete("cascade")
+  ]
+);
+
+export const authAuditEntry = pgTable(
+  "auth_audit_entry",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    userId: uuid("user_id"),
+    eventType: text("event_type").notNull(),
+    outcome: text("outcome").notNull(),
+    reason: text("reason"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("auth_audit_entry_tenant_id_id_unique").on(table.tenantId, table.id),
+    index("auth_audit_entry_tenant_event_idx").on(table.tenantId, table.eventType),
+    index("auth_audit_entry_tenant_user_idx").on(table.tenantId, table.userId)
   ]
 );
 
@@ -379,3 +399,5 @@ export type RefreshTokenSelect = typeof refreshToken.$inferSelect;
 export type RefreshTokenInsert = typeof refreshToken.$inferInsert;
 export type MfaEnrollmentSelect = typeof mfaEnrollment.$inferSelect;
 export type MfaEnrollmentInsert = typeof mfaEnrollment.$inferInsert;
+export type AuthAuditEntrySelect = typeof authAuditEntry.$inferSelect;
+export type AuthAuditEntryInsert = typeof authAuditEntry.$inferInsert;
