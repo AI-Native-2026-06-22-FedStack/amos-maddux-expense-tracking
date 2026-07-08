@@ -9,7 +9,9 @@ export const expenseReportPrioritySchema = z.enum(expenseReportPriorities);
 
 // The API omits id because the server/database generates it for new Expense Reports.
 export const createExpenseReportRequestSchema = createInsertSchema(expenseReport).omit({
-  id: true
+  id: true,
+  tenantId: true,
+  submitterId: true
 });
 
 export const expenseReportIdParamSchema = z.object({

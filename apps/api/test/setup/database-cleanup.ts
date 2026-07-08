@@ -6,6 +6,11 @@ const { Client } = pg;
 
 const truncateDatabaseSql = `
 TRUNCATE
+    credential,
+    mfa_enrollment,
+    refresh_token,
+    "user",
+    "role",
     audit_entry,
     stage_transition,
     expense_report,

@@ -1,5 +1,9 @@
 dist/
 node_modules/
+.env
+.env.*
+!.env.example
+.keys/
 .venv/
 .uv-cache/
 .uv-python/

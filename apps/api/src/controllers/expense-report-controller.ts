@@ -1,5 +1,6 @@
 import { NextFunction, Request } from "express";
 
+import { RequestWithAuthContext, requireAuthenticatedContext } from "../auth/verifier.js";
 import { NotFoundError } from "../errors/problem-json.js";
 import {
   createExpenseReportRequestSchema,
@@ -24,11 +25,16 @@ export class ExpenseReportController {
   ) {}
 
   public createExpenseReport = async (
-    request: Pick<Request, "body">,
+    request: Pick<RequestWithAuthContext, "authContext" | "body">,
     response: JsonResponse
   ): Promise<void> => {
     const parsedRequest = createExpenseReportRequestSchema.parse(request.body);
-    const report = await this.expenseReportService.createDraftReport(parsedRequest);
+    const authContext = requireAuthenticatedContext(request);
+    const report = await this.expenseReportService.createDraftReport({
+      ...parsedRequest,
+      tenantId: authContext.tenantId,
+      submitterId: authContext.userId
+    });
     const parsedResponse = expenseReportResponseSchema.parse(report);
 
     response.status(201).json(parsedResponse);
