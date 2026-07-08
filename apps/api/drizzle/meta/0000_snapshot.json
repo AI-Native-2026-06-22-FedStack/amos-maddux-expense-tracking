@@ -71,14 +71,8 @@
           "name": "attachment_metadata_report_fk",
           "tableFrom": "attachment_metadata",
           "tableTo": "expense_report",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id"],
+          "columnsTo": ["tenant_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -88,27 +82,17 @@
         "attachment_metadata_tenant_id_id_unique": {
           "name": "attachment_metadata_tenant_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "id"]
         },
         "attachment_metadata_tenant_report_id_id_unique": {
           "name": "attachment_metadata_tenant_report_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "expense_report_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "expense_report_id", "id"]
         },
         "attachment_metadata_storage_key_unique": {
           "name": "attachment_metadata_storage_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "storage_key"
-          ]
+          "columns": ["tenant_id", "storage_key"]
         }
       },
       "policies": {},
@@ -250,10 +234,7 @@
         "expense_report_tenant_id_id_unique": {
           "name": "expense_report_tenant_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "id"]
         }
       },
       "policies": {},
@@ -355,14 +336,8 @@
           "name": "expense_line_item_report_fk",
           "tableFrom": "expense_line_item",
           "tableTo": "expense_report",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id"],
+          "columnsTo": ["tenant_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -372,19 +347,12 @@
         "expense_line_item_tenant_id_id_unique": {
           "name": "expense_line_item_tenant_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "id"]
         },
         "expense_line_item_tenant_report_id_id_unique": {
           "name": "expense_line_item_tenant_report_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "expense_report_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "expense_report_id", "id"]
         }
       },
       "policies": {},
@@ -471,14 +439,8 @@
           "name": "mileage_entry_report_fk",
           "tableFrom": "mileage_entry",
           "tableTo": "expense_report",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id"],
+          "columnsTo": ["tenant_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -488,10 +450,7 @@
         "mileage_entry_tenant_id_id_unique": {
           "name": "mileage_entry_tenant_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "id"]
         }
       },
       "policies": {},
@@ -582,14 +541,8 @@
           "name": "receipt_report_fk",
           "tableFrom": "receipt",
           "tableTo": "expense_report",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id"],
+          "columnsTo": ["tenant_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -597,16 +550,8 @@
           "name": "receipt_line_item_report_fk",
           "tableFrom": "receipt",
           "tableTo": "expense_line_item",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id",
-            "expense_line_item_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "expense_report_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id", "expense_line_item_id"],
+          "columnsTo": ["tenant_id", "expense_report_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -614,16 +559,8 @@
           "name": "receipt_attachment_metadata_fk",
           "tableFrom": "receipt",
           "tableTo": "attachment_metadata",
-          "columnsFrom": [
-            "tenant_id",
-            "expense_report_id",
-            "attachment_metadata_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "expense_report_id",
-            "id"
-          ],
+          "columnsFrom": ["tenant_id", "expense_report_id", "attachment_metadata_id"],
+          "columnsTo": ["tenant_id", "expense_report_id", "id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -633,10 +570,7 @@
         "receipt_tenant_id_id_unique": {
           "name": "receipt_tenant_id_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
+          "columns": ["tenant_id", "id"]
         }
       },
       "policies": {},

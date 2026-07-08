@@ -11,7 +11,14 @@ export function createApp(): express.Express {
   const app = express();
 
   app.use(express.json());
-  app.use(pinoHttp());
+  app.use(
+    pinoHttp({
+      redact: {
+        paths: ["req.headers.authorization"],
+        remove: true
+      }
+    })
+  );
 
   app.get("/openapi.json", (_request, response) => {
     response.json(generateOpenApiDocument());

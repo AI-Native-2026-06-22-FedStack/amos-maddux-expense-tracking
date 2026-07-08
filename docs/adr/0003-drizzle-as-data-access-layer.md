@@ -20,10 +20,10 @@ Database schema changes will be managed through Drizzle's forward-only generated
 
 ## Alternatives Considered
 
-* **Raw SQL with node-postgres:** Rejected because it requires maintaining SQL, TypeScript types, and validation schemas separately, increasing duplication and the risk of schema drift while providing less type safety during development.
-* **Prisma:** Rejected because Prisma relies on a separate schema definition and code generation step to produce the TypeScript client. Drizzle instead defines the schema directly in TypeScript, allowing table definitions, inferred row types, generated migrations, and `drizzle-zod` DTOs to all derive from the same source without a separate generation workflow. This reduces duplication, simplifies the development workflow, and makes it easier to keep the database schema and application types synchronized.
-## Consequences
+- **Raw SQL with node-postgres:** Rejected because it requires maintaining SQL, TypeScript types, and validation schemas separately, increasing duplication and the risk of schema drift while providing less type safety during development.
+- **Prisma:** Rejected because Prisma relies on a separate schema definition and code generation step to produce the TypeScript client. Drizzle instead defines the schema directly in TypeScript, allowing table definitions, inferred row types, generated migrations, and `drizzle-zod` DTOs to all derive from the same source without a separate generation workflow. This reduces duplication, simplifies the development workflow, and makes it easier to keep the database schema and application types synchronized.
 
+## Consequences
 
 POSITIVE: The database schema becomes the single source of truth. TypeScript row types, insert types, and `drizzle-zod` validation schemas are derived from the table definitions, reducing duplicated code and minimizing schema drift.
 
