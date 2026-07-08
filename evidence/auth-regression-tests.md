@@ -1,0 +1,42 @@
+# Authentication Regression Test Evidence
+
+## Scope
+
+The authentication attack regression suite exercises the real ExpenseFlow Express app, Passport JWT
+middleware, RS256 token validation, auth service, and PostgreSQL integration-test database.
+
+Test suite: `apps/api/test/auth/auth.attacks.test.ts`
+
+## Attack Coverage
+
+| Scenario                                       | Expected result                                    | Observed assertion                                                                    |
+| ---------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Valid RS256 bearer token                       | Protected Expense Report creation succeeds         | HTTP 201 and persisted tenant/user come from the JWT                                  |
+| Missing bearer token                           | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Malformed bearer token                         | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Expired RS256 token                            | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Wrong issuer token                             | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Wrong audience token                           | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Forged `alg=none` token with elevated role     | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| RS256 token signed by the wrong private key    | Request is rejected before controller/service work | HTTP 401 and no Expense Report row is created                                         |
+| Client-supplied tenant differs from JWT tenant | JWT tenant wins                                    | Expense Report is created only for the authenticated tenant                           |
+| Unknown user login                             | Generic failure                                    | Response matches wrong-password failure and has no token fields                       |
+| Wrong password login                           | Generic failure                                    | Response matches unknown-user failure and has no token fields                         |
+| Wrong TOTP code                                | Authentication fails                               | Unauthorized result and no refresh token is persisted                                 |
+| Valid password plus valid TOTP                 | Authentication succeeds                            | Access token and refresh token are returned; only the refresh-token hash is persisted |
+
+## Limitations
+
+- Authentication audit logging is not implemented yet, so the suite cannot assert failed or
+  successful authentication audit entries through persistence.
+- TOTP replay protection is not implemented because the schema does not store accepted TOTP time
+  steps, so replay rejection is not asserted.
+- Public HTTP registration/login routes do not exist yet. Login-flow regressions are therefore
+  tested through the real auth service, repository, and database rather than an HTTP auth endpoint.
+
+## Security Notes
+
+- Tests do not mock or bypass the Passport JWT verifier for protected route checks.
+- Tests use synthetic identifiers and generated/in-memory key material only.
+- Tests do not log or snapshot passwords, password hashes, JWTs, refresh tokens, private keys, or
+  TOTP secrets.
