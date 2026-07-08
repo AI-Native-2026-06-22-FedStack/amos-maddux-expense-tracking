@@ -87,9 +87,15 @@ npm install
 Use the documented Node project scripts from the repository root:
 
 - `npm run build` compiles the TypeScript source with the strict `tsconfig.json` settings.
+- `npm run dev` starts the Express API in watch mode at `http://localhost:3000`.
 - `npm run lint` runs ESLint with zero warnings allowed and checks formatting with Prettier.
 - `npm test` runs the Vitest test suite.
 - `npm run check` runs build, lint, and tests as the full local verification workflow.
+
+When the API dev server is running, open the generated API contract and docs at:
+
+- OpenAPI JSON: `http://localhost:3000/openapi.json`
+- Scalar API reference: `http://localhost:3000/docs`
 
 After building, run the async entrypoint with:
 
