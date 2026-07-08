@@ -6,14 +6,13 @@ const { Client } = pg;
 
 const truncateDatabaseSql = `
 TRUNCATE
+    audit_entry,
+    stage_transition,
     expense_report,
     expense_line_item,
     attachment_metadata,
     receipt,
-    mileage_entry,
-    audit_entry,
-    stage_transition,
-    comment
+    mileage_entry
 RESTART IDENTITY CASCADE;
 `;
 

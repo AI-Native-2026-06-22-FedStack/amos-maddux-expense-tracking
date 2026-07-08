@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
 import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 
 const { Client } = pg;
@@ -19,7 +21,7 @@ export async function setup(): Promise<() => Promise<void>> {
 
     client = new Client({ connectionString: process.env.DATABASE_URL });
     await client.connect();
-    await applyMigrations(client);
+    await applyDrizzleMigrations(client);
   } catch (error: unknown) {
     await stopPostgres(client, container);
     throw error;
@@ -30,22 +32,38 @@ export async function setup(): Promise<() => Promise<void>> {
   };
 }
 
-async function applyMigrations(client: pg.Client): Promise<void> {
-  const migrationsDirectory = getMigrationsDirectory();
-  const migrationFiles = (await readdir(migrationsDirectory))
-    .filter((fileName) => fileName.endsWith(".sql"))
-    .sort();
+async function applyDrizzleMigrations(client: pg.Client): Promise<void> {
+  const db = drizzle(client);
+  const migrationConfig = { migrationsFolder: getDrizzleMigrationsDirectory() };
 
-  for (const migrationFile of migrationFiles) {
-    const migrationSql = await readFile(join(migrationsDirectory, migrationFile), "utf8");
-    await client.query(migrationSql);
+  await migrate(db, migrationConfig);
+  const migrationCountAfterFirstRun = await readDrizzleMigrationCount(client);
+
+  await migrate(db, migrationConfig);
+  const migrationCountAfterSecondRun = await readDrizzleMigrationCount(client);
+
+  if (migrationCountAfterSecondRun !== migrationCountAfterFirstRun) {
+    throw new Error(
+      "Drizzle migrations were not idempotent; the second migration run changed the journal."
+    );
   }
 }
 
-function getMigrationsDirectory(): string {
+function getDrizzleMigrationsDirectory(): string {
   const setupDirectory = dirname(fileURLToPath(import.meta.url));
 
-  return join(setupDirectory, "../../db/migrations");
+  return join(setupDirectory, "../../drizzle");
+}
+
+async function readDrizzleMigrationCount(client: pg.Client): Promise<number> {
+  const result = await client.query<{ migration_count: number }>(
+    `
+    select count(*)::integer as migration_count
+    from drizzle.__drizzle_migrations;
+    `
+  );
+
+  return result.rows[0]?.migration_count ?? 0;
 }
 
 async function stopPostgres(

@@ -103,6 +103,17 @@ After building, run the async entrypoint with:
 npm start
 ```
 
+### Database Migrations
+
+Generated Drizzle migrations live under `apps/api/drizzle/` and are applied forward-only.
+Drizzle does not emit automatic down migrations. ExpenseFlow handles rollback as
+roll-forward repair: to undo a schema change, generate a new higher-numbered forward
+migration that corrects the database state. Never edit an already-applied migration,
+and never add a reverse migration for an applied change.
+
+Treat repair migrations like any other forward migration: review the generated SQL,
+run the test suite, and apply them through the normal migration path.
+
 ## Governance Links
 
 - [AI-assistant guide](AGENTS.md)

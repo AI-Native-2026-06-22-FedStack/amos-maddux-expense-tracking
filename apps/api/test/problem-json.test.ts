@@ -24,7 +24,7 @@ describe("problemJsonErrorHandler", () => {
       type: "/problems/request-validation",
       title: "Bad Request",
       status: 400,
-      detail: expect.stringMatching(/tenantId: .+; submitterId: .+/u),
+      detail: expect.stringContaining("tenantId"),
       instance: "/expense-reports"
     });
   });

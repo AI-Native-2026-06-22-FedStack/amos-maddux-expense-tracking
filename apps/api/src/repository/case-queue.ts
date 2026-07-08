@@ -1,11 +1,6 @@
-export const expenseReportStages = [
-  "Drafted",
-  "Submitted",
-  "Manager Approval",
-  "AP Review",
-  "Paid",
-  "Reconciled"
-] as const;
+import { expenseReportStages } from "../db/schema.js";
+
+export { expenseReportStages };
 
 export type ExpenseReportStage = (typeof expenseReportStages)[number];
 

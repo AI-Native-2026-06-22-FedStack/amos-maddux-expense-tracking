@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "drizzle-kit": "^0.31.10",
+    "drizzle-zod": "^0.8.3"
+  }
+}

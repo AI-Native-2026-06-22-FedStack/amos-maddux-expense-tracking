@@ -22,6 +22,19 @@ describe("createApp", () => {
     });
   });
 
+  it("returns the dependency readiness body from GET /ready", async () => {
+    const response = await inject(createApp(), {
+      method: "GET",
+      url: "/ready"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      service: "ExpenseFlow API",
+      status: "ready"
+    });
+  });
+
   it("serves the generated OpenAPI document", async () => {
     const response = await inject(createApp(), {
       method: "GET",
@@ -94,7 +107,11 @@ describe("createApp", () => {
       id: string;
       tenantId: string;
       submitterId: string;
-      stage: string;
+      assignedOwnerId: string | null;
+      managerApproverId: string | null;
+      apReviewerId: string | null;
+      paymentId: string | null;
+      currentStage: string;
       priority: string;
       dueDate: string | null;
       onHold: boolean;
@@ -107,7 +124,11 @@ describe("createApp", () => {
     expect(report).toMatchObject({
       tenantId: validCreateRequest.tenantId,
       submitterId: validCreateRequest.submitterId,
-      stage: "Drafted",
+      assignedOwnerId: null,
+      managerApproverId: null,
+      apReviewerId: null,
+      paymentId: null,
+      currentStage: "Drafted",
       priority: "Normal",
       dueDate: null,
       onHold: false,
@@ -151,7 +172,7 @@ describe("createApp", () => {
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/expense-reports/${createdReport.id}`
+      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`
     });
 
     expect(readResponse.statusCode).toBe(200);
@@ -177,7 +198,7 @@ describe("createApp", () => {
   it("returns 404 for an unknown valid Expense Report id", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: "/expense-reports/00000000-0000-4000-8000-000000000399"
+      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
     });
 
     expect(response.statusCode).toBe(404);
@@ -186,7 +207,7 @@ describe("createApp", () => {
       title: "Not Found",
       status: 404,
       detail: "Expense Report not found.",
-      instance: "/expense-reports/00000000-0000-4000-8000-000000000399"
+      instance: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
     });
   });
 });

@@ -9,6 +9,13 @@ export class HealthController {
     response.status(200).json(this.healthService.readStatus());
   };
 
+  public getReadiness = async (_request: Request, response: Response): Promise<void> => {
+    const readiness = await this.healthService.readReadiness();
+    const statusCode = readiness.status === "ready" ? 200 : 503;
+
+    response.status(statusCode).json(readiness);
+  };
+
   public throwForErrorHandler = (
     request: Request,
     response: Response,

@@ -8,19 +8,28 @@ import {
 } from "../schemas/expense-report.schema.js";
 
 export interface ExpenseReportService {
-  createDraftReport(request: CreateExpenseReportRequest): ExpenseReportResponse;
-  findReport(id: string): ExpenseReportResponse | null;
+  createDraftReport(request: CreateExpenseReportRequest): Promise<ExpenseReportResponse>;
+  findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
 }
 
 class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(private readonly expenseReportRepository: ExpenseReportRepository) {}
 
-  public createDraftReport(request: CreateExpenseReportRequest): ExpenseReportResponse {
-    return this.expenseReportRepository.createDraftReport(request);
+  public async createDraftReport(
+    request: CreateExpenseReportRequest
+  ): Promise<ExpenseReportResponse> {
+    const report = await this.expenseReportRepository.createDraftReport({
+      ...request,
+      currentStage: "Drafted"
+    });
+
+    return report;
   }
 
-  public findReport(id: string): ExpenseReportResponse | null {
-    return this.expenseReportRepository.findById(id);
+  public async findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null> {
+    const report = await this.expenseReportRepository.findById(id, tenantId);
+
+    return report;
   }
 }
 
