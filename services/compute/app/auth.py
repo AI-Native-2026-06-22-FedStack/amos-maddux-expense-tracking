@@ -39,9 +39,6 @@ def _load_public_keys_by_kid() -> dict[str, str]:
     return {}
 
 
-PUBLIC_KEYS_BY_KID = _load_public_keys_by_kid()
-
-
 def verify_token(token: str) -> CurrentUser:
     try:
         header = jwt.get_unverified_header(token)
@@ -49,7 +46,7 @@ def verify_token(token: str) -> CurrentUser:
         if not isinstance(kid, str):
             raise _invalid_token()
 
-        public_key = PUBLIC_KEYS_BY_KID.get(kid)
+        public_key = _load_public_keys_by_kid().get(kid)
         if public_key is None:
             raise _invalid_token()
 
@@ -71,9 +68,6 @@ def verify_token(token: str) -> CurrentUser:
 
 def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
     return verify_token(token)
-
-
-
 
 
 def _current_user_from_payload(payload: dict[str, Any]) -> CurrentUser:
@@ -99,7 +93,7 @@ def _invalid_credentials() -> HTTPException:
     return HTTPException(status_code=401, detail="Invalid credentials")
 
 
-#Hashing Demo. Not used in Capstone
+# Hashing demo. Not used in capstone.
 def hash_password_for_signup(password: str) -> str:
     return password_hasher.hash(password)
 
