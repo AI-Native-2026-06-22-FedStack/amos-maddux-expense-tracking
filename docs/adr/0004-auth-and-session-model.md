@@ -6,10 +6,11 @@ Accepted
 
 ## Context
 
-ExpenseFlow needs an authentication model for users across tenants without adding registration,
-login, token issuing, or verifier middleware in this task. The persistence model must support the
-existing roles of Finance Admin, Department Manager, and Employee, plus an ExpenseFlow Platform
-Admin role for platform operations.
+ExpenseFlow needs an authentication model for users across tenants. The shipped surface includes
+registration, password login, MFA completion, RS256 token issuing, Passport JWT verification, and
+JWT-protected Expense Report creation and reads. The persistence model must support the existing
+roles of Finance Admin, Department Manager, and Employee, plus an ExpenseFlow Platform Admin role
+for platform operations.
 
 Auth data has different confidentiality and lifecycle requirements than profile data. Password
 hashes, refresh tokens, and TOTP secrets should not live directly on the profile row, and every auth
@@ -32,6 +33,11 @@ for protected-at-rest secret storage without introducing crypto implementation i
 
 Require `tenant_id` on every auth table. Tenant-scoped unique constraints and foreign keys keep auth
 records tied to the same tenant and make tenant isolation explicit in the database model.
+
+Expose the implemented auth flow through public HTTP endpoints for registration, password login, and
+MFA completion. The service layer remains framework-independent, while controllers translate service
+results to HTTP and Problem+JSON responses. Expense Report routes derive tenant identity from the
+verified JWT context rather than accepting tenant identifiers from clients.
 
 ## Consequences
 

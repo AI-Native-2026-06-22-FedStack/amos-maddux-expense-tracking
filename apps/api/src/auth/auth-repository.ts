@@ -52,6 +52,10 @@ export interface CreateRefreshTokenInput {
   expiresAt: Date;
 }
 
+export interface CompleteMfaAuthenticationInput extends CreateRefreshTokenInput {
+  acceptedTotpTimeStep: number;
+}
+
 export interface CreateAuthAuditEntryInput {
   tenantId: string;
   userId: string | null;
@@ -71,6 +75,7 @@ export interface AuthRepository {
   createRefreshToken(input: CreateRefreshTokenInput): Promise<RefreshTokenSelect>;
   revokeRefreshToken(tenantId: string, tokenHash: string): Promise<void>;
   acceptTotpTimeStep(tenantId: string, userId: string, timeStep: number): Promise<boolean>;
+  completeMfaAuthentication(input: CompleteMfaAuthenticationInput): Promise<boolean>;
   createAuthAuditEntry(input: CreateAuthAuditEntryInput): Promise<AuthAuditEntrySelect>;
 }
 
@@ -244,6 +249,49 @@ class DrizzleAuthRepository implements AuthRepository {
       .returning({ id: mfaEnrollment.id });
 
     return acceptedRows.length === 1;
+  }
+
+  public async completeMfaAuthentication(input: CompleteMfaAuthenticationInput): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const acceptedRows = await tx
+        .update(mfaEnrollment)
+        .set({
+          lastAcceptedTotpTimeStep: input.acceptedTotpTimeStep,
+          lastAcceptedTotpAt: new Date()
+        })
+        .where(
+          and(
+            eq(mfaEnrollment.tenantId, input.tenantId),
+            eq(mfaEnrollment.userId, input.userId),
+            isNull(mfaEnrollment.disabledAt),
+            or(
+              isNull(mfaEnrollment.lastAcceptedTotpTimeStep),
+              lt(mfaEnrollment.lastAcceptedTotpTimeStep, input.acceptedTotpTimeStep)
+            )
+          )
+        )
+        .returning({ id: mfaEnrollment.id });
+
+      if (acceptedRows.length !== 1) {
+        return false;
+      }
+
+      await tx.insert(refreshToken).values({
+        tenantId: input.tenantId,
+        userId: input.userId,
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt
+      });
+      await tx.insert(authAuditEntry).values({
+        tenantId: input.tenantId,
+        userId: input.userId,
+        eventType: "mfa_succeeded",
+        outcome: "success",
+        reason: null
+      });
+
+      return true;
+    });
   }
 }
 

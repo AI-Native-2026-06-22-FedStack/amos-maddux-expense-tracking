@@ -1,11 +1,10 @@
-import { NextFunction, Request } from "express";
+import { NextFunction } from "express";
 
 import { RequestWithAuthContext, requireAuthenticatedContext } from "../auth/verifier.js";
 import { NotFoundError } from "../errors/problem-json.js";
 import {
   createExpenseReportRequestSchema,
   expenseReportIdParamSchema,
-  expenseReportReadQuerySchema,
   expenseReportResponseSchema
 } from "../schemas/expense-report.schema.js";
 import {
@@ -41,15 +40,15 @@ export class ExpenseReportController {
   };
 
   public readExpenseReport = async (
-    request: Pick<Request, "params" | "query">,
+    request: Pick<RequestWithAuthContext, "authContext" | "params">,
     response: JsonResponse,
     next: NextFunction
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
-    const parsedQuery = expenseReportReadQuerySchema.parse(request.query);
+    const authContext = requireAuthenticatedContext(request);
     const report = await this.expenseReportService.findReport(
       parsedParams.id,
-      parsedQuery.tenantId
+      authContext.tenantId
     );
 
     if (report === null) {

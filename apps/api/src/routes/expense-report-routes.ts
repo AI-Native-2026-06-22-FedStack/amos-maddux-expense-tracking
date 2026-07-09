@@ -12,7 +12,11 @@ export function createExpenseReportRouter(): Router {
     requireJwtAuthentication,
     expenseReportController.createExpenseReport
   );
-  router.get("/expense-reports/:id", expenseReportController.readExpenseReport);
+  router.get(
+    "/expense-reports/:id",
+    requireJwtAuthentication,
+    expenseReportController.readExpenseReport
+  );
 
   return router;
 }

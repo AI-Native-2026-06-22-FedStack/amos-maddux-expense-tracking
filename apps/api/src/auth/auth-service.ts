@@ -1,3 +1,5 @@
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+
 import { AuthRepository, createAuthRepository } from "./auth-repository.js";
 import { hashPassword, verifyPasswordHash } from "./hashing.js";
 import { createTotpEnrollment, getCurrentTotpTimeStep, verifyTotpCode } from "./mfa.js";
@@ -5,12 +7,14 @@ import { AuthenticatedPrincipal, IssuedTokenPair, issueTokenPair } from "./token
 
 export const genericUnauthorizedMessage = "Invalid email or password.";
 
-const defaultTotpSecretKeyId = "totp-secret-key-unconfigured";
+const localTotpSecretKeyId = "local-development-totp-secret-key";
+const encryptedTotpSecretPrefix = "v1";
+
+let generatedLocalTotpKey: Buffer | undefined;
 
 const authAuditEvents = {
   registrationSucceeded: "registration_succeeded",
   passwordVerifiedMfaRequired: "password_verified_mfa_required",
-  mfaSucceeded: "mfa_succeeded",
   loginFailedUnknownUser: "login_failed_unknown_user",
   loginFailedWrongPassword: "login_failed_wrong_password",
   mfaFailedWrongTotp: "mfa_failed_wrong_totp",
@@ -224,22 +228,6 @@ class RepositoryAuthService implements AuthService {
       return invalidMfaResult();
     }
 
-    const acceptedTimeStep = await this.authRepository.acceptTotpTimeStep(
-      request.tenantId,
-      request.userId,
-      currentTotpTimeStep
-    );
-
-    if (!acceptedTimeStep) {
-      await this.auditFailure({
-        tenantId: request.tenantId,
-        userId: request.userId,
-        eventType: authAuditEvents.mfaFailedReplay,
-        reason: "totp_replay"
-      });
-      return invalidMfaResult();
-    }
-
     const authenticatedUser = await this.authRepository.findAuthenticatedUserRole(
       request.tenantId,
       request.userId
@@ -262,17 +250,23 @@ class RepositoryAuthService implements AuthService {
       roles
     });
 
-    await this.authRepository.createRefreshToken({
+    const completedAuthentication = await this.authRepository.completeMfaAuthentication({
       tenantId: authenticatedUser.user.tenantId,
       userId: authenticatedUser.user.id,
       tokenHash: tokenPair.refreshTokenHash,
-      expiresAt: tokenPair.refreshTokenExpiresAt
+      expiresAt: tokenPair.refreshTokenExpiresAt,
+      acceptedTotpTimeStep: currentTotpTimeStep
     });
-    await this.auditSuccess({
-      tenantId: authenticatedUser.user.tenantId,
-      userId: authenticatedUser.user.id,
-      eventType: authAuditEvents.mfaSucceeded
-    });
+
+    if (!completedAuthentication) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.mfaFailedReplay,
+        reason: "totp_replay"
+      });
+      return invalidMfaResult();
+    }
 
     return {
       status: "authenticated",
@@ -311,7 +305,7 @@ class RepositoryAuthService implements AuthService {
 
 export function createAuthService(
   authRepository: AuthRepository = createAuthRepository(),
-  totpSecretProtector: TotpSecretProtector = createUnavailableTotpSecretProtector(),
+  totpSecretProtector: TotpSecretProtector = createDefaultTotpSecretProtector(),
   tokenIssuer: TokenIssuer = createDefaultTokenIssuer()
 ): AuthService {
   return new RepositoryAuthService(authRepository, totpSecretProtector, tokenIssuer);
@@ -331,16 +325,49 @@ function invalidMfaResult(): CompleteMfaLoginResult {
   };
 }
 
-function createUnavailableTotpSecretProtector(): TotpSecretProtector {
+function createDefaultTotpSecretProtector(): TotpSecretProtector {
+  const key = loadTotpSecretEncryptionKey();
+  const keyId = readOptionalStringEnv("TOTP_SECRET_KEY_ID") ?? localTotpSecretKeyId;
+
   return {
-    async protect(): Promise<string> {
-      throw new Error("A TOTP secret protector must be configured before registration.");
+    async protect(secret: string): Promise<string> {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv("aes-256-gcm", key, iv);
+      const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+      const tag = cipher.getAuthTag();
+
+      return [
+        encryptedTotpSecretPrefix,
+        keyId,
+        iv.toString("base64url"),
+        tag.toString("base64url"),
+        ciphertext.toString("base64url")
+      ].join(":");
     },
-    async reveal(): Promise<string> {
-      throw new Error("A TOTP secret protector must be configured before MFA verification.");
+    async reveal(protectedSecret: string): Promise<string> {
+      const [version, storedKeyId, iv, tag, ciphertext] = protectedSecret.split(":");
+
+      if (
+        version !== encryptedTotpSecretPrefix ||
+        storedKeyId !== keyId ||
+        iv === undefined ||
+        tag === undefined ||
+        ciphertext === undefined
+      ) {
+        throw new Error("Unsupported TOTP secret envelope.");
+      }
+
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
+      decipher.setAuthTag(Buffer.from(tag, "base64url"));
+      const plaintext = Buffer.concat([
+        decipher.update(Buffer.from(ciphertext, "base64url")),
+        decipher.final()
+      ]);
+
+      return plaintext.toString("utf8");
     },
     keyId(): string {
-      return defaultTotpSecretKeyId;
+      return keyId;
     }
   };
 }
@@ -349,4 +376,36 @@ function createDefaultTokenIssuer(): TokenIssuer {
   return {
     issue: issueTokenPair
   };
+}
+
+function loadTotpSecretEncryptionKey(): Buffer {
+  const configuredKey = readOptionalStringEnv("TOTP_SECRET_ENCRYPTION_KEY");
+
+  if (configuredKey !== undefined) {
+    const key = Buffer.from(configuredKey, "base64");
+
+    if (key.length !== 32) {
+      throw new Error("TOTP_SECRET_ENCRYPTION_KEY must be a base64-encoded 32-byte key.");
+    }
+
+    return key;
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("TOTP_SECRET_ENCRYPTION_KEY must be configured in production.");
+  }
+
+  generatedLocalTotpKey ??= randomBytes(32);
+
+  return generatedLocalTotpKey;
+}
+
+function readOptionalStringEnv(name: string): string | undefined {
+  const value = process.env[name];
+
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+
+  return value;
 }

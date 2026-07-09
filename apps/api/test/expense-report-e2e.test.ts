@@ -52,16 +52,24 @@ describe("Expense Report create and read end-to-end", () => {
     const reportId = createResponse.body.id as string;
     const readResponse = await request(app)
       .get(`/expense-reports/${reportId}`)
-      .query({ tenantId: tenantA });
+      .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }));
 
     expect(readResponse.status).toBe(200);
     expect(readResponse.body).toEqual(createResponse.body);
 
     const wrongTenantResponse = await request(app)
       .get(`/expense-reports/${reportId}`)
-      .query({ tenantId: tenantB });
+      .set("Authorization", createBearerToken({ tenantId: tenantB, userId: submitterId }));
 
     expect(wrongTenantResponse.status).toBe(404);
+
+    const clientTenantOverrideResponse = await request(app)
+      .get(`/expense-reports/${reportId}`)
+      .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
+      .query({ tenantId: tenantB });
+
+    expect(clientTenantOverrideResponse.status).toBe(200);
+    expect(clientTenantOverrideResponse.body.tenantId).toBe(tenantA);
 
     const caseQueue = await readCaseQueue(toCaseQueueExecutor(client), tenantA);
     expect(caseQueue).toContainEqual({
@@ -97,6 +105,19 @@ describe("Expense Report create and read end-to-end", () => {
 
   it("rejects Expense Report creation without a token", async () => {
     const response = await request(createApp()).post("/expense-reports").send({});
+
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({
+      type: "/problems/unauthorized",
+      title: "Unauthorized",
+      status: 401
+    });
+  });
+
+  it("rejects Expense Report reads without a token", async () => {
+    const response = await request(createApp()).get(
+      "/expense-reports/00000000-0000-4000-8000-000000000599"
+    );
 
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({

@@ -183,7 +183,10 @@ describe("createApp", () => {
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/expense-reports/${createdReport.id}?tenantId=${authenticatedTenantId}`
+      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(readResponse.statusCode).toBe(200);
@@ -193,7 +196,10 @@ describe("createApp", () => {
   it("rejects invalid Expense Report id params", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: "/expense-reports/not-a-uuid"
+      url: "/expense-reports/not-a-uuid",
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(response.statusCode).toBe(400);
@@ -209,7 +215,10 @@ describe("createApp", () => {
   it("returns 404 for an unknown valid Expense Report id", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
+      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`,
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(response.statusCode).toBe(404);

@@ -6,7 +6,7 @@ import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import { createAuthRepository } from "../src/auth/auth-repository.js";
-import { TotpSecretProtector, createAuthService } from "../src/auth/auth-service.js";
+import { TokenIssuer, TotpSecretProtector, createAuthService } from "../src/auth/auth-service.js";
 import { verifyPasswordHash } from "../src/auth/hashing.js";
 import { generateTotpCode } from "../src/auth/mfa.js";
 import { hashRefreshToken } from "../src/auth/tokens.js";
@@ -276,6 +276,41 @@ describe("AuthService integration", () => {
       userId: registered.userId
     });
   });
+
+  it("does not consume a TOTP time step when a later MFA completion step fails", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:01:05.000Z"));
+
+    const db = drizzle(client, { schema });
+    const repository = createAuthRepository(db);
+    const service = createAuthService(
+      repository,
+      new SyntheticNoOpTotpSecretProtector(),
+      new ThrowingTokenIssuer()
+    );
+    const roleId = await createTenantRole(db);
+    const registered = await service.register({
+      tenantId,
+      roleId,
+      email: syntheticEmail,
+      displayName: syntheticDisplayName,
+      password: syntheticPassword
+    });
+    const code = await generateTotpCode(registered.mfa.secret);
+
+    await expect(
+      service.completeMfaLogin({
+        tenantId,
+        userId: registered.userId,
+        code
+      })
+    ).rejects.toThrow("Synthetic token issuer failure.");
+
+    const storedMfaEnrollment = await findMfaEnrollment(db, registered.userId);
+    expect(storedMfaEnrollment.lastAcceptedTotpTimeStep).toBeNull();
+    expect(storedMfaEnrollment.lastAcceptedTotpAt).toBeNull();
+    await expect(findRefreshTokenCount(db, registered.userId)).resolves.toBe(0);
+  });
 });
 
 type TestDatabase = NodePgDatabase<typeof schema>;
@@ -404,6 +439,12 @@ class SyntheticNoOpTotpSecretProtector implements TotpSecretProtector {
 
   public keyId(): string {
     return "synthetic-no-op-totp-secret-protector";
+  }
+}
+
+class ThrowingTokenIssuer implements TokenIssuer {
+  public issue(): never {
+    throw new Error("Synthetic token issuer failure.");
   }
 }
 
