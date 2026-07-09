@@ -50,12 +50,10 @@ describe("generateOpenApiDocument", () => {
         "onHold",
         "paymentId",
         "priority",
-        "submitterId",
-        "tenantId",
         "updatedAt"
       ].sort()
     );
-    expect(createSchema.required).toEqual(["tenantId", "submitterId"]);
+    expect(createSchema.required).toBeUndefined();
     expect(Object.keys(responseProperties).sort()).toEqual(
       [
         "apReviewerId",

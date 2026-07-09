@@ -7,8 +7,13 @@ import {
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
 
+export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
+  tenantId: string;
+  submitterId: string;
+};
+
 export interface ExpenseReportService {
-  createDraftReport(request: CreateExpenseReportRequest): Promise<ExpenseReportResponse>;
+  createDraftReport(request: CreateDraftExpenseReportRequest): Promise<ExpenseReportResponse>;
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
 }
 
@@ -16,7 +21,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(private readonly expenseReportRepository: ExpenseReportRepository) {}
 
   public async createDraftReport(
-    request: CreateExpenseReportRequest
+    request: CreateDraftExpenseReportRequest
   ): Promise<ExpenseReportResponse> {
     const report = await this.expenseReportRepository.createDraftReport({
       ...request,

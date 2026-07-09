@@ -2,11 +2,14 @@ import inject from "light-my-request";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
+import { issueTokenPair } from "./auth/tokens.js";
 
 describe("createApp", () => {
+  const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
+  const authenticatedUserId = "synthetic-submitter-00000000-0000-4000-8000-000000000302";
   const validCreateRequest = {
-    tenantId: "00000000-0000-4000-8000-000000000301",
-    submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000302"
+    tenantId: "00000000-0000-4000-8000-000000000303",
+    submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000304"
   };
 
   it("returns the service status body from GET /health", async () => {
@@ -101,6 +104,9 @@ describe("createApp", () => {
     const response = await inject(createApp(), {
       method: "POST",
       url: "/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
       payload: validCreateRequest
     });
     const report = response.json<{
@@ -122,8 +128,8 @@ describe("createApp", () => {
 
     expect(response.statusCode).toBe(201);
     expect(report).toMatchObject({
-      tenantId: validCreateRequest.tenantId,
-      submitterId: validCreateRequest.submitterId,
+      tenantId: authenticatedTenantId,
+      submitterId: authenticatedUserId,
       assignedOwnerId: null,
       managerApproverId: null,
       apReviewerId: null,
@@ -145,9 +151,11 @@ describe("createApp", () => {
     const response = await inject(createApp(), {
       method: "POST",
       url: "/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
       payload: {
-        tenantId: "not-a-uuid",
-        submitterId: ""
+        currentStage: "Invalid Stage"
       }
     });
 
@@ -156,7 +164,7 @@ describe("createApp", () => {
       type: "/problems/request-validation",
       title: "Bad Request",
       status: 400,
-      detail: expect.stringContaining("tenantId"),
+      detail: expect.stringContaining("currentStage"),
       instance: "/expense-reports"
     });
   });
@@ -166,13 +174,19 @@ describe("createApp", () => {
     const createResponse = await inject(app, {
       method: "POST",
       url: "/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
       payload: validCreateRequest
     });
     const createdReport = createResponse.json<{ id: string }>();
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`
+      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(readResponse.statusCode).toBe(200);
@@ -182,7 +196,10 @@ describe("createApp", () => {
   it("rejects invalid Expense Report id params", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: "/expense-reports/not-a-uuid"
+      url: "/expense-reports/not-a-uuid",
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(response.statusCode).toBe(400);
@@ -198,7 +215,10 @@ describe("createApp", () => {
   it("returns 404 for an unknown valid Expense Report id", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
+      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`,
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
     });
 
     expect(response.statusCode).toBe(404);
@@ -210,4 +230,14 @@ describe("createApp", () => {
       instance: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
     });
   });
+
+  function createAuthorizationHeader(): string {
+    const tokenPair = issueTokenPair({
+      tenantId: authenticatedTenantId,
+      userId: authenticatedUserId,
+      roles: ["Employee"]
+    });
+
+    return `Bearer ${tokenPair.accessToken}`;
+  }
 });

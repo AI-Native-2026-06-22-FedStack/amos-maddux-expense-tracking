@@ -16,6 +16,13 @@ export class NotFoundError extends Error {
   }
 }
 
+export class UnauthorizedError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "UnauthorizedError";
+  }
+}
+
 export const problemJsonErrorHandler: ErrorRequestHandler = (error, request, response, next) => {
   if (response.headersSent) {
     next(error);
@@ -43,6 +50,16 @@ function toProblemJson(error: unknown, instance: string): ProblemJsonBody {
       type: "/problems/not-found",
       title: "Not Found",
       status: 404,
+      detail: error.message,
+      instance
+    };
+  }
+
+  if (error instanceof UnauthorizedError) {
+    return {
+      type: "/problems/unauthorized",
+      title: "Unauthorized",
+      status: 401,
       detail: error.message,
       instance
     };

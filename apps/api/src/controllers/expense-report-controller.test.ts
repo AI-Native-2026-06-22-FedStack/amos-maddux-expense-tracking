@@ -1,6 +1,6 @@
-import { Request } from "express";
 import { describe, expect, it, vi } from "vitest";
 
+import { RequestWithAuthContext } from "../auth/verifier.js";
 import { ExpenseReportController } from "./expense-report-controller.js";
 import { ExpenseReportService } from "../services/expense-report-service.js";
 
@@ -12,11 +12,15 @@ describe("ExpenseReportController", () => {
     } satisfies ExpenseReportService;
     const controller = new ExpenseReportController(service);
     const request = {
+      authContext: {
+        tenantId: "00000000-0000-4000-8000-000000000321",
+        userId: "synthetic-user-00000000-0000-4000-8000-000000000322",
+        roles: ["Employee"]
+      },
       body: {
-        tenantId: "not-a-uuid",
-        submitterId: ""
+        currentStage: "Invalid Stage"
       }
-    } satisfies Pick<Request, "body">;
+    } satisfies Pick<RequestWithAuthContext, "authContext" | "body">;
     const response = {
       status: vi.fn(() => ({
         json: vi.fn()

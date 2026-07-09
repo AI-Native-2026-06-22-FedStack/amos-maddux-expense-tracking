@@ -25,6 +25,130 @@ export const expenseReportStages = [
 
 export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as const;
 
+export const role = pgTable(
+  "role",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("role_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("role_tenant_id_name_unique").on(table.tenantId, table.name)
+  ]
+);
+
+export const user = pgTable(
+  "user",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    roleId: uuid("role_id").notNull(),
+    email: text("email").notNull(),
+    displayName: text("display_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    disabledAt: timestamp("disabled_at", { withTimezone: true })
+  },
+  (table) => [
+    unique("user_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("user_tenant_id_email_unique").on(table.tenantId, table.email),
+    foreignKey({
+      name: "user_role_fk",
+      columns: [table.tenantId, table.roleId],
+      foreignColumns: [role.tenantId, role.id]
+    }).onDelete("restrict")
+  ]
+);
+
+export const credential = pgTable(
+  "credential",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("credential_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("credential_tenant_id_user_id_unique").on(table.tenantId, table.userId),
+    foreignKey({
+      name: "credential_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [user.tenantId, user.id]
+    }).onDelete("cascade")
+  ]
+);
+
+export const refreshToken = pgTable(
+  "refresh_token",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("refresh_token_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("refresh_token_tenant_id_token_hash_unique").on(table.tenantId, table.tokenHash),
+    foreignKey({
+      name: "refresh_token_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [user.tenantId, user.id]
+    }).onDelete("cascade"),
+    index("refresh_token_tenant_user_idx").on(table.tenantId, table.userId)
+  ]
+);
+
+export const mfaEnrollment = pgTable(
+  "mfa_enrollment",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    userId: uuid("user_id").notNull(),
+    encryptedTotpSecret: text("encrypted_totp_secret").notNull(),
+    totpSecretKeyId: text("totp_secret_key_id").notNull(),
+    lastAcceptedTotpTimeStep: integer("last_accepted_totp_time_step"),
+    lastAcceptedTotpAt: timestamp("last_accepted_totp_at", { withTimezone: true }),
+    enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
+    disabledAt: timestamp("disabled_at", { withTimezone: true })
+  },
+  (table) => [
+    unique("mfa_enrollment_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("mfa_enrollment_tenant_id_user_id_unique").on(table.tenantId, table.userId),
+    foreignKey({
+      name: "mfa_enrollment_user_fk",
+      columns: [table.tenantId, table.userId],
+      foreignColumns: [user.tenantId, user.id]
+    }).onDelete("cascade")
+  ]
+);
+
+export const authAuditEntry = pgTable(
+  "auth_audit_entry",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id").notNull(),
+    userId: uuid("user_id"),
+    eventType: text("event_type").notNull(),
+    outcome: text("outcome").notNull(),
+    reason: text("reason"),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    unique("auth_audit_entry_tenant_id_id_unique").on(table.tenantId, table.id),
+    index("auth_audit_entry_tenant_event_idx").on(table.tenantId, table.eventType),
+    index("auth_audit_entry_tenant_user_idx").on(table.tenantId, table.userId)
+  ]
+);
+
 export const expenseReport = pgTable(
   "expense_report",
   {
@@ -265,3 +389,15 @@ export type AuditEntrySelect = typeof auditEntry.$inferSelect;
 export type AuditEntryInsert = typeof auditEntry.$inferInsert;
 export type StageTransitionSelect = typeof stageTransition.$inferSelect;
 export type StageTransitionInsert = typeof stageTransition.$inferInsert;
+export type RoleSelect = typeof role.$inferSelect;
+export type RoleInsert = typeof role.$inferInsert;
+export type UserSelect = typeof user.$inferSelect;
+export type UserInsert = typeof user.$inferInsert;
+export type CredentialSelect = typeof credential.$inferSelect;
+export type CredentialInsert = typeof credential.$inferInsert;
+export type RefreshTokenSelect = typeof refreshToken.$inferSelect;
+export type RefreshTokenInsert = typeof refreshToken.$inferInsert;
+export type MfaEnrollmentSelect = typeof mfaEnrollment.$inferSelect;
+export type MfaEnrollmentInsert = typeof mfaEnrollment.$inferInsert;
+export type AuthAuditEntrySelect = typeof authAuditEntry.$inferSelect;
+export type AuthAuditEntryInsert = typeof authAuditEntry.$inferInsert;
