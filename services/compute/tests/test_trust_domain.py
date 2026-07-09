@@ -71,5 +71,5 @@ def _assert_unauthorized(verify_token, token: str) -> None:
 
 
 def _tamper_signature(signature: str) -> str:
-    replacement = "A" if signature[-1] != "A" else "B"
-    return f"{signature[:-1]}{replacement}"
+    replacement = "A" if signature[0] != "A" else "B"
+    return f"{replacement}{signature[1:]}"
