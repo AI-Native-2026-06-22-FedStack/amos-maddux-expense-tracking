@@ -6,6 +6,7 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, ValidationError
+from pwdlib import PasswordHash
 
 
 Role = Literal["Finance Admin", "Department Manager", "Employee", "Admin"]
@@ -14,6 +15,7 @@ JWT_ISSUER = os.getenv("JWT_ISSUER", "expense-api")
 JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "expense-clients")
 JWT_KEY_ID = os.getenv("JWT_KEY_ID", "local-development-key")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+password_hasher = PasswordHash.recommended()
 
 
 class CurrentUser(BaseModel):
@@ -71,6 +73,9 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> CurrentUser:
     return verify_token(token)
 
 
+
+
+
 def _current_user_from_payload(payload: dict[str, Any]) -> CurrentUser:
     try:
         roles = payload["roles"]
@@ -88,3 +93,22 @@ def _current_user_from_payload(payload: dict[str, Any]) -> CurrentUser:
 
 def _invalid_token() -> HTTPException:
     return HTTPException(status_code=401, detail="Invalid token")
+
+
+def _invalid_credentials() -> HTTPException:
+    return HTTPException(status_code=401, detail="Invalid credentials")
+
+
+#Hashing Demo. Not used in Capstone
+def hash_password_for_signup(password: str) -> str:
+    return password_hasher.hash(password)
+
+
+def verify_password_for_login(password: str, password_hash: str) -> bool:
+    try:
+        if password_hasher.verify(password, password_hash):
+            return True
+    except Exception as exc:
+        raise _invalid_credentials() from exc
+
+    raise _invalid_credentials()
