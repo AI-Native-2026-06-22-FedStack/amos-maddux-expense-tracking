@@ -4,13 +4,18 @@
 # NEVER add passlib (unmaintained, breaks at runtime on 3.13) or python-jose.
 [project]
 name = "compute"
+version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
   "fastapi",
-  "pyjwt>=2.8",
+  "pyjwt[crypto]>=2.8",
   "pwdlib[argon2]",
   "httpx",
 ]
 
 [dependency-groups]
 dev = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
