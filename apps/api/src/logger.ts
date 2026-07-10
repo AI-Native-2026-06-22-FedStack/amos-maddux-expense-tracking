@@ -1,27 +1,12 @@
 import pino from "pino";
 
-export const sensitiveLogPaths = [
-  "req.headers.authorization",
-  "request.headers.authorization",
-  "headers.authorization",
-  "authorization",
-  "token",
-  "accessToken",
-  "refreshToken",
-  "password",
-  "credentials",
-  "req.body",
-  "request.body",
-  "body",
-  "receipt",
-  "receiptData",
-  "payment",
-  "paymentData"
-];
+import { sensitiveLogCensor, sensitiveLogPaths } from "./log-redaction.js";
+
+export { sensitiveLogCensor, sensitiveLogPaths };
 
 export const logger = pino({
   redact: {
     paths: sensitiveLogPaths,
-    remove: true
+    censor: sensitiveLogCensor
   }
 });

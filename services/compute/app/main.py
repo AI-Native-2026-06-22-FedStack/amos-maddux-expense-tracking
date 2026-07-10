@@ -6,6 +6,7 @@ import structlog
 from fastapi import Depends, FastAPI, Request, Response
 
 from app.auth import CurrentUser, get_current_user
+from app.log_redaction import redact_sensitive_fields
 
 CORRELATION_ID_HEADER = "X-Correlation-Id"
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -18,6 +19,7 @@ def configure_logging() -> None:
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso"),
+            redact_sensitive_fields,
             structlog.processors.JSONRenderer(),
         ],
         logger_factory=structlog.stdlib.LoggerFactory(),

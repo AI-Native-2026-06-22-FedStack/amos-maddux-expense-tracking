@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
-import { sensitiveLogPaths } from "./logger.js";
+import { sensitiveLogCensor, sensitiveLogPaths } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_HEADER_LOWERCASE } from "./middleware/correlation.js";
 
 interface CapturedRequestLog {
@@ -60,7 +60,7 @@ describe("createApp", () => {
       req: expect.any(Object),
       res: expect.any(Object)
     });
-    expect(parsedLog.req?.headers).not.toHaveProperty("authorization");
+    expect(parsedLog.req?.headers?.authorization).toBe(sensitiveLogCensor);
     expect(logLines.join("")).not.toContain("synthetic-test-token");
   });
 
@@ -377,7 +377,7 @@ function createCapturedLogger(): { logger: Logger; logLines: string[] } {
     {
       redact: {
         paths: sensitiveLogPaths,
-        remove: true
+        censor: sensitiveLogCensor
       }
     },
     {
