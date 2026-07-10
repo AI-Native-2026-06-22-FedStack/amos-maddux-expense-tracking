@@ -1,0 +1,5 @@
+fastapi
+pyjwt[crypto]>=2.8
+pwdlib[argon2]
+httpx
+structlog

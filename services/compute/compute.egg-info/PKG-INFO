@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: compute
+Version: 0.1.0
+Requires-Python: >=3.13
+Requires-Dist: fastapi
+Requires-Dist: pyjwt[crypto]>=2.8
+Requires-Dist: pwdlib[argon2]
+Requires-Dist: httpx
+Requires-Dist: structlog
