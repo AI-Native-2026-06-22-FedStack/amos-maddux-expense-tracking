@@ -1,25 +1,25 @@
 import express, { RequestHandler } from "express";
 import { pinoHttp } from "pino-http";
 import { apiReference } from "@scalar/express-api-reference";
+import type { Logger } from "pino";
 
 import { NotFoundError, problemJsonErrorHandler } from "./errors/problem-json.js";
+import { logger as rootLogger } from "./logger.js";
 import { generateOpenApiDocument } from "./openapi/openapi.js";
 import { createAuthRouter } from "./routes/auth-routes.js";
 import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
 import { createHealthRouter } from "./routes/health-routes.js";
 
-export function createApp(): express.Express {
-  const app = express();
+interface CreateAppOptions {
+  logger?: Logger;
+}
 
+export function createApp(options: CreateAppOptions = {}): express.Express {
+  const app = express();
+  const logger = options.logger ?? rootLogger;
+
+  app.use(pinoHttp({ logger }));
   app.use(express.json());
-  app.use(
-    pinoHttp({
-      redact: {
-        paths: ["req.headers.authorization"],
-        remove: true
-      }
-    })
-  );
 
   app.get("/openapi.json", (_request, response) => {
     response.json(generateOpenApiDocument());

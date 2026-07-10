@@ -1,8 +1,10 @@
 import inject from "light-my-request";
+import pino from "pino";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
+import { sensitiveLogPaths } from "./logger.js";
 
 describe("createApp", () => {
   const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
@@ -23,6 +25,50 @@ describe("createApp", () => {
       service: "ExpenseFlow API",
       status: "ok"
     });
+  });
+
+  it("emits parseable JSON request logs without sensitive headers", async () => {
+    const logLines: string[] = [];
+    const testLogger = pino(
+      {
+        redact: {
+          paths: sensitiveLogPaths,
+          remove: true
+        }
+      },
+      {
+        write(line) {
+          logLines.push(line);
+        }
+      }
+    );
+    const response = await inject(createApp({ logger: testLogger }), {
+      method: "GET",
+      url: "/health",
+      headers: {
+        authorization: "Bearer synthetic-test-token"
+      }
+    });
+    const parsedLog = JSON.parse(logLines.at(-1) ?? "") as {
+      level?: unknown;
+      time?: unknown;
+      msg?: unknown;
+      req?: {
+        headers?: Record<string, unknown>;
+      };
+      res?: unknown;
+    };
+
+    expect(response.statusCode).toBe(200);
+    expect(parsedLog).toMatchObject({
+      level: expect.any(Number),
+      time: expect.any(Number),
+      msg: expect.any(String),
+      req: expect.any(Object),
+      res: expect.any(Object)
+    });
+    expect(parsedLog.req?.headers).not.toHaveProperty("authorization");
+    expect(logLines.join("")).not.toContain("synthetic-test-token");
   });
 
   it("returns the dependency readiness body from GET /ready", async () => {
