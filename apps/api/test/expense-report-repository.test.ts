@@ -146,9 +146,9 @@ class QueryCountingLogger {
 }
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Expense Report repository integration tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Expense Report repository integration tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }

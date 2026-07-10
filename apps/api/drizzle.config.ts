@@ -8,9 +8,9 @@ export default defineConfig({
 });
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Drizzle commands.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Drizzle commands.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }

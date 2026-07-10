@@ -25,7 +25,7 @@ export async function checkDatabaseReady(): Promise<boolean> {
 
 function getDatabaseUrl(): string {
   if (process.env.DATABASE_URI === undefined) {
-    throw new Error("DATABASE_URL is required to create the database client.");
+    throw new Error("DATABASE_URI is required to create the database client.");
   }
 
   return process.env.DATABASE_URI;

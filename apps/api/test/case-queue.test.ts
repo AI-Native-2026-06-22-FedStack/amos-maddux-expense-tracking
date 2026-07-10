@@ -124,11 +124,11 @@ describe("readCaseQueue integration", () => {
 });
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Case Queue integration tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Case Queue integration tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }
 
 function toCaseQueueExecutor(client: pg.Client): CaseQueueQueryExecutor {

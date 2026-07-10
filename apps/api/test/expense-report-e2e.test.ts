@@ -161,11 +161,11 @@ describe("Expense Report create and read end-to-end", () => {
 });
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Expense Report end-to-end tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Expense Report end-to-end tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }
 
 function toCaseQueueExecutor(client: pg.Client): CaseQueueQueryExecutor {

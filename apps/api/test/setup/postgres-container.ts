@@ -16,9 +16,9 @@ export async function setup(): Promise<() => Promise<void>> {
   try {
     container = await new PostgreSqlContainer("postgres:17-alpine").start();
     // API integration tests read this runtime-only URL to connect to the disposable database.
-    process.env.DATABASE_URL = container.getConnectionUri();
+    process.env.DATABASE_URI = container.getConnectionUri();
 
-    client = new Client({ connectionString: process.env.DATABASE_URL });
+    client = new Client({ connectionString: process.env.DATABASE_URI });
     await client.connect();
     await applyDrizzleMigrations(client);
   } catch (error: unknown) {

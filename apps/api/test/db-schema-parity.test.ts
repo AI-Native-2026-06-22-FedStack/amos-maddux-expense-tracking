@@ -206,7 +206,7 @@ interface CatalogColumn {
   numeric_scale: number | null;
 }
 
-describe.skipIf(process.env.DATABASE_URL === undefined)("Drizzle schema parity", () => {
+describe.skipIf(process.env.DATABASE_URI === undefined)("Drizzle schema parity", () => {
   it("matches migrated PostgreSQL columns, constraints, and indexes", async () => {
     const client = new Client({ connectionString: getDatabaseUrl() });
     await client.connect();
@@ -231,11 +231,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("Drizzle schema parity",
 });
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Drizzle schema parity tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Drizzle schema parity tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }
 
 async function readColumns(

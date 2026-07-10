@@ -23,11 +23,11 @@ RESTART IDENTITY CASCADE;
 `;
 
 afterEach(async () => {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for API integration test cleanup.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for API integration test cleanup.");
   }
 
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  const client = new Client({ connectionString: process.env.DATABASE_URI });
 
   try {
     await client.connect();
