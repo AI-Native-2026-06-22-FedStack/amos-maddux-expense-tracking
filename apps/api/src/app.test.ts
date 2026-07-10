@@ -1,10 +1,24 @@
+import express from "express";
 import inject from "light-my-request";
-import pino from "pino";
+import pino, { type Logger } from "pino";
+import { pinoHttp } from "pino-http";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
 import { sensitiveLogPaths } from "./logger.js";
+import { bindCorrelationId, CORRELATION_ID_HEADER_LOWERCASE } from "./middleware/correlation.js";
+
+interface CapturedRequestLog {
+  level: number;
+  time: number;
+  msg: string;
+  req: {
+    headers?: Record<string, unknown>;
+  };
+  res: unknown;
+  correlationId?: unknown;
+}
 
 describe("createApp", () => {
   const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
@@ -28,36 +42,15 @@ describe("createApp", () => {
   });
 
   it("emits parseable JSON request logs without sensitive headers", async () => {
-    const logLines: string[] = [];
-    const testLogger = pino(
-      {
-        redact: {
-          paths: sensitiveLogPaths,
-          remove: true
-        }
-      },
-      {
-        write(line) {
-          logLines.push(line);
-        }
-      }
-    );
-    const response = await inject(createApp({ logger: testLogger }), {
+    const { logLines, logger } = createCapturedLogger();
+    const response = await inject(createApp({ logger }), {
       method: "GET",
       url: "/health",
       headers: {
         authorization: "Bearer synthetic-test-token"
       }
     });
-    const parsedLog = JSON.parse(logLines.at(-1) ?? "") as {
-      level?: unknown;
-      time?: unknown;
-      msg?: unknown;
-      req?: {
-        headers?: Record<string, unknown>;
-      };
-      res?: unknown;
-    };
+    const parsedLog = parseLatestRequestLog(logLines);
 
     expect(response.statusCode).toBe(200);
     expect(parsedLog).toMatchObject({
@@ -69,6 +62,94 @@ describe("createApp", () => {
     });
     expect(parsedLog.req?.headers).not.toHaveProperty("authorization");
     expect(logLines.join("")).not.toContain("synthetic-test-token");
+  });
+
+  it("reuses a supplied correlation ID in downstream request logs", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const suppliedCorrelationId = "synthetic-correlation-id";
+    const response = await inject(createApp({ logger }), {
+      method: "GET",
+      url: "/health",
+      headers: {
+        [CORRELATION_ID_HEADER_LOWERCASE]: suppliedCorrelationId
+      }
+    });
+    const parsedLog = parseLatestRequestLog(logLines);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers[CORRELATION_ID_HEADER_LOWERCASE]).toBe(suppliedCorrelationId);
+    expect(parsedLog.correlationId).toBe(suppliedCorrelationId);
+  });
+
+  it("generates a correlation ID when the request does not provide one", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const response = await inject(createApp({ logger }), {
+      method: "GET",
+      url: "/health"
+    });
+    const parsedLog = parseLatestRequestLog(logLines);
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers[CORRELATION_ID_HEADER_LOWERCASE]).toMatch(uuidRegex);
+    expect(parsedLog.correlationId).toBe(response.headers[CORRELATION_ID_HEADER_LOWERCASE]);
+  });
+
+  it("does not replace a supplied correlation ID with a generated value", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const suppliedCorrelationId = "synthetic-non-uuid-correlation-id";
+    const response = await inject(createApp({ logger }), {
+      method: "GET",
+      url: "/health",
+      headers: {
+        [CORRELATION_ID_HEADER_LOWERCASE]: suppliedCorrelationId
+      }
+    });
+    const parsedLog = parseLatestRequestLog(logLines);
+
+    expect(response.headers[CORRELATION_ID_HEADER_LOWERCASE]).toBe(suppliedCorrelationId);
+    expect(parsedLog.correlationId).toBe(suppliedCorrelationId);
+    expect(parsedLog.correlationId).not.toEqual(expect.stringMatching(uuidRegex));
+  });
+
+  it("generates a correlation ID when the supplied header is unusable", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const response = await inject(createApp({ logger }), {
+      method: "GET",
+      url: "/health",
+      headers: {
+        [CORRELATION_ID_HEADER_LOWERCASE]: "   "
+      }
+    });
+    const parsedLog = parseLatestRequestLog(logLines);
+
+    expect(response.headers[CORRELATION_ID_HEADER_LOWERCASE]).toMatch(uuidRegex);
+    expect(parsedLog.correlationId).toBe(response.headers[CORRELATION_ID_HEADER_LOWERCASE]);
+  });
+
+  it("binds the correlation ID to downstream request logs", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const app = express();
+
+    app.use(pinoHttp({ logger }));
+    app.use(bindCorrelationId);
+    app.get("/downstream-log", (request, response) => {
+      request.log.info("Synthetic downstream route log.");
+      response.status(204).end();
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/downstream-log",
+      headers: {
+        [CORRELATION_ID_HEADER_LOWERCASE]: "synthetic-downstream-correlation-id"
+      }
+    });
+    const downstreamLog = parseJsonLogs(logLines).find(
+      (logLine) => logLine.msg === "Synthetic downstream route log."
+    );
+
+    expect(response.statusCode).toBe(204);
+    expect(downstreamLog?.correlationId).toBe("synthetic-downstream-correlation-id");
   });
 
   it("returns the dependency readiness body from GET /ready", async () => {
@@ -287,3 +368,70 @@ describe("createApp", () => {
     return `Bearer ${tokenPair.accessToken}`;
   }
 });
+
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+
+function createCapturedLogger(): { logger: Logger; logLines: string[] } {
+  const logLines: string[] = [];
+  const logger = pino(
+    {
+      redact: {
+        paths: sensitiveLogPaths,
+        remove: true
+      }
+    },
+    {
+      write(line) {
+        logLines.push(line);
+      }
+    }
+  );
+
+  return { logger, logLines };
+}
+
+function parseLatestRequestLog(logLines: readonly string[]): CapturedRequestLog {
+  const latestLine = logLines.at(-1);
+
+  if (latestLine === undefined) {
+    throw new Error("Expected at least one captured request log line.");
+  }
+
+  const parsed: unknown = JSON.parse(latestLine);
+
+  if (!isCapturedRequestLog(parsed)) {
+    throw new Error("Captured request log did not match the expected structure.");
+  }
+
+  return parsed;
+}
+
+function parseJsonLogs(logLines: readonly string[]): Record<string, unknown>[] {
+  return logLines.map((line) => {
+    const parsed: unknown = JSON.parse(line);
+
+    if (!isRecord(parsed)) {
+      throw new Error("Captured log line did not contain a JSON object.");
+    }
+
+    return parsed;
+  });
+}
+
+function isCapturedRequestLog(value: unknown): value is CapturedRequestLog {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.level === "number" &&
+    typeof value.time === "number" &&
+    typeof value.msg === "string" &&
+    isRecord(value.req) &&
+    "res" in value
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}

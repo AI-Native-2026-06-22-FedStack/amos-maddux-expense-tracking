@@ -5,6 +5,7 @@ import type { Logger } from "pino";
 
 import { NotFoundError, problemJsonErrorHandler } from "./errors/problem-json.js";
 import { logger as rootLogger } from "./logger.js";
+import { bindCorrelationId, CORRELATION_ID_LOG_FIELD } from "./middleware/correlation.js";
 import { generateOpenApiDocument } from "./openapi/openapi.js";
 import { createAuthRouter } from "./routes/auth-routes.js";
 import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
@@ -18,7 +19,21 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const app = express();
   const logger = options.logger ?? rootLogger;
 
-  app.use(pinoHttp({ logger }));
+  app.use(
+    pinoHttp({
+      logger,
+      customProps(request) {
+        if (typeof request.correlationId !== "string") {
+          return {};
+        }
+
+        return {
+          [CORRELATION_ID_LOG_FIELD]: request.correlationId
+        };
+      }
+    })
+  );
+  app.use(bindCorrelationId);
   app.use(express.json());
 
   app.get("/openapi.json", (_request, response) => {
