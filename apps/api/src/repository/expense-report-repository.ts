@@ -26,7 +26,10 @@ export interface ExpenseReportRepository {
 }
 
 class DrizzleExpenseReportRepository implements ExpenseReportRepository {
-  public constructor(private readonly db: ExpenseReportDatabase) {}
+  public constructor(
+    private readonly db: ExpenseReportDatabase,
+    private readonly now: () => Date
+  ) {}
 
   public async createDraftReport(insert: ExpenseReportInsert): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
@@ -53,7 +56,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           action: "Expense Report Created",
           reason: "Expense Report created in Drafted stage.",
           result: "success",
-          occurredAt: new Date()
+          occurredAt: this.now()
         })
       );
 
@@ -115,7 +118,8 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
 }
 
 export function createExpenseReportRepository(
-  db: ExpenseReportDatabase = defaultDb
+  db: ExpenseReportDatabase = defaultDb,
+  now: () => Date = () => new Date()
 ): ExpenseReportRepository {
-  return new DrizzleExpenseReportRepository(db);
+  return new DrizzleExpenseReportRepository(db, now);
 }

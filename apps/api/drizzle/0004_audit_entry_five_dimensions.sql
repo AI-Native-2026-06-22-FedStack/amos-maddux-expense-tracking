@@ -1,3 +1,7 @@
+DROP TRIGGER IF EXISTS audit_entry_prevent_update ON audit_entry;
+--> statement-breakpoint
+DROP TRIGGER IF EXISTS audit_entry_prevent_delete ON audit_entry;
+--> statement-breakpoint
 ALTER TABLE "audit_entry" ADD COLUMN "reason" text;
 --> statement-breakpoint
 ALTER TABLE "audit_entry" ADD COLUMN "result" text;
@@ -28,6 +32,7 @@ BEGIN
 		SELECT 1
 		FROM pg_trigger
 		WHERE tgname = 'audit_entry_prevent_update'
+			AND tgrelid = 'audit_entry'::regclass
 	) THEN
 		CREATE TRIGGER audit_entry_prevent_update
 			BEFORE UPDATE ON audit_entry
@@ -43,6 +48,7 @@ BEGIN
 		SELECT 1
 		FROM pg_trigger
 		WHERE tgname = 'audit_entry_prevent_delete'
+			AND tgrelid = 'audit_entry'::regclass
 	) THEN
 		CREATE TRIGGER audit_entry_prevent_delete
 			BEFORE DELETE ON audit_entry

@@ -1,10 +1,18 @@
 import pino from "pino";
 
-import { sensitiveLogCensor, sensitiveLogPaths } from "./log-redaction.js";
+import {
+  redactSensitiveLogObject,
+  sensitiveLogCensor,
+  sensitiveLogKeys,
+  sensitiveLogPaths
+} from "./log-redaction.js";
 
-export { sensitiveLogCensor, sensitiveLogPaths };
+export { redactSensitiveLogObject, sensitiveLogCensor, sensitiveLogKeys, sensitiveLogPaths };
 
 export const logger = pino({
+  formatters: {
+    log: redactSensitiveLogObject
+  },
   redact: {
     paths: sensitiveLogPaths,
     censor: sensitiveLogCensor

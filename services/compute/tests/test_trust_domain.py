@@ -1,4 +1,5 @@
 import importlib
+import logging
 from datetime import datetime, timedelta, timezone
 from types import ModuleType
 from typing import Callable
@@ -109,6 +110,12 @@ def test_health_route_logs_incoming_correlation_id(
     assert response.headers["X-Correlation-Id"] == "synthetic-cross-service-correlation-id"
     assert '"correlationId": "synthetic-cross-service-correlation-id"' in captured.out
     assert '"event": "request.completed"' in captured.out
+
+
+def test_compute_disables_uvicorn_access_logs(monkeypatch: pytest.MonkeyPatch) -> None:
+    _load_test_client(monkeypatch)
+
+    assert logging.getLogger("uvicorn.access").disabled is True
 
 
 def test_me_route_rejects_missing_authorization(monkeypatch: pytest.MonkeyPatch) -> None:

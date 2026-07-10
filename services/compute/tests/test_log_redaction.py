@@ -85,6 +85,26 @@ def test_nested_and_array_sensitive_fields_are_redacted_before_json_rendering() 
         assert raw_sensitive_value not in output.getvalue()
 
 
+def test_authorization_headers_are_redacted_case_insensitively() -> None:
+    output = io.StringIO()
+    logger = _configure_test_logger(output)
+
+    logger.info(
+        "synthetic.headers",
+        headers={
+            "Authorization": "synthetic-authorization-secret",
+            "authorization": "synthetic-token-secret",
+        },
+    )
+
+    parsed_output = json.loads(output.getvalue())
+
+    assert parsed_output["headers"]["Authorization"] == SENSITIVE_LOG_CENSOR
+    assert parsed_output["headers"]["authorization"] == SENSITIVE_LOG_CENSOR
+    assert "synthetic-authorization-secret" not in output.getvalue()
+    assert "synthetic-token-secret" not in output.getvalue()
+
+
 def test_shared_redaction_keys_cover_payment_identifiers_and_receipt_data() -> None:
     assert {"payment_id", "receipt_data", "account_number"}.issubset(SENSITIVE_LOG_KEYS)
 

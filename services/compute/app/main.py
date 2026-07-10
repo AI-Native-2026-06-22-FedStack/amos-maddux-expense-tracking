@@ -14,6 +14,7 @@ REQUEST_ID_HEADER = "X-Request-Id"
 
 def configure_logging() -> None:
     logging.basicConfig(format="%(message)s", stream=sys.stdout, level=logging.INFO, force=True)
+    logging.getLogger("uvicorn.access").disabled = True
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,

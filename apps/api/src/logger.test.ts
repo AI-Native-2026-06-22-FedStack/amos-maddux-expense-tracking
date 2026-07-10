@@ -1,7 +1,12 @@
 import pino, { type Logger } from "pino";
 import { describe, expect, it } from "vitest";
 
-import { sensitiveLogCensor, sensitiveLogPaths } from "./logger.js";
+import {
+  redactSensitiveLogObject,
+  sensitiveLogCensor,
+  sensitiveLogKeys,
+  sensitiveLogPaths
+} from "./logger.js";
 
 const rawSensitiveValues = [
   "synthetic-authorization-secret",
@@ -81,9 +86,46 @@ describe("logger redaction", () => {
   });
 
   it("uses shared redaction paths for payment identifiers and receipt data", () => {
+    expect([...sensitiveLogKeys]).toEqual(
+      expect.arrayContaining(["paymentId", "receiptData", "accountNumber"])
+    );
     expect(sensitiveLogPaths).toEqual(
       expect.arrayContaining(["*.paymentId", "*.receiptData", "*[*].paymentId", "paymentId"])
     );
+  });
+
+  it("redacts deeply nested sensitive fields that pino paths alone do not cover", () => {
+    const { logger, logLines } = createCapturedLogger();
+
+    logger.info(
+      {
+        deeply: {
+          nested: {
+            payload: {
+              paymentId: "synthetic-payment-id-secret",
+              receiptData: "synthetic-receipt-data-secret"
+            }
+          }
+        },
+        nestedItems: [
+          {
+            child: [
+              {
+                cardNumber: "synthetic-card-number-secret"
+              }
+            ]
+          }
+        ]
+      },
+      "Synthetic deep redaction log."
+    );
+
+    const output = logLines.join("");
+
+    expect(output).not.toContain("synthetic-payment-id-secret");
+    expect(output).not.toContain("synthetic-receipt-data-secret");
+    expect(output).not.toContain("synthetic-card-number-secret");
+    expect(output).toContain(sensitiveLogCensor);
   });
 });
 
@@ -91,6 +133,9 @@ function createCapturedLogger(): { logger: Logger; logLines: string[] } {
   const logLines: string[] = [];
   const logger = pino(
     {
+      formatters: {
+        log: redactSensitiveLogObject
+      },
       redact: {
         paths: sensitiveLogPaths,
         censor: sensitiveLogCensor

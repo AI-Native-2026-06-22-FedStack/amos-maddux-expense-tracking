@@ -1,6 +1,29 @@
 {
   "censor": "[REDACTED]",
   "node": {
+    "keys": [
+      "authorization",
+      "Authorization",
+      "token",
+      "accessToken",
+      "refreshToken",
+      "tokenHash",
+      "password",
+      "credentials",
+      "receipt",
+      "receiptData",
+      "receiptNumber",
+      "receiptEmail",
+      "receiptPhone",
+      "receiptAddress",
+      "payment",
+      "paymentId",
+      "paymentData",
+      "accountNumber",
+      "bankAccountNumber",
+      "cardNumber",
+      "routingNumber"
+    ],
     "paths": [
       "authorization",
       "Authorization",
