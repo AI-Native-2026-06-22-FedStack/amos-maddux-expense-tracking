@@ -93,6 +93,24 @@ def test_health_route_is_public(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_health_route_logs_incoming_correlation_id(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = _load_test_client(monkeypatch)
+
+    response = client.get(
+        "/health",
+        headers={"X-Correlation-Id": "synthetic-cross-service-correlation-id"},
+    )
+    captured = capsys.readouterr()
+
+    assert response.status_code == 200
+    assert response.headers["X-Correlation-Id"] == "synthetic-cross-service-correlation-id"
+    assert '"correlationId": "synthetic-cross-service-correlation-id"' in captured.out
+    assert '"event": "request.completed"' in captured.out
+
+
 def test_me_route_rejects_missing_authorization(monkeypatch: pytest.MonkeyPatch) -> None:
     client = _load_test_client(monkeypatch)
 

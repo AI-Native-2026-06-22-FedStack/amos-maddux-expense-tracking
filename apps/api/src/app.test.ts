@@ -152,16 +152,16 @@ describe("createApp", () => {
     expect(downstreamLog?.correlationId).toBe("synthetic-downstream-correlation-id");
   });
 
-  it("returns the dependency readiness body from GET /ready", async () => {
+  it("returns not ready from GET /ready when compute is unavailable", async () => {
     const response = await inject(createApp(), {
       method: "GET",
       url: "/ready"
     });
 
-    expect(response.statusCode).toBe(200);
+    expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({
       service: "ExpenseFlow API",
-      status: "ready"
+      status: "not ready"
     });
   });
 

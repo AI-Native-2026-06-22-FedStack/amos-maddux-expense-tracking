@@ -24,8 +24,14 @@ describe("HealthController", () => {
       }))
     };
 
-    await controller.getReadiness({} as never, response as never);
+    await controller.getReadiness(
+      { correlationId: "synthetic-controller-correlation-id" },
+      response
+    );
 
+    expect(service.readReadiness).toHaveBeenCalledWith({
+      correlationId: "synthetic-controller-correlation-id"
+    });
     expect(response.status).toHaveBeenCalledWith(503);
     expect(response.status.mock.results[0]?.value.json).toHaveBeenCalledWith({
       service: "ExpenseFlow API",
