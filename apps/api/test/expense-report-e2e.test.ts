@@ -8,9 +8,11 @@ import request from "supertest";
 
 import { createApp } from "../src/app.js";
 import { issueTokenPair, loadJwtRuntimeConfig } from "../src/auth/tokens.js";
+import * as schema from "../src/db/schema.js";
 import { auditEntry, stageTransition } from "../src/db/schema.js";
 import { readCaseQueue } from "../src/repository/case-queue.js";
 import type { CaseQueueQueryExecutor } from "../src/repository/case-queue.js";
+import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 
 const { Client } = pg;
 
@@ -78,7 +80,7 @@ describe("Expense Report create and read end-to-end", () => {
       overdueCount: 0
     });
 
-    const db = drizzle(client);
+    const db = drizzle(client, { schema });
     const auditRows = await db
       .select()
       .from(auditEntry)
@@ -92,9 +94,33 @@ describe("Expense Report create and read end-to-end", () => {
 
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0]).toMatchObject({
+      tenantId: tenantA,
+      expenseReportId: reportId,
       actorId: submitterId,
-      action: "Expense Report Created"
+      action: "Expense Report Created",
+      reason: "Expense Report created in Drafted stage.",
+      result: "success"
     });
+    expect(auditRows[0]?.occurredAt).toBeInstanceOf(Date);
+    for (const value of Object.values(auditRows[0] ?? {})) {
+      expect(value).not.toBeNull();
+    }
+
+    const repository = createExpenseReportRepository(db);
+    const auditTrail = await repository.listAuditEntries(reportId, tenantA);
+
+    expect(auditTrail).toHaveLength(1);
+    expect(auditTrail[0]?.id).toBe(auditRows[0]?.id);
+    await expect(
+      client.query("update audit_entry set action = $1 where id = $2", [
+        "Synthetic Mutated Action",
+        auditRows[0]?.id
+      ])
+    ).rejects.toThrow(/append-only/);
+    await expect(
+      client.query("delete from audit_entry where id = $1", [auditRows[0]?.id])
+    ).rejects.toThrow(/append-only/);
+
     expect(transitionRows).toHaveLength(1);
     expect(transitionRows[0]).toMatchObject({
       fromStage: null,

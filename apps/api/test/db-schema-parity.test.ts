@@ -151,14 +151,20 @@ const tableShapes = [
       expense_report_id: { dataType: "uuid", nullable: false },
       actor_id: { dataType: "text", nullable: false },
       action: { dataType: "text", nullable: false },
-      details: { dataType: "text", nullable: true },
+      reason: { dataType: "text", nullable: false },
+      result: { dataType: "text", nullable: false },
       occurred_at: {
         dataType: "timestamp with time zone",
         nullable: false,
         defaultExpression: "now()"
       }
     },
-    constraints: ["audit_entry_pkey", "audit_entry_report_fk", "audit_entry_tenant_id_id_unique"],
+    constraints: [
+      "audit_entry_pkey",
+      "audit_entry_report_fk",
+      "audit_entry_result_check",
+      "audit_entry_tenant_id_id_unique"
+    ],
     indexes: ["audit_entry_pkey", "audit_entry_tenant_id_id_unique"]
   },
   {

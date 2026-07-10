@@ -48,6 +48,43 @@ describe("logger redaction", () => {
 
     assertSensitiveValuesRedacted(logLines);
   });
+
+  it("redacts nested and array sensitive fields before emission", () => {
+    const { logger, logLines } = createCapturedLogger();
+
+    logger.info(
+      {
+        nested: {
+          paymentId: "synthetic-payment-id-secret",
+          receiptData: "synthetic-receipt-data-secret"
+        },
+        items: [
+          {
+            accessToken: "synthetic-access-token-secret",
+            accountNumber: "synthetic-account-number-secret"
+          }
+        ]
+      },
+      "Synthetic nested redaction log."
+    );
+
+    const parsedLog = JSON.parse(logLines.at(-1) ?? "{}") as {
+      nested?: Record<string, unknown>;
+      items?: Array<Record<string, unknown>>;
+    };
+
+    expect(parsedLog.nested?.paymentId).toBe(sensitiveLogCensor);
+    expect(parsedLog.nested?.receiptData).toBe(sensitiveLogCensor);
+    expect(parsedLog.items?.[0]?.accessToken).toBe(sensitiveLogCensor);
+    expect(parsedLog.items?.[0]?.accountNumber).toBe(sensitiveLogCensor);
+    assertSensitiveValuesRedacted(logLines);
+  });
+
+  it("uses shared redaction paths for payment identifiers and receipt data", () => {
+    expect(sensitiveLogPaths).toEqual(
+      expect.arrayContaining(["*.paymentId", "*.receiptData", "*[*].paymentId", "paymentId"])
+    );
+  });
 });
 
 function createCapturedLogger(): { logger: Logger; logLines: string[] } {

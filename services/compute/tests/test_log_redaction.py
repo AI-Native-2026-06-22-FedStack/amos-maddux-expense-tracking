@@ -4,7 +4,7 @@ import logging
 
 import structlog
 
-from app.log_redaction import SENSITIVE_LOG_CENSOR, redact_sensitive_fields
+from app.log_redaction import SENSITIVE_LOG_CENSOR, SENSITIVE_LOG_KEYS, redact_sensitive_fields
 
 RAW_SENSITIVE_VALUES = [
     "synthetic-authorization-secret",
@@ -50,6 +50,43 @@ def test_error_log_redacts_sensitive_fields_before_json_rendering() -> None:
     )
 
     _assert_sensitive_values_redacted(output.getvalue())
+
+
+def test_nested_and_array_sensitive_fields_are_redacted_before_json_rendering() -> None:
+    output = io.StringIO()
+    logger = _configure_test_logger(output)
+
+    logger.info(
+        "synthetic.nested",
+        nested={
+            "payment_id": "synthetic-payment-id-secret",
+            "receipt_data": "synthetic-receipt-data-secret",
+        },
+        items=[
+            {
+                "access_token": "synthetic-access-token-secret",
+                "account_number": "synthetic-account-number-secret",
+            }
+        ],
+    )
+
+    parsed_output = json.loads(output.getvalue())
+
+    assert parsed_output["nested"]["payment_id"] == SENSITIVE_LOG_CENSOR
+    assert parsed_output["nested"]["receipt_data"] == SENSITIVE_LOG_CENSOR
+    assert parsed_output["items"][0]["access_token"] == SENSITIVE_LOG_CENSOR
+    assert parsed_output["items"][0]["account_number"] == SENSITIVE_LOG_CENSOR
+    for raw_sensitive_value in [
+        "synthetic-payment-id-secret",
+        "synthetic-receipt-data-secret",
+        "synthetic-access-token-secret",
+        "synthetic-account-number-secret",
+    ]:
+        assert raw_sensitive_value not in output.getvalue()
+
+
+def test_shared_redaction_keys_cover_payment_identifiers_and_receipt_data() -> None:
+    assert {"payment_id", "receipt_data", "account_number"}.issubset(SENSITIVE_LOG_KEYS)
 
 
 def _configure_test_logger(output: io.StringIO) -> structlog.stdlib.BoundLogger:

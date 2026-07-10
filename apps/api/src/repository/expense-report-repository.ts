@@ -1,10 +1,16 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { db as defaultDb } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { auditEntry, expenseReport, lineItem, stageTransition } from "../db/schema.js";
-import type { ExpenseReportInsert, ExpenseReportSelect, LineItemSelect } from "../db/schema.js";
+import type {
+  AuditEntrySelect,
+  ExpenseReportInsert,
+  ExpenseReportSelect,
+  LineItemSelect
+} from "../db/schema.js";
+import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
 
 type ExpenseReportDatabase = NodePgDatabase<typeof schema>;
 
@@ -15,6 +21,7 @@ export type ExpenseReportWithLineItems = ExpenseReportSelect & {
 export interface ExpenseReportRepository {
   createDraftReport(report: ExpenseReportInsert): Promise<ExpenseReportSelect>;
   findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null>;
+  listAuditEntries(expenseReportId: string, tenantId: string): Promise<AuditEntrySelect[]>;
   listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]>;
 }
 
@@ -37,13 +44,18 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         actorId: report.submitterId,
         reason: "Expense Report created."
       });
-      await tx.insert(auditEntry).values({
-        tenantId: report.tenantId,
-        expenseReportId: report.id,
-        actorId: report.submitterId,
-        action: "Expense Report Created",
-        details: "Expense Report created in Drafted stage."
-      });
+      // audit_entry is append-only because PostgreSQL triggers reject UPDATE and DELETE; application code only inserts and selects.
+      await tx.insert(auditEntry).values(
+        auditEntryWriteSchema.parse({
+          tenantId: report.tenantId,
+          expenseReportId: report.id,
+          actorId: report.submitterId,
+          action: "Expense Report Created",
+          reason: "Expense Report created in Drafted stage.",
+          result: "success",
+          occurredAt: new Date()
+        })
+      );
 
       return report;
     });
@@ -57,6 +69,17 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
       .limit(1);
 
     return report ?? null;
+  }
+
+  public async listAuditEntries(
+    expenseReportId: string,
+    tenantId: string
+  ): Promise<AuditEntrySelect[]> {
+    return this.db
+      .select()
+      .from(auditEntry)
+      .where(and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId)))
+      .orderBy(asc(auditEntry.occurredAt), asc(auditEntry.id));
   }
 
   public async listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]> {

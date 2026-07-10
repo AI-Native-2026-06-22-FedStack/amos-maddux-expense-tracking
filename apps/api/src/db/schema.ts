@@ -24,6 +24,7 @@ export const expenseReportStages = [
 ] as const;
 
 export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as const;
+export const auditEntryResults = ["success", "failure"] as const;
 
 export const role = pgTable(
   "role",
@@ -330,7 +331,8 @@ export const auditEntry = pgTable(
     expenseReportId: uuid("expense_report_id").notNull(),
     actorId: text("actor_id").notNull(),
     action: text("action").notNull(),
-    details: text("details"),
+    reason: text("reason").notNull(),
+    result: text("result", { enum: auditEntryResults }).notNull(),
     occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
@@ -339,7 +341,8 @@ export const auditEntry = pgTable(
       name: "audit_entry_report_fk",
       columns: [table.tenantId, table.expenseReportId],
       foreignColumns: [expenseReport.tenantId, expenseReport.id]
-    }).onDelete("restrict")
+    }).onDelete("restrict"),
+    check("audit_entry_result_check", sql`${table.result} in ('success', 'failure')`)
   ]
 );
 
