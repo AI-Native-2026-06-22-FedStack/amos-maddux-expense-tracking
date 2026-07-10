@@ -1,0 +1,21 @@
+# path: services/compute/pyproject.toml
+# Initialize with `uv init` then `uv add` the deps. PyJWT for verify, pwdlib for
+# Argon2 hashing, httpx for any inter-service call, pytest for the contract test.
+# NEVER add passlib (unmaintained, breaks at runtime on 3.13) or python-jose.
+[project]
+name = "compute"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi",
+  "pyjwt[crypto]>=2.8",
+  "pwdlib[argon2]",
+  "httpx",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
