@@ -4,6 +4,7 @@ import { RedisReply, RedisStore } from "rate-limit-redis";
 
 import { requireAuthenticatedContext } from "../auth/verifier.js";
 import { ExpenseWriteRateLimitConfig } from "../config/expense-write-rate-limit.js";
+import { TooManyRequestsError } from "../errors/problem-json.js";
 
 const expenseWriteTokenBucketScript = `
 local key = KEYS[1]
@@ -41,9 +42,10 @@ end
 redis.call("HMSET", key, "tokens", tostring(tokens), "updatedAt", tostring(now_ms))
 redis.call("PEXPIRE", key, ttl_ms)
 
-return { allowed, retry_after_ms }
+return { allowed, retry_after_ms, math.max(0, math.floor(tokens)) }
 `;
 
+const expenseWriteRateLimitIdentifier = "expense-write";
 const expenseWriteSlowDownRedisPrefix = "expense-write:slow-down:";
 
 export interface RedisEvalClient {
@@ -61,6 +63,7 @@ interface ExpenseWriteTokenBucketOptions {
 interface TokenBucketResult {
   allowed: boolean;
   retryAfterMs: number;
+  remaining: number;
 }
 
 export function createExpenseWriteTokenBucketRateLimiter(
@@ -85,15 +88,15 @@ export function createExpenseWriteTokenBucketRateLimiter(
         )
       );
 
+      setExpenseWriteRateLimitHeaders(response, config, result);
+
       if (result.allowed) {
         next();
         return;
       }
 
-      response
-        .setHeader("Retry-After", String(Math.ceil(result.retryAfterMs / 1000)))
-        .status(429)
-        .json({ error: "Expense Report write rate limit exceeded." });
+      response.setHeader("Retry-After", String(Math.ceil(result.retryAfterMs / 1000)));
+      next(new TooManyRequestsError("Expense Report write rate limit exceeded."));
     } catch (error) {
       next(error);
     }
@@ -143,25 +146,50 @@ export function createExpenseWriteSlowDownKey(tenantId: string): string {
 }
 
 function parseTokenBucketResult(value: unknown): TokenBucketResult {
-  if (!Array.isArray(value) || value.length < 2) {
+  if (!Array.isArray(value) || value.length < 3) {
     throw new Error("Redis token bucket script returned an invalid result.");
   }
 
   const allowed = parseRedisNumber(value[0]);
   const retryAfterMs = parseRedisNumber(value[1]);
+  const remaining = parseRedisNumber(value[2]);
 
   if (allowed !== 0 && allowed !== 1) {
     throw new Error("Redis token bucket script returned an invalid allow flag.");
   }
 
-  if (retryAfterMs < 0) {
+  if (retryAfterMs < 0 || remaining < 0) {
     throw new Error("Redis token bucket script returned an invalid retry delay.");
   }
 
   return {
     allowed: allowed === 1,
-    retryAfterMs
+    retryAfterMs,
+    remaining
   };
+}
+
+function setExpenseWriteRateLimitHeaders(
+  response: Parameters<RequestHandler>[1],
+  config: ExpenseWriteRateLimitConfig,
+  result: TokenBucketResult
+): void {
+  const resetSeconds = Math.ceil(
+    (result.allowed ? config.expenseWriteRateLimitWindowMs : result.retryAfterMs) / 1000
+  );
+  const windowSeconds = Math.ceil(config.expenseWriteRateLimitWindowMs / 1000);
+
+  response.setHeader(
+    "RateLimit",
+    `"${expenseWriteRateLimitIdentifier}";r=${result.remaining};t=${resetSeconds}`
+  );
+  response.setHeader(
+    "RateLimit-Policy",
+    `"${expenseWriteRateLimitIdentifier}";q=${config.expenseWriteRateLimitMax};w=${windowSeconds}`
+  );
+  response.removeHeader("X-RateLimit-Limit");
+  response.removeHeader("X-RateLimit-Remaining");
+  response.removeHeader("X-RateLimit-Reset");
 }
 
 function parseRedisNumber(value: unknown): number {
