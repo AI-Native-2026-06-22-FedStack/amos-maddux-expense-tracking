@@ -1,4 +1,6 @@
 import { RequestHandler } from "express";
+import { slowDown } from "express-slow-down";
+import { RedisReply, RedisStore } from "rate-limit-redis";
 
 import { requireAuthenticatedContext } from "../auth/verifier.js";
 import { ExpenseWriteRateLimitConfig } from "../config/expense-write-rate-limit.js";
@@ -42,8 +44,14 @@ redis.call("PEXPIRE", key, ttl_ms)
 return { allowed, retry_after_ms }
 `;
 
+const expenseWriteSlowDownRedisPrefix = "expense-write:slow-down:";
+
 export interface RedisEvalClient {
   eval(script: string, numberOfKeys: number, ...args: string[]): Promise<unknown>;
+}
+
+export interface RedisRateLimitClient extends RedisEvalClient {
+  call(...args: string[]): Promise<unknown>;
 }
 
 interface ExpenseWriteTokenBucketOptions {
@@ -92,6 +100,40 @@ export function createExpenseWriteTokenBucketRateLimiter(
   };
 }
 
+export function createExpenseWriteRateLimiters(
+  config: ExpenseWriteRateLimitConfig,
+  redis: RedisRateLimitClient
+): readonly RequestHandler[] {
+  return [
+    createExpenseWriteSlowDownRateLimiter(config, redis),
+    createExpenseWriteTokenBucketRateLimiter(config, redis)
+  ];
+}
+
+export function createExpenseWriteSlowDownRateLimiter(
+  config: ExpenseWriteRateLimitConfig,
+  redis: RedisRateLimitClient
+): RequestHandler {
+  const store = createExpressSlowDownRedisStore(config, redis);
+
+  return slowDown({
+    windowMs: config.expenseWriteRateLimitWindowMs,
+    delayAfter: config.expenseWriteSlowDownAfter,
+    delayMs: (used): number =>
+      Math.min(
+        Math.max(0, used - config.expenseWriteSlowDownAfter) *
+          config.expenseWriteDelayIncrementMs,
+        config.expenseWriteMaxDelayMs
+      ),
+    maxDelayMs: config.expenseWriteMaxDelayMs,
+    keyGenerator: (request): string => requireAuthenticatedContext(request).tenantId,
+    store,
+    validate: {
+      delayMs: false
+    }
+  });
+}
+
 export function createExpenseWriteTokenBucketKey(tenantId: string): string {
   return `expense-write:tenant:${tenantId}:token-bucket`;
 }
@@ -127,4 +169,64 @@ function parseRedisNumber(value: unknown): number {
   }
 
   return parsedValue;
+}
+
+function createExpressSlowDownRedisStore(
+  config: ExpenseWriteRateLimitConfig,
+  redis: RedisRateLimitClient
+) {
+  const redisStore = new RedisStore({
+    prefix: expenseWriteSlowDownRedisPrefix,
+    sendCommand: async (...args: string[]) => toRedisReply(await redis.call(...args))
+  });
+
+  redisStore.windowMs = config.expenseWriteRateLimitWindowMs;
+  redisStore.incrementScriptSha = redisStore.loadIncrementScript();
+  redisStore.getScriptSha = redisStore.loadGetScript();
+
+  return {
+    incr(
+      key: string,
+      callback: (error: Error | undefined, totalHits: number, resetTime: Date | undefined) => void
+    ): void {
+      void redisStore.increment(key).then(
+        ({ totalHits, resetTime }) => {
+          callback(undefined, totalHits, resetTime);
+        },
+        (error: unknown) => {
+          callback(toError(error), 0, undefined);
+        }
+      );
+    },
+    decrement(key: string): void {
+      void redisStore.decrement(key);
+    },
+    resetKey(key: string): void {
+      void redisStore.resetKey(key);
+    }
+  };
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error("Redis slow-down store failed.");
+}
+
+function toRedisReply(value: unknown): RedisReply {
+  if (isRedisReply(value)) {
+    return value;
+  }
+
+  throw new Error("Redis slow-down store returned an unsupported reply.");
+}
+
+function isRedisReply(value: unknown): value is RedisReply {
+  if (isRedisData(value)) {
+    return true;
+  }
+
+  return Array.isArray(value) && value.every(isRedisData);
+}
+
+function isRedisData(value: unknown): value is boolean | number | string {
+  return typeof value === "boolean" || typeof value === "number" || typeof value === "string";
 }

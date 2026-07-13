@@ -13,6 +13,7 @@ import { createHealthRouter } from "./routes/health-routes.js";
 
 interface CreateAppOptions {
   logger?: Logger;
+  expenseWriteRateLimiters?: readonly RequestHandler[];
 }
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -43,7 +44,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   app.use(createHealthRouter());
   app.use(createAuthRouter());
-  app.use(createExpenseReportRouter());
+  app.use(
+    createExpenseReportRouter({
+      expenseWriteRateLimiters: options.expenseWriteRateLimiters
+    })
+  );
 
   app.use(notFoundHandler);
   app.use(problemJsonErrorHandler);
