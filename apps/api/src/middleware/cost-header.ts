@@ -8,12 +8,19 @@ export interface AiAssistUsage {
 }
 
 export const attachAiAssistUsageHeader: RequestHandler = (request, response, next) => {
-  response.setHeader(aiAssistUsageHeader, formatAiAssistUsage(request.aiAssistUsage));
+  setAiAssistUsageHeader(response, request.aiAssistUsage);
 
   next();
 };
 
-function formatAiAssistUsage(usage: AiAssistUsage | undefined): string {
+export function setAiAssistUsageHeader(
+  response: Parameters<RequestHandler>[1],
+  usage: AiAssistUsage | undefined
+): void {
+  response.setHeader(aiAssistUsageHeader, formatAiAssistUsage(usage));
+}
+
+export function formatAiAssistUsage(usage: AiAssistUsage | undefined): string {
   const cost = usage?.cost ?? 0;
   const remainingQuota = usage?.remainingQuota ?? 0;
 

@@ -18,17 +18,26 @@ const tenantA = "00000000-0000-4000-8000-000000000a01";
 const tenantB = "00000000-0000-4000-8000-000000000a02";
 const userId = "synthetic-user-00000000-0000-4000-8000-000000000a03";
 
-const shortWindowConfig: ExpenseWriteRateLimitConfig = {
+const burstConfig: ExpenseWriteRateLimitConfig = {
   redisUrl: redisUrl ?? "redis://localhost:6379",
-  expenseWriteRateLimitWindowMs: 120,
+  expenseWriteRateLimitWindowMs: 10_000,
   expenseWriteRateLimitMax: 3,
   expenseWriteSlowDownAfter: 1,
   expenseWriteDelayIncrementMs: 35,
   expenseWriteMaxDelayMs: 90
 };
 
+const refillConfig: ExpenseWriteRateLimitConfig = {
+  redisUrl: redisUrl ?? "redis://localhost:6379",
+  expenseWriteRateLimitWindowMs: 120,
+  expenseWriteRateLimitMax: 2,
+  expenseWriteSlowDownAfter: 1,
+  expenseWriteDelayIncrementMs: 0,
+  expenseWriteMaxDelayMs: 0
+};
+
 const sharedBucketConfig: ExpenseWriteRateLimitConfig = {
-  ...shortWindowConfig,
+  ...burstConfig,
   expenseWriteRateLimitWindowMs: 1_000,
   expenseWriteRateLimitMax: 2,
   expenseWriteSlowDownAfter: 1,
@@ -40,7 +49,8 @@ describe.skipIf(redisUrl === undefined)("Redis-backed Expense Report write rate 
   let redis: Redis;
 
   beforeEach(async () => {
-    redis = new Redis(getRedisUrl());
+    redis = createRedisClient();
+    await redis.connect();
     await redis.ping();
     await deleteLimiterKeys(redis, tenantA, tenantB);
   });
@@ -51,10 +61,10 @@ describe.skipIf(redisUrl === undefined)("Redis-backed Expense Report write rate 
   });
 
   it("returns 429 after the per-tenant cap and does not throttle another tenant", async () => {
-    const app = createRateLimitedApp(redis, shortWindowConfig);
+    const app = createRateLimitedApp(redis, burstConfig);
     const tenantAResponses = [];
 
-    for (let index = 0; index < shortWindowConfig.expenseWriteRateLimitMax + 1; index += 1) {
+    for (let index = 0; index < burstConfig.expenseWriteRateLimitMax + 1; index += 1) {
       tenantAResponses.push(await postInvalidExpenseReport(app, tenantA));
     }
 
@@ -65,7 +75,7 @@ describe.skipIf(redisUrl === undefined)("Redis-backed Expense Report write rate 
   });
 
   it("increases response delay after the slow-down threshold before returning 429", async () => {
-    const app = createRateLimitedApp(redis, shortWindowConfig);
+    const app = createRateLimitedApp(redis, burstConfig);
     const timings = [];
 
     timings.push(await timeInvalidExpenseReport(app, tenantA));
@@ -80,31 +90,56 @@ describe.skipIf(redisUrl === undefined)("Redis-backed Expense Report write rate 
     expect(deniedResponse.status).toBe(429);
   });
 
-  it("allows traffic again after the token bucket refills", async () => {
-    const app = createRateLimitedApp(redis, shortWindowConfig);
+  it("shares the slow-down counter across independent Redis clients", async () => {
+    const secondRedis = createRedisClient();
 
-    for (let index = 0; index < shortWindowConfig.expenseWriteRateLimitMax; index += 1) {
+    try {
+      await secondRedis.connect();
+      const firstApp = createRateLimitedApp(redis, burstConfig);
+      const secondApp = createRateLimitedApp(secondRedis, burstConfig);
+
+      const firstTiming = await timeInvalidExpenseReport(firstApp, tenantA);
+      const secondTiming = await timeInvalidExpenseReport(secondApp, tenantA);
+
+      expect(firstTiming.status).toBe(400);
+      expect(secondTiming.status).toBe(400);
+      expect(secondTiming.elapsedMs).toBeGreaterThanOrEqual(20);
+    } finally {
+      await secondRedis.quit();
+    }
+  });
+
+  it("allows traffic again after the token bucket refills", async () => {
+    const app = createRateLimitedApp(redis, refillConfig);
+
+    for (let index = 0; index < refillConfig.expenseWriteRateLimitMax; index += 1) {
       expect((await postInvalidExpenseReport(app, tenantA)).status).toBe(400);
     }
 
     expect((await postInvalidExpenseReport(app, tenantA)).status).toBe(429);
 
-    await sleep(shortWindowConfig.expenseWriteRateLimitWindowMs + 40);
+    await sleep(refillConfig.expenseWriteRateLimitWindowMs + 40);
 
     expect((await postInvalidExpenseReport(app, tenantA)).status).toBe(400);
   });
 
   it("shares one tenant token bucket across two app instances", async () => {
+    const secondRedis = createRedisClient();
     const firstApp = createRateLimitedApp(redis, sharedBucketConfig);
-    const secondApp = createRateLimitedApp(redis, sharedBucketConfig);
 
-    const firstResponse = await postInvalidExpenseReport(firstApp, tenantA);
-    const secondResponse = await postInvalidExpenseReport(secondApp, tenantA);
-    const combinedLimitResponse = await postInvalidExpenseReport(secondApp, tenantA);
+    try {
+      await secondRedis.connect();
+      const secondApp = createRateLimitedApp(secondRedis, sharedBucketConfig);
+      const firstResponse = await postInvalidExpenseReport(firstApp, tenantA);
+      const secondResponse = await postInvalidExpenseReport(secondApp, tenantA);
+      const combinedLimitResponse = await postInvalidExpenseReport(secondApp, tenantA);
 
-    expect(firstResponse.status).toBe(400);
-    expect(secondResponse.status).toBe(400);
-    expect(combinedLimitResponse.status).toBe(429);
+      expect(firstResponse.status).toBe(400);
+      expect(secondResponse.status).toBe(400);
+      expect(combinedLimitResponse.status).toBe(429);
+    } finally {
+      await secondRedis.quit();
+    }
   });
 });
 
@@ -163,6 +198,14 @@ function getRedisUrl(): string {
   }
 
   return redisUrl;
+}
+
+function createRedisClient(): Redis {
+  return new Redis(getRedisUrl(), {
+    connectTimeout: 500,
+    lazyConnect: true,
+    maxRetriesPerRequest: 1
+  });
 }
 
 function sleep(ms: number): Promise<void> {

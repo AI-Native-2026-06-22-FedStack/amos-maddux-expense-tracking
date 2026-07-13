@@ -5,14 +5,16 @@ import { RedisReply, RedisStore } from "rate-limit-redis";
 import { requireAuthenticatedContext } from "../auth/verifier.js";
 import { ExpenseWriteRateLimitConfig } from "../config/expense-write-rate-limit.js";
 import { TooManyRequestsError } from "../errors/problem-json.js";
+import { setAiAssistUsageHeader } from "./cost-header.js";
 
 const expenseWriteTokenBucketScript = `
 local key = KEYS[1]
 local capacity = tonumber(ARGV[1])
 local window_ms = tonumber(ARGV[2])
-local now_ms = tonumber(ARGV[3])
 local refill_rate = capacity / window_ms
 local ttl_ms = math.ceil(window_ms * 2)
+local redis_time = redis.call("TIME")
+local now_ms = (tonumber(redis_time[1]) * 1000) + math.floor(tonumber(redis_time[2]) / 1000)
 
 local bucket = redis.call("HMGET", key, "tokens", "updatedAt")
 local tokens = tonumber(bucket[1])
@@ -31,6 +33,7 @@ tokens = math.min(capacity, tokens + (elapsed_ms * refill_rate))
 
 local allowed = 0
 local retry_after_ms = 0
+local reset_after_ms = 0
 
 if tokens >= 1 then
   allowed = 1
@@ -39,10 +42,12 @@ else
   retry_after_ms = math.ceil((1 - tokens) / refill_rate)
 end
 
+reset_after_ms = math.ceil((capacity - tokens) / refill_rate)
+
 redis.call("HMSET", key, "tokens", tostring(tokens), "updatedAt", tostring(now_ms))
 redis.call("PEXPIRE", key, ttl_ms)
 
-return { allowed, retry_after_ms, math.max(0, math.floor(tokens)) }
+return { allowed, retry_after_ms, math.max(0, math.floor(tokens)), reset_after_ms }
 `;
 
 const expenseWriteRateLimitIdentifier = "expense-write";
@@ -56,23 +61,17 @@ export interface RedisRateLimitClient extends RedisEvalClient {
   call(...args: string[]): Promise<unknown>;
 }
 
-interface ExpenseWriteTokenBucketOptions {
-  nowMs?: () => number;
-}
-
 interface TokenBucketResult {
   allowed: boolean;
   retryAfterMs: number;
   remaining: number;
+  resetAfterMs: number;
 }
 
 export function createExpenseWriteTokenBucketRateLimiter(
   config: ExpenseWriteRateLimitConfig,
-  redis: RedisEvalClient,
-  options: ExpenseWriteTokenBucketOptions = {}
+  redis: RedisEvalClient
 ): RequestHandler {
-  const nowMs = options.nowMs ?? Date.now;
-
   return async (request, response, next): Promise<void> => {
     try {
       const authContext = requireAuthenticatedContext(request);
@@ -83,12 +82,15 @@ export function createExpenseWriteTokenBucketRateLimiter(
           1,
           bucketKey,
           String(config.expenseWriteRateLimitMax),
-          String(config.expenseWriteRateLimitWindowMs),
-          String(nowMs())
+          String(config.expenseWriteRateLimitWindowMs)
         )
       );
 
       setExpenseWriteRateLimitHeaders(response, config, result);
+      setAiAssistUsageHeader(response, {
+        cost: 0,
+        remainingQuota: result.remaining
+      });
 
       if (result.allowed) {
         next();
@@ -146,26 +148,28 @@ export function createExpenseWriteSlowDownKey(tenantId: string): string {
 }
 
 function parseTokenBucketResult(value: unknown): TokenBucketResult {
-  if (!Array.isArray(value) || value.length < 3) {
+  if (!Array.isArray(value) || value.length < 4) {
     throw new Error("Redis token bucket script returned an invalid result.");
   }
 
   const allowed = parseRedisNumber(value[0]);
   const retryAfterMs = parseRedisNumber(value[1]);
   const remaining = parseRedisNumber(value[2]);
+  const resetAfterMs = parseRedisNumber(value[3]);
 
   if (allowed !== 0 && allowed !== 1) {
     throw new Error("Redis token bucket script returned an invalid allow flag.");
   }
 
-  if (retryAfterMs < 0 || remaining < 0) {
+  if (retryAfterMs < 0 || remaining < 0 || resetAfterMs < 0) {
     throw new Error("Redis token bucket script returned an invalid retry delay.");
   }
 
   return {
     allowed: allowed === 1,
     retryAfterMs,
-    remaining
+    remaining,
+    resetAfterMs
   };
 }
 
@@ -175,17 +179,18 @@ function setExpenseWriteRateLimitHeaders(
   result: TokenBucketResult
 ): void {
   const resetSeconds = Math.ceil(
-    (result.allowed ? config.expenseWriteRateLimitWindowMs : result.retryAfterMs) / 1000
+    (result.allowed ? result.resetAfterMs : result.retryAfterMs) / 1000
   );
   const windowSeconds = Math.ceil(config.expenseWriteRateLimitWindowMs / 1000);
+  const partitionKey = encodeRateLimitPartitionKey(expenseWriteRateLimitIdentifier);
 
   response.setHeader(
     "RateLimit",
-    `"${expenseWriteRateLimitIdentifier}";r=${result.remaining};t=${resetSeconds}`
+    `"${expenseWriteRateLimitIdentifier}"; r=${result.remaining}; t=${resetSeconds}`
   );
   response.setHeader(
     "RateLimit-Policy",
-    `"${expenseWriteRateLimitIdentifier}";q=${config.expenseWriteRateLimitMax};w=${windowSeconds}`
+    `"${expenseWriteRateLimitIdentifier}"; q=${config.expenseWriteRateLimitMax}; w=${windowSeconds}; pk=:${partitionKey}:`
   );
   response.removeHeader("X-RateLimit-Limit");
   response.removeHeader("X-RateLimit-Remaining");
@@ -196,11 +201,15 @@ function parseRedisNumber(value: unknown): number {
   const parsedValue =
     typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
 
-  if (!Number.isFinite(parsedValue)) {
-    throw new Error("Redis token bucket script returned a non-numeric value.");
+  if (!Number.isInteger(parsedValue)) {
+    throw new Error("Redis token bucket script returned a non-integer value.");
   }
 
   return parsedValue;
+}
+
+function encodeRateLimitPartitionKey(value: string): string {
+  return Buffer.from(value).toString("base64url");
 }
 
 function createExpressSlowDownRedisStore(

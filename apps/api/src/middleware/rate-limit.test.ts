@@ -41,13 +41,13 @@ class FakeRedis implements RedisEvalClient {
       throw response;
     }
 
-    return response ?? [1, 0, 119];
+    return response ?? [1, 0, 119, 500];
   }
 }
 
 describe("createExpenseWriteTokenBucketRateLimiter", () => {
   it("allows a request when the Redis token bucket has capacity", async () => {
-    const redis = new FakeRedis([[1, 0, 119]]);
+    const redis = new FakeRedis([[1, 0, 119, 500]]);
     const app = createSyntheticApp(redis, tenantA);
 
     const response = await inject(app, {
@@ -60,7 +60,7 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
   });
 
   it("returns 429 without running downstream handlers when the bucket is empty", async () => {
-    const redis = new FakeRedis([[0, 1_250, 0]]);
+    const redis = new FakeRedis([[0, 1_250, 0, 1_250]]);
     const app = createSyntheticApp(redis, tenantA);
 
     const response = await inject(app, {
@@ -80,8 +80,8 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
   });
 
   it("calls Redis eval once with the token bucket script, tenant key, and numeric config", async () => {
-    const redis = new FakeRedis([[1, 0, 119]]);
-    const app = createSyntheticApp(redis, tenantA, 1_700_000_000_000);
+    const redis = new FakeRedis([[1, 0, 119, 500]]);
+    const app = createSyntheticApp(redis, tenantA);
 
     await inject(app, {
       method: "POST",
@@ -95,16 +95,15 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
         args: [
           createExpenseWriteTokenBucketKey(tenantA),
           String(config.expenseWriteRateLimitMax),
-          String(config.expenseWriteRateLimitWindowMs),
-          "1700000000000"
+          String(config.expenseWriteRateLimitWindowMs)
         ]
       }
     ]);
   });
 
   it("uses a different Redis token bucket key for each tenant", async () => {
-    const tenantARedis = new FakeRedis([[1, 0, 119]]);
-    const tenantBRedis = new FakeRedis([[1, 0, 119]]);
+    const tenantARedis = new FakeRedis([[1, 0, 119, 500]]);
+    const tenantBRedis = new FakeRedis([[1, 0, 119, 500]]);
 
     await inject(createSyntheticApp(tenantARedis, tenantA), {
       method: "POST",
@@ -122,8 +121,8 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
 
   it("allows a later request after Redis reports the token bucket refilled", async () => {
     const redis = new FakeRedis([
-      [0, 500, 0],
-      [1, 0, 1]
+      [0, 500, 0, 500],
+      [1, 0, 1, 59_500]
     ]);
     const app = createSyntheticApp(redis, tenantA);
 
@@ -161,7 +160,7 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
   });
 
   it("passes missing auth context errors to the Express error pipeline", async () => {
-    const redis = new FakeRedis([[1, 0, 119]]);
+    const redis = new FakeRedis([[1, 0, 119, 500]]);
     const app = createSyntheticApp(redis);
 
     const response = await inject(app, {
@@ -182,8 +181,8 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
 
   it("emits draft-8 RateLimit headers that decrement across allowed requests", async () => {
     const redis = new FakeRedis([
-      [1, 0, 119],
-      [1, 0, 118]
+      [1, 0, 119, 500],
+      [1, 0, 118, 1_000]
     ]);
     const app = createSyntheticApp(redis, tenantA);
 
@@ -196,13 +195,17 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
       url: "/expense-reports"
     });
 
-    expect(firstResponse.headers.ratelimit).toBe('"expense-write";r=119;t=60');
-    expect(firstResponse.headers["ratelimit-policy"]).toBe('"expense-write";q=120;w=60');
-    expect(secondResponse.headers.ratelimit).toBe('"expense-write";r=118;t=60');
+    expect(firstResponse.headers.ratelimit).toBe('"expense-write"; r=119; t=1');
+    expect(firstResponse.headers["ratelimit-policy"]).toBe(
+      '"expense-write"; q=120; w=60; pk=:ZXhwZW5zZS13cml0ZQ:'
+    );
+    expect(firstResponse.headers["ai-assist-usage"]).toBe("cost=0; remaining=119");
+    expect(secondResponse.headers.ratelimit).toBe('"expense-write"; r=118; t=1');
+    expect(secondResponse.headers["ai-assist-usage"]).toBe("cost=0; remaining=118");
   });
 
   it("does not emit legacy X-RateLimit headers", async () => {
-    const redis = new FakeRedis([[1, 0, 119]]);
+    const redis = new FakeRedis([[1, 0, 119, 500]]);
     const app = createSyntheticApp(redis, tenantA);
 
     const response = await inject(app, {
@@ -216,7 +219,7 @@ describe("createExpenseWriteTokenBucketRateLimiter", () => {
   });
 });
 
-function createSyntheticApp(redis: RedisEvalClient, tenantId?: string, nowMs = 1_700_000_000_000) {
+function createSyntheticApp(redis: RedisEvalClient, tenantId?: string) {
   const app = express();
 
   if (tenantId !== undefined) {
@@ -225,9 +228,7 @@ function createSyntheticApp(redis: RedisEvalClient, tenantId?: string, nowMs = 1
 
   app.post(
     "/expense-reports",
-    createExpenseWriteTokenBucketRateLimiter(config, redis, {
-      nowMs: () => nowMs
-    }),
+    createExpenseWriteTokenBucketRateLimiter(config, redis),
     (_request, response) => {
       response.status(204).end();
     }

@@ -108,6 +108,8 @@ describe("generateOpenApiDocument", () => {
     expectProblemJsonResponse(createResponses["401"]);
     expectProblemJsonResponse(readResponses["401"]);
     expectProblemJsonResponse(createResponses["429"]);
+    expectAiAssistUsageHeader(createResponses["201"]);
+    expectAiAssistUsageHeader(readResponses["200"]);
     expect(readResponses["429"]).toBeUndefined();
     expectRateLimitHeaders(createResponses["429"]);
   });
@@ -143,7 +145,13 @@ function expectRateLimitHeaders(value: unknown): void {
   const response = expectObject(value);
   const headers = expectObject(response.headers);
 
-  expect(Object.keys(headers).sort()).toEqual(["RateLimit", "RateLimit-Policy", "Retry-After"]);
+  expect(Object.keys(headers).sort()).toEqual([
+    "AI-Assist-Usage",
+    "RateLimit",
+    "RateLimit-Policy",
+    "Retry-After"
+  ]);
+  expectAiAssistUsageHeader(response);
   expect(expectObject(headers["Retry-After"]).schema).toMatchObject({
     type: "integer",
     minimum: 0
@@ -152,6 +160,15 @@ function expectRateLimitHeaders(value: unknown): void {
     type: "string"
   });
   expect(expectObject(headers["RateLimit-Policy"]).schema).toEqual({
+    type: "string"
+  });
+}
+
+function expectAiAssistUsageHeader(value: unknown): void {
+  const response = expectObject(value);
+  const headers = expectObject(response.headers);
+
+  expect(expectObject(headers["AI-Assist-Usage"]).schema).toEqual({
     type: "string"
   });
 }

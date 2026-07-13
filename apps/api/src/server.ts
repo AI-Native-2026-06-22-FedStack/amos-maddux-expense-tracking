@@ -7,9 +7,11 @@ import { loadExpenseWriteRateLimitConfig } from "./config/expense-write-rate-lim
 import { createExpenseWriteRateLimiters } from "./middleware/rate-limit.js";
 
 const defaultPort = 3000;
-const port = Number.parseInt(process.env.PORT ?? String(defaultPort), 10);
+const port = readPort(process.env.PORT);
 const expenseWriteRateLimitConfig = loadExpenseWriteRateLimitConfig();
-const redisClient = new Redis(expenseWriteRateLimitConfig.redisUrl);
+const redisClient = new Redis(expenseWriteRateLimitConfig.redisUrl, {
+  lazyConnect: true
+});
 const app = createApp({
   expenseWriteRateLimiters: createExpenseWriteRateLimiters(
     expenseWriteRateLimitConfig,
@@ -17,12 +19,30 @@ const app = createApp({
   )
 });
 const server = createServer(app);
+let shutdownStarted = false;
 
-server.listen(port, () => {
-  console.log(`ExpenseFlow API listening on port ${port}.`);
-});
+void startServer();
+
+async function startServer(): Promise<void> {
+  try {
+    await redisClient.connect();
+    await redisClient.ping();
+  } catch (error) {
+    console.error("ExpenseFlow API Redis startup failed.", error);
+    process.exit(1);
+  }
+
+  server.listen(port, () => {
+    console.log(`ExpenseFlow API listening on port ${port}.`);
+  });
+}
 
 function shutdown(signal: NodeJS.Signals): void {
+  if (shutdownStarted) {
+    return;
+  }
+
+  shutdownStarted = true;
   console.log(`Received ${signal}; shutting down ExpenseFlow API.`);
 
   server.close((error) => {
@@ -49,3 +69,17 @@ async function finishShutdown(error: Error | undefined): Promise<void> {
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+function readPort(value: string | undefined): number {
+  if (value === undefined) {
+    return defaultPort;
+  }
+
+  const parsedValue = Number(value);
+
+  if (!Number.isInteger(parsedValue) || parsedValue <= 0 || parsedValue > 65_535) {
+    throw new Error("PORT must be an integer from 1 through 65535.");
+  }
+
+  return parsedValue;
+}

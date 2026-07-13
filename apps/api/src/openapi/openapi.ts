@@ -50,7 +50,16 @@ const problemJsonContent = {
     schema: problemJsonOpenApiSchema
   }
 };
+const aiAssistUsageResponseHeader: HeadersObject = {
+  "AI-Assist-Usage": {
+    description: "AI-assist cost indicator and remaining tenant quota for this request.",
+    schema: {
+      type: "string"
+    }
+  }
+};
 const rateLimitResponseHeaders: HeadersObject = {
+  ...aiAssistUsageResponseHeader,
   "Retry-After": {
     description: "Seconds to wait before retrying after the write limit is exceeded.",
     schema: {
@@ -91,6 +100,7 @@ registry.registerPath({
   responses: {
     201: {
       description: "Drafted Expense Report created.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         "application/json": {
           schema: expenseReportResponseOpenApiSchema
@@ -99,12 +109,14 @@ registry.registerPath({
     },
     400: {
       description: "Request validation failed.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }
     },
     401: {
       description: "Missing or invalid bearer token.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }
@@ -131,6 +143,7 @@ registry.registerPath({
   responses: {
     200: {
       description: "Expense Report found.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         "application/json": {
           schema: expenseReportResponseOpenApiSchema
@@ -139,18 +152,21 @@ registry.registerPath({
     },
     400: {
       description: "Request validation failed.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }
     },
     401: {
       description: "Missing or invalid bearer token.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }
     },
     404: {
       description: "Expense Report not found.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }
