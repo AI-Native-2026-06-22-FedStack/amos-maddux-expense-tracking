@@ -138,6 +138,10 @@ export function createExpenseWriteTokenBucketKey(tenantId: string): string {
   return `expense-write:tenant:${tenantId}:token-bucket`;
 }
 
+export function createExpenseWriteSlowDownKey(tenantId: string): string {
+  return `${expenseWriteSlowDownRedisPrefix}${tenantId}`;
+}
+
 function parseTokenBucketResult(value: unknown): TokenBucketResult {
   if (!Array.isArray(value) || value.length < 2) {
     throw new Error("Redis token bucket script returned an invalid result.");
