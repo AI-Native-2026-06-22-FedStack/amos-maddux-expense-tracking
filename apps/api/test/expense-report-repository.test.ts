@@ -1,10 +1,11 @@
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import * as schema from "../src/db/schema.js";
-import { lineItem } from "../src/db/schema.js";
+import { auditEntry, expenseReport, lineItem, stageTransition } from "../src/db/schema.js";
 import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
 
@@ -66,6 +67,40 @@ describe("ExpenseReportRepository integration", () => {
     });
 
     await expect(repository.findById(created.id, tenantB)).resolves.toBeNull();
+  });
+
+  it("does not list another tenant's audit entries for an Expense Report", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = makeExpenseReport({ tenantId: tenantA });
+
+    const created = await repository.createDraftReport({
+      tenantId: report.tenantId,
+      submitterId: report.submitterId
+    });
+
+    await expect(repository.listAuditEntries(created.id, tenantA)).resolves.toHaveLength(1);
+    await expect(repository.listAuditEntries(created.id, tenantB)).resolves.toEqual([]);
+  });
+
+  it("rolls back the Expense Report when audit validation fails", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db, () => new Date(Number.NaN));
+    const report = makeExpenseReport({ tenantId: tenantA });
+
+    await expect(
+      repository.createDraftReport({
+        tenantId: report.tenantId,
+        submitterId: report.submitterId
+      })
+    ).rejects.toThrow();
+
+    await expect(db.select().from(expenseReport).where(eq(expenseReport.tenantId, tenantA))).resolves
+      .toHaveLength(0);
+    await expect(db.select().from(stageTransition).where(eq(stageTransition.tenantId, tenantA)))
+      .resolves.toHaveLength(0);
+    await expect(db.select().from(auditEntry).where(eq(auditEntry.tenantId, tenantA))).resolves
+      .toHaveLength(0);
   });
 
   it("lists Expense Reports with line items in a single tenant-scoped left join query", async () => {
@@ -146,9 +181,9 @@ class QueryCountingLogger {
 }
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Expense Report repository integration tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Expense Report repository integration tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }

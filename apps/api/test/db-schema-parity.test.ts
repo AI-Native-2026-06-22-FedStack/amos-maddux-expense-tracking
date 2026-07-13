@@ -151,14 +151,20 @@ const tableShapes = [
       expense_report_id: { dataType: "uuid", nullable: false },
       actor_id: { dataType: "text", nullable: false },
       action: { dataType: "text", nullable: false },
-      details: { dataType: "text", nullable: true },
+      reason: { dataType: "text", nullable: false },
+      result: { dataType: "text", nullable: false },
       occurred_at: {
         dataType: "timestamp with time zone",
         nullable: false,
         defaultExpression: "now()"
       }
     },
-    constraints: ["audit_entry_pkey", "audit_entry_report_fk", "audit_entry_tenant_id_id_unique"],
+    constraints: [
+      "audit_entry_pkey",
+      "audit_entry_report_fk",
+      "audit_entry_result_check",
+      "audit_entry_tenant_id_id_unique"
+    ],
     indexes: ["audit_entry_pkey", "audit_entry_tenant_id_id_unique"]
   },
   {
@@ -206,7 +212,7 @@ interface CatalogColumn {
   numeric_scale: number | null;
 }
 
-describe.skipIf(process.env.DATABASE_URL === undefined)("Drizzle schema parity", () => {
+describe.skipIf(process.env.DATABASE_URI === undefined)("Drizzle schema parity", () => {
   it("matches migrated PostgreSQL columns, constraints, and indexes", async () => {
     const client = new Client({ connectionString: getDatabaseUrl() });
     await client.connect();
@@ -231,11 +237,11 @@ describe.skipIf(process.env.DATABASE_URL === undefined)("Drizzle schema parity",
 });
 
 function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URL === undefined) {
-    throw new Error("DATABASE_URL is required for Drizzle schema parity tests.");
+  if (process.env.DATABASE_URI === undefined) {
+    throw new Error("DATABASE_URI is required for Drizzle schema parity tests.");
   }
 
-  return process.env.DATABASE_URL;
+  return process.env.DATABASE_URI;
 }
 
 async function readColumns(

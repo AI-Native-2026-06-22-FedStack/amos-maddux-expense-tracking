@@ -1,5 +1,6 @@
 import {
   HealthRepository,
+  ReadinessRequestContext,
   ReadinessStatusRecord,
   ServiceStatusRecord,
   createHealthRepository
@@ -7,7 +8,7 @@ import {
 
 export interface HealthService {
   readStatus(): ServiceStatusRecord;
-  readReadiness(): Promise<ReadinessStatusRecord>;
+  readReadiness(context: ReadinessRequestContext): Promise<ReadinessStatusRecord>;
   throwSyntheticFailure(): never;
 }
 
@@ -18,8 +19,8 @@ class RepositoryHealthService implements HealthService {
     return this.healthRepository.readServiceStatus();
   }
 
-  public readReadiness(): Promise<ReadinessStatusRecord> {
-    return this.healthRepository.readReadinessStatus();
+  public readReadiness(context: ReadinessRequestContext): Promise<ReadinessStatusRecord> {
+    return this.healthRepository.readReadinessStatus(context);
   }
 
   public throwSyntheticFailure(): never {
