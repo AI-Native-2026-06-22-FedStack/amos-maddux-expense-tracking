@@ -18,7 +18,7 @@ export const expenseReportIdParamSchema = z.object({
   id: z.uuid()
 });
 
-export const expenseReportResponseSchema = createSelectSchema(expenseReport);
+export const expenseReportResponseSchema = createSelectSchema(expenseReport).strict();
 
 export type CreateExpenseReportRequest = z.infer<typeof createExpenseReportRequestSchema>;
 export type ExpenseReportIdParam = z.infer<typeof expenseReportIdParamSchema>;

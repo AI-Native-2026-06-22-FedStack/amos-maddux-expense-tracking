@@ -3,8 +3,11 @@ import {
   SecretsManagerClient,
   type SecretsManagerClientConfig
 } from "@aws-sdk/client-secrets-manager";
+import { createPrivateKey, createPublicKey, createSign, createVerify } from "node:crypto";
+import type { Logger } from "pino";
 import { z } from "zod";
 
+import { logger as rootLogger } from "../logger.js";
 import { ApiRuntimeConfig, getApiRuntimeConfig } from "./runtime-config.js";
 
 export const runtimeSecretRefreshIntervalMs = 5 * 60 * 1000;
@@ -31,6 +34,11 @@ export interface SecretsManagerSender {
 let secretsManagerClient: SecretsManagerSender | undefined;
 let cachedSecrets: RuntimeSecrets | undefined;
 let refreshTimer: ReturnType<typeof setInterval> | undefined;
+let refreshInFlight: Promise<boolean> | undefined;
+
+interface RuntimeSecretRefreshOptions {
+  logger?: Pick<Logger, "debug" | "warn">;
+}
 
 export function createSecretsManagerClient(config: ApiRuntimeConfig): SecretsManagerClient {
   const clientConfig: SecretsManagerClientConfig = {
@@ -65,11 +73,12 @@ export function getRuntimeSecrets(): RuntimeSecrets {
 
 export function startRuntimeSecretRefresh(
   config: ApiRuntimeConfig = getApiRuntimeConfig(),
-  client: SecretsManagerSender = getSecretsManagerClient(config)
+  client: SecretsManagerSender = getSecretsManagerClient(config),
+  options: RuntimeSecretRefreshOptions = {}
 ): void {
   stopRuntimeSecretRefresh();
   refreshTimer = setInterval(() => {
-    refreshRuntimeSecrets(config, client).catch(() => undefined);
+    refreshRuntimeSecrets(config, client, options).catch(() => undefined);
   }, runtimeSecretRefreshIntervalMs);
   refreshTimer.unref?.();
 }
@@ -85,12 +94,40 @@ export function stopRuntimeSecretRefresh(): void {
 
 export async function refreshRuntimeSecrets(
   config: ApiRuntimeConfig = getApiRuntimeConfig(),
-  client: SecretsManagerSender = getSecretsManagerClient(config)
+  client: SecretsManagerSender = getSecretsManagerClient(config),
+  options: RuntimeSecretRefreshOptions = {}
 ): Promise<boolean> {
+  if (refreshInFlight !== undefined) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = refreshRuntimeSecretsOnce(config, client, options).finally(() => {
+    refreshInFlight = undefined;
+  });
+
+  return refreshInFlight;
+}
+
+async function refreshRuntimeSecretsOnce(
+  config: ApiRuntimeConfig,
+  client: SecretsManagerSender,
+  options: RuntimeSecretRefreshOptions
+): Promise<boolean> {
+  const refreshLogger = options.logger ?? rootLogger;
+
   try {
     cachedSecrets = await fetchRuntimeSecrets(config, client);
+    refreshLogger.debug("Runtime secrets refreshed successfully.");
     return true;
-  } catch {
+  } catch (error) {
+    refreshLogger.warn(
+      {
+        err: error,
+        dbPasswordSecretId: config.DB_PASSWORD_SECRET_ID,
+        jwtSigningKeysSecretId: config.JWT_SIGNING_KEYS_SECRET_ID
+      },
+      "Runtime secret refresh failed; keeping last valid cached secrets."
+    );
     return false;
   }
 }
@@ -123,13 +160,12 @@ async function fetchDbPassword(
   client: SecretsManagerSender
 ): Promise<string> {
   const secretString = await fetchRequiredSecretString(client, config.DB_PASSWORD_SECRET_ID);
-  const password = secretString.trim();
 
-  if (password === "") {
+  if (secretString.trim() === "") {
     throw new Error("DB password secret must not be empty.");
   }
 
-  return password;
+  return secretString;
 }
 
 async function fetchJwtSigningKeys(
@@ -142,6 +178,7 @@ async function fetchJwtSigningKeys(
 
   assertPemKind(keys.privateKeyPem, "PRIVATE KEY", "JWT private key");
   assertPemKind(keys.publicKeyPem, "PUBLIC KEY", "JWT public key");
+  assertJwtKeyPair(keys);
 
   return keys;
 }
@@ -167,6 +204,24 @@ function assertPemKind(value: string, expectedLabel: string, description: string
     !trimmedValue.endsWith(`-----END ${expectedLabel}-----`)
   ) {
     throw new Error(`${description} must be a PEM encoded ${expectedLabel}.`);
+  }
+}
+
+function assertJwtKeyPair(keys: JwtSigningKeys): void {
+  try {
+    const privateKey = createPrivateKey(keys.privateKeyPem);
+    const publicKey = createPublicKey(keys.publicKeyPem);
+    const payload = "expenseflow-runtime-secret-validation";
+    const signature = createSign("RSA-SHA256").update(payload).end().sign(privateKey);
+    const verified = createVerify("RSA-SHA256").update(payload).end().verify(publicKey, signature);
+
+    if (!verified) {
+      throw new Error("JWT private and public keys do not match.");
+    }
+  } catch (error) {
+    throw new Error("JWT signing key secret must contain a valid matching RSA key pair.", {
+      cause: error
+    });
   }
 }
 

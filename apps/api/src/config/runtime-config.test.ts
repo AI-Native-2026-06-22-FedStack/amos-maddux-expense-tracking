@@ -34,6 +34,8 @@ describe("loadApiRuntimeConfig", () => {
 
   it.each([
     ["AWS_ENDPOINT", "not-a-url"],
+    ["DATABASE_URI", "http://localhost:5432/expenseflow"],
+    ["REDIS_URL", "http://localhost:6379"],
     ["PORT", "70000"],
     ["JWT_ACCESS_TOKEN_TTL_SECONDS", "0"],
     ["JWT_REFRESH_TOKEN_TTL_SECONDS", "not-a-number"]

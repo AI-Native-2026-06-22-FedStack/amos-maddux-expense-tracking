@@ -45,12 +45,32 @@ const runtimeConfigSchema = z
     }
 
     const databaseUrl = new URL(config.DATABASE_URI);
+    const allowedDatabaseProtocols = new Set(["postgres:", "postgresql:"]);
+
+    if (!allowedDatabaseProtocols.has(databaseUrl.protocol)) {
+      context.addIssue({
+        code: "custom",
+        path: ["DATABASE_URI"],
+        message: "DATABASE_URI must use the postgres or postgresql protocol."
+      });
+    }
 
     if (databaseUrl.password !== "" && config.NODE_ENV !== "test") {
       context.addIssue({
         code: "custom",
         path: ["DATABASE_URI"],
         message: "DATABASE_URI must not contain a password; use DB_PASSWORD_SECRET_ID instead."
+      });
+    }
+
+    const redisUrl = new URL(config.REDIS_URL);
+    const allowedRedisProtocols = new Set(["redis:", "rediss:"]);
+
+    if (!allowedRedisProtocols.has(redisUrl.protocol)) {
+      context.addIssue({
+        code: "custom",
+        path: ["REDIS_URL"],
+        message: "REDIS_URL must use the redis or rediss protocol."
       });
     }
   });

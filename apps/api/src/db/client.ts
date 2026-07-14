@@ -15,11 +15,15 @@ let db: NodePgDatabase<typeof schema> | undefined;
 
 export async function checkDatabaseReady(): Promise<boolean> {
   try {
-    await getDatabasePool().query("SELECT 1");
+    await assertDatabaseReady();
     return true;
   } catch {
     return false;
   }
+}
+
+export async function assertDatabaseReady(): Promise<void> {
+  await getDatabasePool().query("SELECT 1");
 }
 
 export function getDb(): NodePgDatabase<typeof schema> {

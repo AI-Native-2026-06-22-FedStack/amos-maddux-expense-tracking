@@ -61,6 +61,13 @@ describe("served OpenAPI contract", () => {
     delete driftedResponse.id;
 
     expect(validateResponse(driftedResponse)).toBe(false);
+
+    const responseWithUnexpectedField = {
+      ...createdReport,
+      unexpectedField: "synthetic-schema-drift"
+    };
+
+    expect(validateResponse(responseWithUnexpectedField)).toBe(false);
   });
 });
 
