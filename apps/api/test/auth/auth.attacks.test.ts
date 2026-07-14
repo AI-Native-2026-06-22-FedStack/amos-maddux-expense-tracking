@@ -41,7 +41,7 @@ describe("authentication attack regression suite", () => {
 
   it("allows a valid RS256 bearer token to reach the protected Expense Report creation endpoint", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId }))
       .send({
         tenantId: tenantB,
@@ -57,7 +57,7 @@ describe("authentication attack regression suite", () => {
   });
 
   it("rejects a missing bearer token before creating an Expense Report", async () => {
-    const response = await request(createApp()).post("/expense-reports").send({});
+    const response = await request(createApp()).post("/v1/expense-reports").send({});
 
     expect(response.status).toBe(401);
     await expectExpenseReportCount(elevatedTenant, 0);
@@ -65,7 +65,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects a malformed bearer token before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", "Bearer synthetic-malformed-token")
       .send({});
 
@@ -75,7 +75,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects an expired RS256 token before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createExpiredBearerToken())
       .send({});
 
@@ -85,7 +85,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects a wrong-issuer token before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ issuer: "synthetic-wrong-issuer" }))
       .send({});
 
@@ -95,7 +95,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects a wrong-audience token before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ audience: "synthetic-wrong-audience" }))
       .send({});
 
@@ -105,7 +105,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects a forged alg=none token with elevated privileges before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createNoneAlgorithmBearerToken())
       .send({});
 
@@ -115,7 +115,7 @@ describe("authentication attack regression suite", () => {
 
   it("rejects a wrong-key RS256 token before creating an Expense Report", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createWrongKeyBearerToken())
       .send({});
 
@@ -125,7 +125,7 @@ describe("authentication attack regression suite", () => {
 
   it("preserves tenant isolation by ignoring client-supplied tenant identifiers after authentication", async () => {
     const response = await request(createApp())
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId }))
       .send({
         tenantId: tenantB,

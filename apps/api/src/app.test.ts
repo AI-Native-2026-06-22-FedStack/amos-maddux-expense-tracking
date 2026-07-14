@@ -184,6 +184,7 @@ describe("createApp", () => {
     expect(response.headers["content-type"]).toContain("application/json");
     expect(response.json()).toMatchObject({
       openapi: "3.1.0",
+      servers: [{ url: "http://localhost:3000/v1" }],
       paths: {
         "/expense-reports": expect.any(Object),
         "/expense-reports/{id}": expect.any(Object)
@@ -239,7 +240,7 @@ describe("createApp", () => {
   it("creates a Drafted Expense Report from a valid request", async () => {
     const response = await inject(createApp(), {
       method: "POST",
-      url: "/expense-reports",
+      url: "/v1/expense-reports",
       headers: {
         authorization: createAuthorizationHeader()
       },
@@ -283,10 +284,26 @@ describe("createApp", () => {
     expect(new Date(report.updatedAt).toISOString()).toBe(report.updatedAt);
   });
 
-  it("rejects invalid Expense Report create bodies before creation", async () => {
+  it("keeps legacy Expense Report routes reachable with deprecation headers", async () => {
     const response = await inject(createApp(), {
       method: "POST",
       url: "/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
+      payload: validCreateRequest
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.headers.deprecation).toBe("Tue, 14 Jul 2026 00:00:00 GMT");
+    expect(response.headers.sunset).toBe("Mon, 12 Oct 2026 00:00:00 GMT");
+    expect(response.headers.link).toBe('</v1/expense-reports>; rel="successor-version"');
+  });
+
+  it("rejects invalid Expense Report create bodies before creation", async () => {
+    const response = await inject(createApp(), {
+      method: "POST",
+      url: "/v1/expense-reports",
       headers: {
         authorization: createAuthorizationHeader()
       },
@@ -301,7 +318,7 @@ describe("createApp", () => {
       title: "Bad Request",
       status: 400,
       detail: expect.stringContaining("currentStage"),
-      instance: "/expense-reports"
+      instance: "/v1/expense-reports"
     });
   });
 
@@ -309,7 +326,7 @@ describe("createApp", () => {
     const app = createApp();
     const createResponse = await inject(app, {
       method: "POST",
-      url: "/expense-reports",
+      url: "/v1/expense-reports",
       headers: {
         authorization: createAuthorizationHeader()
       },
@@ -319,7 +336,7 @@ describe("createApp", () => {
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      url: `/v1/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -332,7 +349,7 @@ describe("createApp", () => {
   it("rejects invalid Expense Report id params", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: "/expense-reports/not-a-uuid",
+      url: "/v1/expense-reports/not-a-uuid",
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -344,14 +361,14 @@ describe("createApp", () => {
       title: "Bad Request",
       status: 400,
       detail: expect.stringContaining("id"),
-      instance: "/expense-reports/not-a-uuid"
+      instance: "/v1/expense-reports/not-a-uuid"
     });
   });
 
   it("returns 404 for an unknown valid Expense Report id", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`,
+      url: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`,
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -363,7 +380,7 @@ describe("createApp", () => {
       title: "Not Found",
       status: 404,
       detail: "Expense Report not found.",
-      instance: `/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
+      instance: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
     });
   });
 

@@ -12,6 +12,10 @@ import { createAuthRouter } from "./routes/auth-routes.js";
 import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
 import { createHealthRouter } from "./routes/health-routes.js";
 
+const API_VERSION_PREFIX = "/v1";
+const LEGACY_API_DEPRECATION_DATE = "Tue, 14 Jul 2026 00:00:00 GMT";
+const LEGACY_API_SUNSET_DATE = "Mon, 12 Oct 2026 00:00:00 GMT";
+
 interface CreateAppOptions {
   logger?: Logger;
   expenseWriteRateLimiters?: readonly RequestHandler[];
@@ -45,12 +49,20 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.get("/docs", apiReference({ url: "/openapi.json" }));
 
   app.use(createHealthRouter());
-  app.use(createAuthRouter());
-  app.use(
+
+  const createExpenseReportRoutes = () =>
     createExpenseReportRouter({
       expenseWriteRateLimiters: options.expenseWriteRateLimiters
-    })
-  );
+    });
+
+  const v1Router = express.Router();
+  v1Router.use(createAuthRouter());
+  v1Router.use(createExpenseReportRoutes());
+  app.use(API_VERSION_PREFIX, v1Router);
+
+  app.use(["/auth", "/expense-reports"], legacyApiDeprecationHeaders);
+  app.use(createAuthRouter());
+  app.use(createExpenseReportRoutes());
 
   app.use(notFoundHandler);
   app.use(problemJsonErrorHandler);
@@ -60,4 +72,14 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
 const notFoundHandler: RequestHandler = (_request, _response, next) => {
   next(new NotFoundError("Route not found."));
+};
+
+const legacyApiDeprecationHeaders: RequestHandler = (request, response, next) => {
+  response.setHeader("Deprecation", LEGACY_API_DEPRECATION_DATE);
+  response.setHeader("Sunset", LEGACY_API_SUNSET_DATE);
+  response.setHeader(
+    "Link",
+    `<${API_VERSION_PREFIX}${request.originalUrl}>; rel="successor-version"`
+  );
+  next();
 };

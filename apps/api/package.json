@@ -6,6 +6,8 @@
     "db:migrate": "drizzle-kit migrate"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.1086.0",
+    "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express-rate-limit": "^8.5.2",
     "express-slow-down": "^2.1.0",
