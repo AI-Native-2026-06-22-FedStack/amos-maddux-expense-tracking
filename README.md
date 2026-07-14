@@ -97,6 +97,20 @@ When the API dev server is running, open the generated API contract and docs at:
 - OpenAPI JSON: `http://localhost:3000/openapi.json`
 - Scalar API reference: `http://localhost:3000/docs`
 
+### LocalStack Secrets Manager
+
+The API loads its database password and RS256 JWT signing keys from AWS Secrets
+Manager through LocalStack in local capstone runs. Pin LocalStack to
+`localstack/localstack:4.14.0` for this capstone:
+
+```sh
+docker run --rm -p 4566:4566 -e SERVICES=secretsmanager localstack/localstack:4.14.0
+```
+
+Do not use the floating `latest` tag for this capstone. Newer LocalStack images
+no longer provide the same free local path and require a `LOCALSTACK_AUTH_TOKEN`,
+which is outside this repository's local setup.
+
 After building, run the async entrypoint with:
 
 ```sh

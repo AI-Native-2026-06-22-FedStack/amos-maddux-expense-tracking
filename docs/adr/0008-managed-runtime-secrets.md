@@ -20,13 +20,15 @@ redeploy.
 
 Local development and test environments use LocalStack to mock AWS services, so
 the same AWS Secrets Manager access pattern can be exercised without connecting
-to real AWS.
+to real AWS. For this capstone, LocalStack must be pinned to
+`localstack/localstack:4.14.0`; newer LocalStack images require a
+`LOCALSTACK_AUTH_TOKEN` and no longer provide the same free local path.
 
 ## Decision
 
 ExpenseFlow will store runtime secret values for the TypeScript Express API in
-AWS Secrets Manager. Local and test environments use LocalStack as the Secrets
-Manager endpoint.
+AWS Secrets Manager. Local and test environments use LocalStack 4.14.0 as the
+Secrets Manager endpoint.
 
 The database password and RS256 JWT signing keys are addressed by SecretId. The
 example environment file contains SecretId references and non-secret
