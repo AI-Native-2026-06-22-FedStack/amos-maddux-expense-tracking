@@ -282,6 +282,9 @@ describe("createApp", () => {
     );
     expect(new Date(report.createdAt).toISOString()).toBe(report.createdAt);
     expect(new Date(report.updatedAt).toISOString()).toBe(report.updatedAt);
+    expect(response.headers.deprecation).toBeUndefined();
+    expect(response.headers.sunset).toBeUndefined();
+    expect(response.headers.link).toBeUndefined();
   });
 
   it("keeps legacy Expense Report routes reachable with deprecation headers", async () => {
@@ -295,9 +298,40 @@ describe("createApp", () => {
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.headers.deprecation).toBe("Tue, 14 Jul 2026 00:00:00 GMT");
+    expect(response.headers.deprecation).toBe("@1783987200");
     expect(response.headers.sunset).toBe("Mon, 12 Oct 2026 00:00:00 GMT");
     expect(response.headers.link).toBe('</v1/expense-reports>; rel="successor-version"');
+  });
+
+  it("emits deprecation headers on legacy Expense Report create validation failures", async () => {
+    const response = await inject(createApp(), {
+      method: "POST",
+      url: "/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
+      payload: {
+        currentStage: "Invalid Stage"
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.headers.deprecation).toBe("@1783987200");
+    expect(response.headers.sunset).toBe("Mon, 12 Oct 2026 00:00:00 GMT");
+    expect(response.headers.link).toBe('</v1/expense-reports>; rel="successor-version"');
+  });
+
+  it("does not emit deprecation headers on non-selected legacy routes", async () => {
+    const response = await inject(createApp(), {
+      method: "POST",
+      url: "/auth/login",
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.headers.deprecation).toBeUndefined();
+    expect(response.headers.sunset).toBeUndefined();
+    expect(response.headers.link).toBeUndefined();
   });
 
   it("rejects invalid Expense Report create bodies before creation", async () => {

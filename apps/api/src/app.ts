@@ -13,7 +13,7 @@ import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
 import { createHealthRouter } from "./routes/health-routes.js";
 
 const API_VERSION_PREFIX = "/v1";
-const LEGACY_API_DEPRECATION_DATE = "Tue, 14 Jul 2026 00:00:00 GMT";
+const LEGACY_EXPENSE_REPORT_CREATE_DEPRECATION_DATE = "@1783987200";
 const LEGACY_API_SUNSET_DATE = "Mon, 12 Oct 2026 00:00:00 GMT";
 
 interface CreateAppOptions {
@@ -60,7 +60,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   v1Router.use(createExpenseReportRoutes());
   app.use(API_VERSION_PREFIX, v1Router);
 
-  app.use(["/auth", "/expense-reports"], legacyApiDeprecationHeaders);
+  app.post("/expense-reports", legacyExpenseReportCreateDeprecationHeaders);
   app.use(createAuthRouter());
   app.use(createExpenseReportRoutes());
 
@@ -74,12 +74,9 @@ const notFoundHandler: RequestHandler = (_request, _response, next) => {
   next(new NotFoundError("Route not found."));
 };
 
-const legacyApiDeprecationHeaders: RequestHandler = (request, response, next) => {
-  response.setHeader("Deprecation", LEGACY_API_DEPRECATION_DATE);
+const legacyExpenseReportCreateDeprecationHeaders: RequestHandler = (_request, response, next) => {
+  response.setHeader("Deprecation", LEGACY_EXPENSE_REPORT_CREATE_DEPRECATION_DATE);
   response.setHeader("Sunset", LEGACY_API_SUNSET_DATE);
-  response.setHeader(
-    "Link",
-    `<${API_VERSION_PREFIX}${request.originalUrl}>; rel="successor-version"`
-  );
+  response.setHeader("Link", `<${API_VERSION_PREFIX}/expense-reports>; rel="successor-version"`);
   next();
 };
