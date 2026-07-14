@@ -1,32 +1,65 @@
 import { drizzle } from "drizzle-orm/node-postgres";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
+import { getApiRuntimeConfig } from "../config/runtime-config.js";
+import { getRuntimeSecrets } from "../config/runtime-secrets.js";
 import * as schema from "./schema.js";
 
 const { Pool } = pg;
 
 const defaultPoolMax = 10;
 
-export const databasePool = new Pool({
-  connectionString: getDatabaseUrl(),
-  max: defaultPoolMax
-});
-
-export const db = drizzle(databasePool, { schema });
+let databasePool: pg.Pool | undefined;
+let db: NodePgDatabase<typeof schema> | undefined;
 
 export async function checkDatabaseReady(): Promise<boolean> {
   try {
-    await databasePool.query("SELECT 1");
+    await getDatabasePool().query("SELECT 1");
     return true;
   } catch {
     return false;
   }
 }
 
-function getDatabaseUrl(): string {
-  if (process.env.DATABASE_URI === undefined) {
-    throw new Error("DATABASE_URI is required to create the database client.");
+export function getDb(): NodePgDatabase<typeof schema> {
+  db ??= drizzle(getDatabasePool(), { schema });
+
+  return db;
+}
+
+export function getDatabasePool(): pg.Pool {
+  databasePool ??= new Pool({
+    connectionString: getDatabaseConnectionString(),
+    max: defaultPoolMax
+  });
+
+  return databasePool;
+}
+
+export async function closeDatabasePool(): Promise<void> {
+  if (databasePool === undefined) {
+    return;
   }
 
-  return process.env.DATABASE_URI;
+  await databasePool.end();
+  databasePool = undefined;
+  db = undefined;
+}
+
+function getDatabaseConnectionString(): string {
+  const config = getApiRuntimeConfig();
+  const databaseUrl = new URL(config.DATABASE_URI);
+
+  if (databaseUrl.password !== "" && config.NODE_ENV === "test") {
+    return config.DATABASE_URI;
+  }
+
+  if (databaseUrl.password !== "") {
+    throw new Error("DATABASE_URI must not contain a password; use DB_PASSWORD_SECRET_ID instead.");
+  }
+
+  databaseUrl.password = getRuntimeSecrets().dbPassword;
+
+  return databaseUrl.toString();
 }

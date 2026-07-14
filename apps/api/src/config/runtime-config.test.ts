@@ -1,0 +1,72 @@
+import { describe, expect, it } from "vitest";
+
+import { loadApiRuntimeConfig } from "./runtime-config.js";
+
+const validEnvironment = {
+  NODE_ENV: "production",
+  AWS_ENDPOINT: "http://localhost:4566",
+  AWS_REGION: "us-east-1",
+  DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
+  JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
+  DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
+  REDIS_URL: "redis://localhost:6379",
+  EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: "60000",
+  EXPENSE_WRITE_RATE_LIMIT_MAX: "120",
+  EXPENSE_WRITE_SLOW_DOWN_AFTER: "80",
+  EXPENSE_WRITE_DELAY_INCREMENT_MS: "250",
+  EXPENSE_WRITE_MAX_DELAY_MS: "5000"
+};
+
+describe("loadApiRuntimeConfig", () => {
+  it("strictly parses valid non-secret runtime configuration", () => {
+    expect(loadApiRuntimeConfig(validEnvironment)).toMatchObject({
+      AWS_ENDPOINT: "http://localhost:4566",
+      AWS_REGION: "us-east-1",
+      DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
+      JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
+      DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
+      REDIS_URL: "redis://localhost:6379",
+      PORT: 3000,
+      JWT_ACCESS_TOKEN_TTL_SECONDS: 900,
+      JWT_REFRESH_TOKEN_TTL_SECONDS: 2_592_000
+    });
+  });
+
+  it.each([
+    ["AWS_ENDPOINT", "not-a-url"],
+    ["PORT", "70000"],
+    ["JWT_ACCESS_TOKEN_TTL_SECONDS", "0"],
+    ["JWT_REFRESH_TOKEN_TTL_SECONDS", "not-a-number"]
+  ])("fails fast when %s is invalid", (name, value) => {
+    expect(() =>
+      loadApiRuntimeConfig({
+        ...validEnvironment,
+        [name]: value
+      })
+    ).toThrow();
+  });
+
+  it.each(["AWS_ENDPOINT", "DB_PASSWORD_SECRET_ID", "JWT_SIGNING_KEYS_SECRET_ID"])(
+    "fails fast when %s is missing",
+    (name) => {
+      expect(() =>
+        loadApiRuntimeConfig({
+          ...validEnvironment,
+          [name]: undefined
+        })
+      ).toThrow();
+    }
+  );
+
+  it("rejects a non-test DATABASE_URI with an embedded password", () => {
+    const databaseUri = new URL(validEnvironment.DATABASE_URI);
+    databaseUri.password = "synthetic-password";
+
+    expect(() =>
+      loadApiRuntimeConfig({
+        ...validEnvironment,
+        DATABASE_URI: databaseUri.toString()
+      })
+    ).toThrow("DATABASE_URI");
+  });
+});

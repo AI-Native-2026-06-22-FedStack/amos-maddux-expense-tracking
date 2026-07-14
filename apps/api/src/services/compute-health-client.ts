@@ -1,4 +1,5 @@
 import { CORRELATION_ID_HEADER } from "../middleware/correlation.js";
+import { getApiRuntimeConfig } from "../config/runtime-config.js";
 import type { ReadinessRequestContext } from "../repository/health-repository.js";
 
 export interface ComputeHealthClient {
@@ -9,7 +10,7 @@ type Fetch = typeof fetch;
 
 class FetchComputeHealthClient implements ComputeHealthClient {
   public constructor(
-    private readonly baseUrl: string = process.env.COMPUTE_SERVICE_URL ?? "http://localhost:8000",
+    private readonly baseUrl: string = getApiRuntimeConfig().COMPUTE_SERVICE_URL,
     private readonly fetchImpl: Fetch = fetch
   ) {}
 

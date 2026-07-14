@@ -12,6 +12,9 @@ ExpenseFlow needs one central persistence stack so all developers share the same
 
 Store the Expense Report Case in PostgreSQL and use Drizzle for TypeScript data access.
 
+The service boundary and datastore ownership map is maintained in
+[`docs/boundaries.md`](../boundaries.md).
+
 ## Alternatives Considered
 
 - **SQLite + Drizzle:** Rejected because SQLite is useful for lightweight local persistence, prototypes, and single-user applications, but ExpenseFlow is a production-style multi-tenant SaaS workflow system. Multiple employees, department managers, finance admins, and platform users may interact with expense reports at the same time: employees can submit or edit drafts, managers can approve or reject line items, AP reviewers can verify coding and deductibility, and finance admins can review audit history. That makes concurrent access important because the system must safely handle simultaneous reads and writes to case records, line items, comments, attachments, stage transitions, and audit logs without corrupting workflow state. PostgreSQL is a stronger fit because it provides mature concurrency handling, transactions, indexing, operational tooling, and support for database-level tenant isolation patterns such as row-level security.

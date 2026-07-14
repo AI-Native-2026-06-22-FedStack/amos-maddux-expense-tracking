@@ -49,7 +49,6 @@ and deprecation headers documented in ADR-0006.
   identity/auth tables belong with authentication and JWT issuance, and GL coding
   belongs with domain compute.
 
-
 ## Consequences
 
 POSITIVE: Schema changes can be managed inside the owning service without

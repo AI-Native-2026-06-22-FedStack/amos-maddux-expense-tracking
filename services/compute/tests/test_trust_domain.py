@@ -13,8 +13,8 @@ from tests.token_helpers import (
     TEST_JWT_AUDIENCE,
     TEST_JWT_ISSUER,
     TEST_JWT_KEY_ID,
-    TEST_JWT_PRIVATE_KEY_PATH,
-    TEST_JWT_PUBLIC_KEY_PATH,
+    TEST_JWT_PRIVATE_KEY_PEM,
+    TEST_JWT_PUBLIC_KEY_PEM,
     mint_test_access_token,
 )
 
@@ -153,7 +153,7 @@ def test_me_route_returns_current_user_for_valid_token(monkeypatch: pytest.Monke
 
 
 def _load_auth_with_test_key(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
-    monkeypatch.setenv("JWT_PUBLIC_KEY_PATH", str(TEST_JWT_PUBLIC_KEY_PATH))
+    monkeypatch.setenv("JWT_PUBLIC_KEY_PEM", TEST_JWT_PUBLIC_KEY_PEM)
     monkeypatch.setenv("JWT_KEY_ID", TEST_JWT_KEY_ID)
     monkeypatch.setenv("JWT_ISSUER", TEST_JWT_ISSUER)
     monkeypatch.setenv("JWT_AUDIENCE", TEST_JWT_AUDIENCE)
@@ -180,8 +180,6 @@ def _assert_unauthorized(verify_token: Callable[[str], object], token: str) -> N
 
 
 def _mint_token_without_roles() -> str:
-    private_key = TEST_JWT_PRIVATE_KEY_PATH.read_text(encoding="utf-8")
-
     return jwt.encode(
         {
             "sub": "00000000-0000-4000-8000-000000000213",
@@ -190,7 +188,7 @@ def _mint_token_without_roles() -> str:
             "aud": TEST_JWT_AUDIENCE,
             "exp": datetime.now(timezone.utc) + timedelta(minutes=15),
         },
-        private_key,
+        TEST_JWT_PRIVATE_KEY_PEM,
         algorithm="RS256",
         headers={"kid": TEST_JWT_KEY_ID},
     )
