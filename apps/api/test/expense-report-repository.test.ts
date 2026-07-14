@@ -95,12 +95,15 @@ describe("ExpenseReportRepository integration", () => {
       })
     ).rejects.toThrow();
 
-    await expect(db.select().from(expenseReport).where(eq(expenseReport.tenantId, tenantA))).resolves
-      .toHaveLength(0);
-    await expect(db.select().from(stageTransition).where(eq(stageTransition.tenantId, tenantA)))
-      .resolves.toHaveLength(0);
-    await expect(db.select().from(auditEntry).where(eq(auditEntry.tenantId, tenantA))).resolves
-      .toHaveLength(0);
+    await expect(
+      db.select().from(expenseReport).where(eq(expenseReport.tenantId, tenantA))
+    ).resolves.toHaveLength(0);
+    await expect(
+      db.select().from(stageTransition).where(eq(stageTransition.tenantId, tenantA))
+    ).resolves.toHaveLength(0);
+    await expect(
+      db.select().from(auditEntry).where(eq(auditEntry.tenantId, tenantA))
+    ).resolves.toHaveLength(0);
   });
 
   it("lists Expense Reports with line items in a single tenant-scoped left join query", async () => {

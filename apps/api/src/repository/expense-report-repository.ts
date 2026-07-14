@@ -81,7 +81,9 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
     return this.db
       .select()
       .from(auditEntry)
-      .where(and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId)))
+      .where(
+        and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId))
+      )
       .orderBy(asc(auditEntry.occurredAt), asc(auditEntry.id));
   }
 

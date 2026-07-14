@@ -7,9 +7,7 @@ interface CreateExpenseReportRouterOptions {
   expenseWriteRateLimiters?: readonly RequestHandler[];
 }
 
-export function createExpenseReportRouter(
-  options: CreateExpenseReportRouterOptions = {}
-): Router {
+export function createExpenseReportRouter(options: CreateExpenseReportRouterOptions = {}): Router {
   const router = Router();
   const expenseReportController = createExpenseReportController();
   const expenseWriteRateLimiters = options.expenseWriteRateLimiters ?? [];

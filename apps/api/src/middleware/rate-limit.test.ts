@@ -250,7 +250,7 @@ function bindSyntheticAuthContext(tenantId: string): RequestHandler {
   };
 }
 
-const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+const errorHandler: ErrorRequestHandler = (error, _request, response) => {
   const message = error instanceof Error ? error.message : "Synthetic unknown error.";
 
   response.status(500).json({ message });

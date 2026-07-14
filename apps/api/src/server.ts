@@ -13,15 +13,15 @@ const redisClient = new Redis(expenseWriteRateLimitConfig.redisUrl, {
   lazyConnect: true
 });
 const app = createApp({
-  expenseWriteRateLimiters: createExpenseWriteRateLimiters(
-    expenseWriteRateLimitConfig,
-    redisClient
-  )
+  expenseWriteRateLimiters: createExpenseWriteRateLimiters(expenseWriteRateLimitConfig, redisClient)
 });
 const server = createServer(app);
 let shutdownStarted = false;
 
-void startServer();
+startServer().catch((error: unknown) => {
+  console.error("ExpenseFlow API startup failed.", error);
+  process.exit(1);
+});
 
 async function startServer(): Promise<void> {
   try {
@@ -46,7 +46,10 @@ function shutdown(signal: NodeJS.Signals): void {
   console.log(`Received ${signal}; shutting down ExpenseFlow API.`);
 
   server.close((error) => {
-    void finishShutdown(error);
+    finishShutdown(error).catch((shutdownError: unknown) => {
+      console.error("ExpenseFlow API shutdown failed.", shutdownError);
+      process.exit(1);
+    });
   });
 }
 
