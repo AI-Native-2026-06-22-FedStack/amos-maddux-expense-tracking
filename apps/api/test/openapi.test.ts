@@ -1,3 +1,6 @@
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { generateOpenApiDocument } from "../src/openapi/openapi.js";
@@ -10,6 +13,7 @@ describe("generateOpenApiDocument", () => {
     const paths = expectObject(document.paths);
     const components = expectObject(document.components);
     const schemas = expectObject(components.schemas);
+    const securitySchemes = expectObject(components.securitySchemes);
 
     const expenseReportsPath = expectObject(paths["/expense-reports"]);
     const createOperation = expectObject(expenseReportsPath.post);
@@ -20,6 +24,7 @@ describe("generateOpenApiDocument", () => {
 
     const expenseReportByIdPath = expectObject(paths["/expense-reports/{id}"]);
     const readOperation = expectObject(expenseReportByIdPath.get);
+    const createResponses = expectObject(createOperation.responses);
     const readResponses = expectObject(readOperation.responses);
     const readSuccess = expectObject(readResponses["200"]);
     const readSuccessContent = expectObject(readSuccess.content);
@@ -32,6 +37,17 @@ describe("generateOpenApiDocument", () => {
     const responseProperties = expectObject(responseSchema.properties);
 
     expect(document.openapi).toBe("3.1.0");
+    expect(document.info).toEqual({
+      title: "ExpenseFlow API",
+      version: "0.1.0"
+    });
+    expect(securitySchemes.bearerAuth).toEqual({
+      type: "http",
+      scheme: "bearer",
+      bearerFormat: "JWT"
+    });
+    expect(createOperation.security).toEqual([{ bearerAuth: [] }]);
+    expect(readOperation.security).toEqual([{ bearerAuth: [] }]);
     expect(createRouteSchema).toEqual({
       $ref: "#/components/schemas/CreateExpenseReportRequest"
     });
@@ -88,6 +104,20 @@ describe("generateOpenApiDocument", () => {
       "createdAt",
       "updatedAt"
     ]);
+
+    expectProblemJsonResponse(createResponses["401"]);
+    expectProblemJsonResponse(readResponses["401"]);
+    expectProblemJsonResponse(createResponses["429"]);
+    expectAiAssistUsageHeader(createResponses["201"]);
+    expectAiAssistUsageHeader(readResponses["200"]);
+    expect(readResponses["429"]).toBeUndefined();
+    expectRateLimitHeaders(createResponses["429"]);
+  });
+
+  it("does not add a hand-written OpenAPI source document beside the generated registry", () => {
+    const openApiSourceEntries = readdirSync(join(process.cwd(), "src/openapi"));
+
+    expect(openApiSourceEntries).toEqual(["openapi.ts"]);
   });
 });
 
@@ -99,4 +129,46 @@ function expectObject(value: unknown): JsonObject {
   }
 
   return value as JsonObject;
+}
+
+function expectProblemJsonResponse(value: unknown): void {
+  const response = expectObject(value);
+  const content = expectObject(response.content);
+  const problemJson = expectObject(content["application/problem+json"]);
+
+  expect(problemJson.schema).toEqual({
+    $ref: "#/components/schemas/ProblemJson"
+  });
+}
+
+function expectRateLimitHeaders(value: unknown): void {
+  const response = expectObject(value);
+  const headers = expectObject(response.headers);
+
+  expect(Object.keys(headers).sort()).toEqual([
+    "AI-Assist-Usage",
+    "RateLimit",
+    "RateLimit-Policy",
+    "Retry-After"
+  ]);
+  expectAiAssistUsageHeader(response);
+  expect(expectObject(headers["Retry-After"]).schema).toMatchObject({
+    type: "integer",
+    minimum: 0
+  });
+  expect(expectObject(headers.RateLimit).schema).toEqual({
+    type: "string"
+  });
+  expect(expectObject(headers["RateLimit-Policy"]).schema).toEqual({
+    type: "string"
+  });
+}
+
+function expectAiAssistUsageHeader(value: unknown): void {
+  const response = expectObject(value);
+  const headers = expectObject(response.headers);
+
+  expect(expectObject(headers["AI-Assist-Usage"]).schema).toEqual({
+    type: "string"
+  });
 }

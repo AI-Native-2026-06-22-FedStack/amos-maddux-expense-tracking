@@ -6,6 +6,7 @@ import type { Logger } from "pino";
 import { NotFoundError, problemJsonErrorHandler } from "./errors/problem-json.js";
 import { logger as rootLogger } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_LOG_FIELD } from "./middleware/correlation.js";
+import { attachAiAssistUsageHeader } from "./middleware/cost-header.js";
 import { generateOpenApiDocument } from "./openapi/openapi.js";
 import { createAuthRouter } from "./routes/auth-routes.js";
 import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
@@ -13,6 +14,7 @@ import { createHealthRouter } from "./routes/health-routes.js";
 
 interface CreateAppOptions {
   logger?: Logger;
+  expenseWriteRateLimiters?: readonly RequestHandler[];
 }
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -34,6 +36,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     })
   );
   app.use(bindCorrelationId);
+  app.use(attachAiAssistUsageHeader);
   app.use(express.json());
 
   app.get("/openapi.json", (_request, response) => {
@@ -43,7 +46,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   app.use(createHealthRouter());
   app.use(createAuthRouter());
-  app.use(createExpenseReportRouter());
+  app.use(
+    createExpenseReportRouter({
+      expenseWriteRateLimiters: options.expenseWriteRateLimiters
+    })
+  );
 
   app.use(notFoundHandler);
   app.use(problemJsonErrorHandler);

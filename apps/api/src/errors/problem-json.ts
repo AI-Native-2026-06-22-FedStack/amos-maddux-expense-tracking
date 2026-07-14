@@ -23,6 +23,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class TooManyRequestsError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "TooManyRequestsError";
+  }
+}
+
 export const problemJsonErrorHandler: ErrorRequestHandler = (error, request, response, next) => {
   if (response.headersSent) {
     next(error);
@@ -60,6 +67,16 @@ function toProblemJson(error: unknown, instance: string): ProblemJsonBody {
       type: "/problems/unauthorized",
       title: "Unauthorized",
       status: 401,
+      detail: error.message,
+      instance
+    };
+  }
+
+  if (error instanceof TooManyRequestsError) {
+    return {
+      type: "/problems/rate-limit-exceeded",
+      title: "Too Many Requests",
+      status: 429,
       detail: error.message,
       instance
     };

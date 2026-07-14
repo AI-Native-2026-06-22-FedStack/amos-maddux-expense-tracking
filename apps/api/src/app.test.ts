@@ -41,6 +41,15 @@ describe("createApp", () => {
     });
   });
 
+  it("adds the default AI assist usage header to non-AI responses", async () => {
+    const response = await inject(createApp(), {
+      method: "GET",
+      url: "/health"
+    });
+
+    expect(response.headers["ai-assist-usage"]).toBe("cost=0; remaining=0");
+  });
+
   it("emits parseable JSON request logs without sensitive headers", async () => {
     const { logLines, logger } = createCapturedLogger();
     const response = await inject(createApp({ logger }), {
