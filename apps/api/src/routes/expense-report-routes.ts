@@ -5,17 +5,23 @@ import { createExpenseReportController } from "../controllers/expense-report-con
 
 interface CreateExpenseReportRouterOptions {
   expenseWriteRateLimiters?: readonly RequestHandler[];
+  expenseReportIdempotencyMiddleware?: RequestHandler;
 }
 
 export function createExpenseReportRouter(options: CreateExpenseReportRouterOptions = {}): Router {
   const router = Router();
   const expenseReportController = createExpenseReportController();
   const expenseWriteRateLimiters = options.expenseWriteRateLimiters ?? [];
+  const expenseReportIdempotencyMiddlewares =
+    options.expenseReportIdempotencyMiddleware === undefined
+      ? []
+      : [options.expenseReportIdempotencyMiddleware];
 
   router.post(
     "/expense-reports",
     requireJwtAuthentication,
     ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
     expenseReportController.createExpenseReport
   );
   router.get(

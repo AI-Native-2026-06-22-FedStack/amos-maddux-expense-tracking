@@ -12,6 +12,10 @@ import {
 } from "./config/runtime-secrets.js";
 import { assertDatabaseReady, closeDatabasePool } from "./db/client.js";
 import { createExpenseWriteRateLimiters } from "./middleware/rate-limit.js";
+import {
+  createIdempotencyKeyMiddleware,
+  type IdempotencyRedisClient
+} from "./store/idempotency.js";
 
 type HttpServer = ReturnType<typeof createServer>;
 
@@ -147,6 +151,9 @@ function createDefaultApp(config: ApiRuntimeConfig, redisClient: RedisLike): exp
         expenseWriteMaxDelayMs: config.EXPENSE_WRITE_MAX_DELAY_MS
       },
       redisClient as Redis
+    ),
+    expenseReportIdempotencyMiddleware: createIdempotencyKeyMiddleware(
+      redisClient as unknown as IdempotencyRedisClient
     )
   });
 }

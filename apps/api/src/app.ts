@@ -19,6 +19,7 @@ const LEGACY_API_SUNSET_DATE = "Mon, 12 Oct 2026 00:00:00 GMT";
 interface CreateAppOptions {
   logger?: Logger;
   expenseWriteRateLimiters?: readonly RequestHandler[];
+  expenseReportIdempotencyMiddleware?: RequestHandler;
 }
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -52,7 +53,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   const createExpenseReportRoutes = () =>
     createExpenseReportRouter({
-      expenseWriteRateLimiters: options.expenseWriteRateLimiters
+      expenseWriteRateLimiters: options.expenseWriteRateLimiters,
+      expenseReportIdempotencyMiddleware: options.expenseReportIdempotencyMiddleware
     });
 
   const v1Router = express.Router();

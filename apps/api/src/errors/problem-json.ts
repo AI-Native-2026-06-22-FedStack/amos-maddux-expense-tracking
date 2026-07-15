@@ -30,6 +30,13 @@ export class TooManyRequestsError extends Error {
   }
 }
 
+export class ConflictError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "ConflictError";
+  }
+}
+
 export const problemJsonErrorHandler: ErrorRequestHandler = (error, request, response, next) => {
   if (response.headersSent) {
     next(error);
@@ -77,6 +84,16 @@ function toProblemJson(error: unknown, instance: string): ProblemJsonBody {
       type: "/problems/rate-limit-exceeded",
       title: "Too Many Requests",
       status: 429,
+      detail: error.message,
+      instance
+    };
+  }
+
+  if (error instanceof ConflictError) {
+    return {
+      type: "/problems/conflict",
+      title: "Conflict",
+      status: 409,
       detail: error.message,
       instance
     };
