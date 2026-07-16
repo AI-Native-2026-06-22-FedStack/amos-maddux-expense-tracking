@@ -1,4 +1,4 @@
-# ADR-0005: Audit Entry Schema
+# ADR-0004: Audit Entry Schema
 
 ## Status
 
@@ -11,9 +11,6 @@ change. Audit records must answer the fixed questions of who acted, what happene
 why it happened, and whether the action succeeded or failed. The audit trail also needs tenant and
 Expense Report references so entries can be queried for one case without storing receipt or payment
 values in the audit record.
-
-ADR-0004 is already assigned to the auth and session model, so this decision is recorded as
-ADR-0005.
 
 ## Decision
 

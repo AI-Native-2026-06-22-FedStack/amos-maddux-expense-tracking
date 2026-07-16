@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { db as defaultDb } from "../db/client.js";
+import { getDb } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { auditEntry, expenseReport, lineItem, stageTransition } from "../db/schema.js";
 import type {
@@ -81,7 +81,9 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
     return this.db
       .select()
       .from(auditEntry)
-      .where(and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId)))
+      .where(
+        and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId))
+      )
       .orderBy(asc(auditEntry.occurredAt), asc(auditEntry.id));
   }
 
@@ -118,7 +120,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
 }
 
 export function createExpenseReportRepository(
-  db: ExpenseReportDatabase = defaultDb,
+  db: ExpenseReportDatabase = getDb(),
   now: () => Date = () => new Date()
 ): ExpenseReportRepository {
   return new DrizzleExpenseReportRepository(db, now);

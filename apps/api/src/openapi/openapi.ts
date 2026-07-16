@@ -185,7 +185,7 @@ export function generateOpenApiDocument(): ReturnType<OpenApiGeneratorV31["gener
     },
     servers: [
       {
-        url: "http://localhost:3000"
+        url: "http://localhost:3000/v1"
       }
     ]
   });

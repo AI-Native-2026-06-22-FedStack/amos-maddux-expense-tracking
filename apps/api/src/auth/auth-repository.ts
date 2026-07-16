@@ -1,7 +1,7 @@
 import { and, eq, isNull, lt, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
-import { db as defaultDb } from "../db/client.js";
+import { getDb } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import {
   authAuditEntry,
@@ -295,6 +295,6 @@ class DrizzleAuthRepository implements AuthRepository {
   }
 }
 
-export function createAuthRepository(db: AuthDatabase = defaultDb): AuthRepository {
+export function createAuthRepository(db: AuthDatabase = getDb()): AuthRepository {
   return new DrizzleAuthRepository(db);
 }

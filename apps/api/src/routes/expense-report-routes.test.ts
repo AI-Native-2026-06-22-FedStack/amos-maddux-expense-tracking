@@ -22,7 +22,7 @@ describe("Expense Report route rate-limit wiring", () => {
 
     const response = await inject(app, {
       method: "POST",
-      url: "/expense-reports",
+      url: "/v1/expense-reports",
       payload: {}
     });
 
@@ -46,7 +46,7 @@ describe("Expense Report route rate-limit wiring", () => {
 
     const response = await inject(app, {
       method: "POST",
-      url: "/expense-reports",
+      url: "/v1/expense-reports",
       headers: {
         authorization: createAuthorizationHeader()
       },
@@ -73,7 +73,7 @@ describe("Expense Report route rate-limit wiring", () => {
 
     const response = await inject(app, {
       method: "GET",
-      url: "/expense-reports/not-a-uuid",
+      url: "/v1/expense-reports/not-a-uuid",
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -86,27 +86,30 @@ describe("Expense Report route rate-limit wiring", () => {
   it.each([
     { method: "GET" as const, url: "/health", statusCode: 200 },
     { method: "GET" as const, url: "/docs", statusCode: 200 },
-    { method: "POST" as const, url: "/auth/login", statusCode: 400, payload: {} }
-  ])("does not apply write limiters to $method $url", async ({ method, url, statusCode, payload }) => {
-    let limiterCalled = false;
-    const app = createApp({
-      expenseWriteRateLimiters: [
-        (_request, response) => {
-          limiterCalled = true;
-          response.status(429).json({ error: "Synthetic limiter response." });
-        }
-      ]
-    });
+    { method: "POST" as const, url: "/v1/auth/login", statusCode: 400, payload: {} }
+  ])(
+    "does not apply write limiters to $method $url",
+    async ({ method, url, statusCode, payload }) => {
+      let limiterCalled = false;
+      const app = createApp({
+        expenseWriteRateLimiters: [
+          (_request, response) => {
+            limiterCalled = true;
+            response.status(429).json({ error: "Synthetic limiter response." });
+          }
+        ]
+      });
 
-    const response = await inject(app, {
-      method,
-      url,
-      ...(payload === undefined ? {} : { payload })
-    });
+      const response = await inject(app, {
+        method,
+        url,
+        ...(payload === undefined ? {} : { payload })
+      });
 
-    expect(response.statusCode).toBe(statusCode);
-    expect(limiterCalled).toBe(false);
-  });
+      expect(response.statusCode).toBe(statusCode);
+      expect(limiterCalled).toBe(false);
+    }
+  );
 });
 
 function createAuthorizationHeader(): string {

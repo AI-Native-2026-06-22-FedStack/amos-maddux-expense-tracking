@@ -35,7 +35,13 @@ export function configureJwtPassport(): void {
     new JwtStrategy(
       {
         jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-        secretOrKey: config.publicKeyPem,
+        secretOrKeyProvider: (_request, _rawJwtToken, done) => {
+          try {
+            done(null, loadJwtRuntimeConfig().publicKeyPem);
+          } catch (error) {
+            done(error, undefined);
+          }
+        },
         issuer: config.issuer,
         audience: config.audience,
         algorithms: ["RS256"],

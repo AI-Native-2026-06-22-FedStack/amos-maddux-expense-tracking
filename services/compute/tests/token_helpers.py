@@ -1,15 +1,23 @@
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 
 TEST_JWT_ISSUER = "expense-api"
 TEST_JWT_AUDIENCE = "expense-clients"
 TEST_JWT_KEY_ID = "local-development-key"
-TEST_JWT_KEYS_DIR = Path(__file__).parent / "fixtures" / "jwt_keys"
-TEST_JWT_PRIVATE_KEY_PATH = TEST_JWT_KEYS_DIR / "SYNTHETIC-jwt-private.pem"
-TEST_JWT_PUBLIC_KEY_PATH = TEST_JWT_KEYS_DIR / "SYNTHETIC-jwt-public.pem"
+_TEST_JWT_PRIVATE_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+TEST_JWT_PRIVATE_KEY_PEM = _TEST_JWT_PRIVATE_KEY.private_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption(),
+).decode("utf-8")
+TEST_JWT_PUBLIC_KEY_PEM = _TEST_JWT_PRIVATE_KEY.public_key().public_bytes(
+    encoding=serialization.Encoding.PEM,
+    format=serialization.PublicFormat.SubjectPublicKeyInfo,
+).decode("utf-8")
 
 
 def mint_test_access_token(
@@ -23,7 +31,6 @@ def mint_test_access_token(
 ) -> str:
     if expires_at is None:
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
-    private_key = TEST_JWT_PRIVATE_KEY_PATH.read_text(encoding="utf-8")
 
     # Fake Python-minted tokens avoid the cost of Express auth while proving Python honors the same contract.
     return jwt.encode(
@@ -35,7 +42,7 @@ def mint_test_access_token(
             "aud": audience,
             "exp": expires_at,
         },
-        private_key,
+        TEST_JWT_PRIVATE_KEY_PEM,
         algorithm="RS256",
         headers={"kid": key_id},
     )

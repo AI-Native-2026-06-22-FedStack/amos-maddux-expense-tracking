@@ -22,9 +22,7 @@ export const sensitiveLogCensor = sensitiveLogFieldConfig.censor;
 export const sensitiveLogKeys = new Set(sensitiveLogFieldConfig.node.keys);
 export const sensitiveLogPaths = sensitiveLogFieldConfig.node.paths;
 
-export function redactSensitiveLogObject(
-  value: Record<string, unknown>
-): Record<string, unknown> {
+export function redactSensitiveLogObject(value: Record<string, unknown>): Record<string, unknown> {
   return redactSensitiveLogValue(value) as Record<string, unknown>;
 }
 

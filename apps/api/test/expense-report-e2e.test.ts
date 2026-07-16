@@ -36,7 +36,7 @@ describe("Expense Report create and read end-to-end", () => {
   it("persists a created Expense Report and reads it back for the same tenant", async () => {
     const app = createApp();
     const createResponse = await request(app)
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
       .send({
         tenantId: tenantB,
@@ -53,20 +53,20 @@ describe("Expense Report create and read end-to-end", () => {
 
     const reportId = createResponse.body.id as string;
     const readResponse = await request(app)
-      .get(`/expense-reports/${reportId}`)
+      .get(`/v1/expense-reports/${reportId}`)
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }));
 
     expect(readResponse.status).toBe(200);
     expect(readResponse.body).toEqual(createResponse.body);
 
     const wrongTenantResponse = await request(app)
-      .get(`/expense-reports/${reportId}`)
+      .get(`/v1/expense-reports/${reportId}`)
       .set("Authorization", createBearerToken({ tenantId: tenantB, userId: submitterId }));
 
     expect(wrongTenantResponse.status).toBe(404);
 
     const clientTenantOverrideResponse = await request(app)
-      .get(`/expense-reports/${reportId}`)
+      .get(`/v1/expense-reports/${reportId}`)
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
       .query({ tenantId: tenantB });
 
@@ -130,7 +130,7 @@ describe("Expense Report create and read end-to-end", () => {
   });
 
   it("rejects Expense Report creation without a token", async () => {
-    const response = await request(createApp()).post("/expense-reports").send({});
+    const response = await request(createApp()).post("/v1/expense-reports").send({});
 
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({
@@ -142,7 +142,7 @@ describe("Expense Report create and read end-to-end", () => {
 
   it("rejects Expense Report reads without a token", async () => {
     const response = await request(createApp()).get(
-      "/expense-reports/00000000-0000-4000-8000-000000000599"
+      "/v1/expense-reports/00000000-0000-4000-8000-000000000599"
     );
 
     expect(response.status).toBe(401);
@@ -157,11 +157,11 @@ describe("Expense Report create and read end-to-end", () => {
     const app = createApp();
 
     const invalidResponse = await request(app)
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", "Bearer synthetic-invalid-token")
       .send({});
     const expiredResponse = await request(app)
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createExpiredBearerToken())
       .send({});
 
@@ -173,11 +173,11 @@ describe("Expense Report create and read end-to-end", () => {
     const app = createApp();
 
     const wrongAudienceResponse = await request(app)
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ audience: "synthetic-wrong-audience" }))
       .send({});
     const wrongIssuerResponse = await request(app)
-      .post("/expense-reports")
+      .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ issuer: "synthetic-wrong-issuer" }))
       .send({});
 

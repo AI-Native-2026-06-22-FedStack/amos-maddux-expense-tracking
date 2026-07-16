@@ -1,41 +1,20 @@
-import { createServer } from "node:http";
+import { startApiServer, type ApiServerHandle } from "./bootstrap.js";
 
-import { Redis } from "ioredis";
-
-import { createApp } from "./app.js";
-import { loadExpenseWriteRateLimitConfig } from "./config/expense-write-rate-limit.js";
-import { createExpenseWriteRateLimiters } from "./middleware/rate-limit.js";
-
-const defaultPort = 3000;
-const port = readPort(process.env.PORT);
-const expenseWriteRateLimitConfig = loadExpenseWriteRateLimitConfig();
-const redisClient = new Redis(expenseWriteRateLimitConfig.redisUrl, {
-  lazyConnect: true
-});
-const app = createApp({
-  expenseWriteRateLimiters: createExpenseWriteRateLimiters(
-    expenseWriteRateLimitConfig,
-    redisClient
-  )
-});
-const server = createServer(app);
+let apiServer: ApiServerHandle | undefined;
 let shutdownStarted = false;
 
-void startServer();
+startApiServer()
+  .then((handle) => {
+    apiServer = handle;
+    const address = handle.server.address();
+    const port = typeof address === "object" && address !== null ? address.port : "unknown";
 
-async function startServer(): Promise<void> {
-  try {
-    await redisClient.connect();
-    await redisClient.ping();
-  } catch (error) {
-    console.error("ExpenseFlow API Redis startup failed.", error);
-    process.exit(1);
-  }
-
-  server.listen(port, () => {
     console.log(`ExpenseFlow API listening on port ${port}.`);
+  })
+  .catch((error: unknown) => {
+    console.error("ExpenseFlow API startup failed.", error);
+    process.exit(1);
   });
-}
 
 function shutdown(signal: NodeJS.Signals): void {
   if (shutdownStarted) {
@@ -45,41 +24,17 @@ function shutdown(signal: NodeJS.Signals): void {
   shutdownStarted = true;
   console.log(`Received ${signal}; shutting down ExpenseFlow API.`);
 
-  server.close((error) => {
-    void finishShutdown(error);
+  finishShutdown().catch((shutdownError: unknown) => {
+    console.error("ExpenseFlow API shutdown failed.", shutdownError);
+    process.exit(1);
   });
 }
 
-async function finishShutdown(error: Error | undefined): Promise<void> {
-  try {
-    await redisClient.quit();
-  } catch (redisError) {
-    console.error("ExpenseFlow API Redis shutdown failed.", redisError);
-    process.exit(1);
-  }
-
-  if (error !== undefined) {
-    console.error("ExpenseFlow API shutdown failed.", error);
-    process.exit(1);
-  }
-
+async function finishShutdown(): Promise<void> {
+  await apiServer?.shutdown();
   console.log("ExpenseFlow API shutdown complete.");
   process.exit(0);
 }
 
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-
-function readPort(value: string | undefined): number {
-  if (value === undefined) {
-    return defaultPort;
-  }
-
-  const parsedValue = Number(value);
-
-  if (!Number.isInteger(parsedValue) || parsedValue <= 0 || parsedValue > 65_535) {
-    throw new Error("PORT must be an integer from 1 through 65535.");
-  }
-
-  return parsedValue;
-}

@@ -151,7 +151,7 @@ function createRateLimitedApp(redis: Redis, config: ExpenseWriteRateLimitConfig)
 
 function postInvalidExpenseReport(app: ReturnType<typeof createApp>, tenantId: string) {
   return request(app)
-    .post("/expense-reports")
+    .post("/v1/expense-reports")
     .set("Authorization", createBearerToken(tenantId))
     .send({
       currentStage: "Invalid Stage"

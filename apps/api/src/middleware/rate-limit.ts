@@ -126,8 +126,7 @@ export function createExpenseWriteSlowDownRateLimiter(
     delayAfter: config.expenseWriteSlowDownAfter,
     delayMs: (used): number =>
       Math.min(
-        Math.max(0, used - config.expenseWriteSlowDownAfter) *
-          config.expenseWriteDelayIncrementMs,
+        Math.max(0, used - config.expenseWriteSlowDownAfter) * config.expenseWriteDelayIncrementMs,
         config.expenseWriteMaxDelayMs
       ),
     maxDelayMs: config.expenseWriteMaxDelayMs,
@@ -240,10 +239,10 @@ function createExpressSlowDownRedisStore(
       );
     },
     decrement(key: string): void {
-      void redisStore.decrement(key);
+      redisStore.decrement(key).catch(() => undefined);
     },
     resetKey(key: string): void {
-      void redisStore.resetKey(key);
+      redisStore.resetKey(key).catch(() => undefined);
     }
   };
 }

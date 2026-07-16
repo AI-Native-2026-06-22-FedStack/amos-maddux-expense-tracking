@@ -41,6 +41,11 @@ describe("generateOpenApiDocument", () => {
       title: "ExpenseFlow API",
       version: "0.1.0"
     });
+    expect(document.servers).toEqual([
+      {
+        url: "http://localhost:3000/v1"
+      }
+    ]);
     expect(securitySchemes.bearerAuth).toEqual({
       type: "http",
       scheme: "bearer",

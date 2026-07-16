@@ -39,6 +39,8 @@
     "@types/passport-jwt": "^4.0.1",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "eslint": "^9.18.0",
     "light-my-request": "^6.6.0",
     "pg": "^8.22.0",

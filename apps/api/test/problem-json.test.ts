@@ -11,7 +11,7 @@ describe("problemJsonErrorHandler", () => {
   it("returns an RFC 9457 Problem+JSON body for malformed create requests", async () => {
     const response = await inject(createApp(), {
       method: "POST",
-      url: "/expense-reports",
+      url: "/v1/expense-reports",
       headers: {
         authorization: createAuthorizationHeader()
       },
@@ -31,7 +31,7 @@ describe("problemJsonErrorHandler", () => {
       title: "Bad Request",
       status: 400,
       detail: expect.stringContaining("currentStage"),
-      instance: "/expense-reports"
+      instance: "/v1/expense-reports"
     });
   });
 });

@@ -33,7 +33,7 @@ describe("Auth HTTP routes", () => {
   it("registers, requires MFA after password login, and completes MFA through HTTP", async () => {
     const app = createApp();
     const roleId = await createTenantRole();
-    const registerResponse = await request(app).post("/auth/register").send({
+    const registerResponse = await request(app).post("/v1/auth/register").send({
       tenantId,
       roleId,
       email: syntheticEmail,
@@ -57,7 +57,7 @@ describe("Auth HTTP routes", () => {
       registerResponse.body.mfa.secret as string
     );
 
-    const loginResponse = await request(app).post("/auth/login").send({
+    const loginResponse = await request(app).post("/v1/auth/login").send({
       tenantId,
       email: syntheticEmail,
       password: syntheticPassword
@@ -73,7 +73,7 @@ describe("Auth HTTP routes", () => {
     expect(loginResponse.body).not.toHaveProperty("accessToken");
 
     const code = await generateTotpCode(registerResponse.body.mfa.secret as string);
-    const mfaResponse = await request(app).post("/auth/mfa").send({
+    const mfaResponse = await request(app).post("/v1/auth/mfa").send({
       tenantId,
       userId: registerResponse.body.userId,
       code
@@ -94,7 +94,7 @@ describe("Auth HTTP routes", () => {
     const app = createApp();
     const roleId = await createTenantRole();
 
-    await request(app).post("/auth/register").send({
+    await request(app).post("/v1/auth/register").send({
       tenantId,
       roleId,
       email: syntheticEmail,
@@ -102,12 +102,12 @@ describe("Auth HTTP routes", () => {
       password: syntheticPassword
     });
 
-    const unknownUserResponse = await request(app).post("/auth/login").send({
+    const unknownUserResponse = await request(app).post("/v1/auth/login").send({
       tenantId,
       email: unknownSyntheticEmail,
       password: syntheticPassword
     });
-    const wrongPasswordResponse = await request(app).post("/auth/login").send({
+    const wrongPasswordResponse = await request(app).post("/v1/auth/login").send({
       tenantId,
       email: syntheticEmail,
       password: wrongSyntheticPassword
@@ -123,7 +123,7 @@ describe("Auth HTTP routes", () => {
   it("rejects invalid MFA through HTTP without issuing a token", async () => {
     const app = createApp();
     const roleId = await createTenantRole();
-    const registerResponse = await request(app).post("/auth/register").send({
+    const registerResponse = await request(app).post("/v1/auth/register").send({
       tenantId,
       roleId,
       email: syntheticEmail,
@@ -133,7 +133,7 @@ describe("Auth HTTP routes", () => {
     const validCode = await generateTotpCode(registerResponse.body.mfa.secret as string);
     const invalidCode = validCode === "000000" ? "000001" : "000000";
 
-    const mfaResponse = await request(app).post("/auth/mfa").send({
+    const mfaResponse = await request(app).post("/v1/auth/mfa").send({
       tenantId,
       userId: registerResponse.body.userId,
       code: invalidCode

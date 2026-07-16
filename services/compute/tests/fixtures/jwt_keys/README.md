@@ -1,9 +1,9 @@
-# Synthetic JWT Keys
+# Synthetic JWT Key Fixtures
 
-These RSA keys are synthetic, test-only fixtures for compute service contract tests.
-They let Python mint RS256 tokens with the same public-key verification contract as
-the Node/Express issuer without starting the full Express authentication flow.
+Committed RSA key files are intentionally not stored here. Compute service tests
+generate synthetic RS256 key pairs at runtime so broad repository scans do not
+find committed signing key values.
 
-Never replace these files with production, customer, environment, or developer
-private keys. Production JWT keys must be provided only through runtime secret
+Never add production, customer, environment, or developer private keys to this
+directory. Production JWT keys must be provided only through runtime secret
 configuration.
