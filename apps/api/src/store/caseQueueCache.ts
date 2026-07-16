@@ -13,6 +13,7 @@ const cacheKeyPrefix = "case-queue:rollup:";
 const lockKeyPrefix = "case-queue:rollup-lock:";
 const lockRetryDelayMs = 25;
 const lockRetryAttempts = 40;
+const rebuildLockAttemptLimit = 2;
 const releaseLockScript = `
 if redis.call("GET", KEYS[1]) == ARGV[1] then
   return redis.call("DEL", KEYS[1])
@@ -76,32 +77,35 @@ async function rebuildRollupWithStampedeGuard(
   cacheKey: string
 ): Promise<CaseQueueRollup> {
   const lockKey = createCaseQueueRollupLockKey(authContext.tenantId);
-  const lockValue = randomUUID();
-  const acquiredLock = await redis.set(
-    lockKey,
-    lockValue,
-    "PX",
-    caseQueueRollupRebuildLockMs,
-    "NX"
-  );
 
-  if (acquiredLock === "OK") {
-    try {
-      const rollup = await readRollupFromDynamo(dynamo, authContext);
-      await writeCachedRollup(redis, cacheKey, rollup);
-      return rollup;
-    } finally {
-      await redis.eval(releaseLockScript, 1, lockKey, lockValue);
+  for (let attempt = 0; attempt < rebuildLockAttemptLimit; attempt += 1) {
+    const lockValue = randomUUID();
+    const acquiredLock = await redis.set(
+      lockKey,
+      lockValue,
+      "PX",
+      caseQueueRollupRebuildLockMs,
+      "NX"
+    );
+
+    if (acquiredLock === "OK") {
+      try {
+        const rollup = await readRollupFromDynamo(dynamo, authContext);
+        await writeCachedRollup(redis, cacheKey, rollup);
+        return rollup;
+      } finally {
+        await redis.eval(releaseLockScript, 1, lockKey, lockValue);
+      }
+    }
+
+    const rollupAfterWait = await waitForCachedRollup(redis, cacheKey);
+
+    if (rollupAfterWait !== null) {
+      return rollupAfterWait;
     }
   }
 
-  const rollupAfterWait = await waitForCachedRollup(redis, cacheKey);
-
-  if (rollupAfterWait !== null) {
-    return rollupAfterWait;
-  }
-
-  return rebuildRollupWithStampedeGuard(redis, dynamo, authContext, cacheKey);
+  throw new Error("Timed out waiting for Case Queue rollup cache rebuild.");
 }
 
 async function readRollupFromDynamo(

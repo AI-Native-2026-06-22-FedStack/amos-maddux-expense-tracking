@@ -10,6 +10,7 @@ import type { ExpenseReportStage } from "../repository/case-queue.js";
 import {
   caseQueueRollupCacheTtlSeconds,
   createCaseQueueRollupCacheKey,
+  createCaseQueueRollupLockKey,
   invalidateCaseQueueRollupCache,
   readCaseQueueRollupWithCache,
   type CaseQueueRollupRedisClient
@@ -94,6 +95,18 @@ describe("readCaseQueueRollupWithCache", () => {
       true
     );
     expect(dynamo.queryCount).toBe(1);
+  });
+
+  it("fails deterministically when a competing rebuild never populates the cache", async () => {
+    const redis = new FakeRedis();
+    const dynamo = new FakeDynamo([makeItem("case-timeout", tenantA, "AP Review", true)]);
+
+    await redis.set(createCaseQueueRollupLockKey(tenantA), "held", "PX", 60_000, "NX");
+
+    await expect(
+      readCaseQueueRollupWithCache(redis, dynamo, authContextFor(tenantA))
+    ).rejects.toThrow("Timed out waiting for Case Queue rollup cache rebuild.");
+    expect(dynamo.queryCount).toBe(0);
   });
 });
 

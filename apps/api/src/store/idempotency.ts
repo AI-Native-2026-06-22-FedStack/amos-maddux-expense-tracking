@@ -5,6 +5,7 @@ import { requireAuthenticatedContext } from "../auth/verifier.js";
 import { ConflictError } from "../errors/problem-json.js";
 
 export const idempotencyReplayTtlSeconds = 24 * 60 * 60;
+// Covers the expected worst-case Expense Report handler duration while abandoned locks expire.
 export const idempotencyLockTtlMs = 30_000;
 
 const idempotencyHeaderName = "Idempotency-Key";
