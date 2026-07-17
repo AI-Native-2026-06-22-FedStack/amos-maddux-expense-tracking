@@ -47,6 +47,10 @@ compute service verifies Node-issued bearer tokens, but it does not authenticate
 users, issue tokens, own identity records, or query the Node Core PostgreSQL
 database.
 
+Storage placement for Expense Report state, the Case Queue read model,
+idempotency keys, and dashboard caches is recorded in
+[`ADR-0010`](adr/0010-storage-per-bounded-context.md).
+
 ## Tenant Isolation
 
 Node Core isolates tenants with `tenant_id` columns, tenant-scoped constraints
