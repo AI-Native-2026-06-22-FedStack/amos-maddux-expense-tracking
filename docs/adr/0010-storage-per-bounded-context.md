@@ -40,15 +40,19 @@ C4Container
 
         ContainerDb(postgres, "PostgreSQL", "Relational database", "Owner: Express Core Case Service. Authoritative Expense Report state, line items, audit, auth")
         ContainerDb(dynamo, "DynamoDB", "NoSQL read model", "Owner: Express Core Case Service. Denormalized Case Queue read model")
-        ContainerDb(redis, "Redis cache", "Cache / ephemeral key store", "Owner: Express Core Case Service. Idempotency replay, SET NX PX locks, dashboard rollups")
+        ContainerDb(redisIdem, "Redis - idempotency", "Cache / ephemeral key store", "Owner: Express Core Case Service. Idempotency replay results and SET NX PX locks under idem:<tenantId>:<key> and lock:<tenantId>:<key>")
+        ContainerDb(redisRollup, "Redis - dashboard rollup cache", "Cache / ephemeral key store", "Owner: Express Core Case Service. Cache-aside dashboard rollup totals under tenant-scoped rollup keys")
     }
 
     Rel(employee, express, "Uses /v1 Expense Report and auth APIs", "HTTPS")
     Rel(express, fastapi, "Synchronous HTTP call for compute decisions", "HTTP")
     Rel(express, postgres, "Reads/writes authoritative Expense Report state, line items, audit, auth", "SQL via Drizzle")
     Rel(express, dynamo, "Reads/writes denormalized Case Queue read model", "DynamoDB Query/PutItem")
-    Rel(express, redis, "Idempotency key lookup, SET NX PX locks, cache-aside dashboard rollups", "Redis commands")
+    Rel(express, redisIdem, "Idempotency key lookup and SET NX PX locks", "Redis commands")
+    Rel(express, redisRollup, "Cache-aside reads/writes for dashboard rollup totals", "Redis commands")
 ```
+
+Both logical containers share one physical Redis instance in local development. They are split here because they carry different eviction risk and durability expectations: idempotency keys guard request replay correctness and must not be evicted before their TTL, while dashboard rollup cache entries are disposable and safe to evict or rebuild under memory pressure. Key namespaces (`idem:`/`lock:` vs. tenant-scoped rollup keys) keep the two separable if they ever need independent eviction policies, `maxmemory` budgets, or physical separation.
 
 ### Six-factor storage matrix
 
