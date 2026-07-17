@@ -1,16 +1,21 @@
 import { RequestHandler, Router } from "express";
 
 import { requireJwtAuthentication } from "../auth/verifier.js";
-import { createExpenseReportController } from "../controllers/expense-report-controller.js";
+import {
+  ExpenseReportController,
+  createExpenseReportController
+} from "../controllers/expense-report-controller.js";
 
 interface CreateExpenseReportRouterOptions {
   expenseWriteRateLimiters?: readonly RequestHandler[];
   expenseReportIdempotencyMiddleware?: RequestHandler;
+  expenseReportController?: ExpenseReportController;
 }
 
 export function createExpenseReportRouter(options: CreateExpenseReportRouterOptions = {}): Router {
   const router = Router();
-  const expenseReportController = createExpenseReportController();
+  const expenseReportController =
+    options.expenseReportController ?? createExpenseReportController();
   const expenseWriteRateLimiters = options.expenseWriteRateLimiters ?? [];
   const expenseReportIdempotencyMiddlewares =
     options.expenseReportIdempotencyMiddleware === undefined
@@ -28,6 +33,12 @@ export function createExpenseReportRouter(options: CreateExpenseReportRouterOpti
     "/expense-reports/:id",
     requireJwtAuthentication,
     expenseReportController.readExpenseReport
+  );
+  router.post(
+    "/expense-reports/:id/submit",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    expenseReportController.submitExpenseReport
   );
 
   return router;

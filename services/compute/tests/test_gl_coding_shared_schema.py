@@ -1,4 +1,5 @@
 from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -33,7 +34,7 @@ def test_shared_schema_accepts_pydantic_gl_coding_payloads() -> None:
     response = GlCodingResponse(
         coded_line_items=[
             UnmappedCodedLineItem(
-                line_item_id="00000000-0000-4000-8000-000000000101",
+                line_item_id=UUID("00000000-0000-4000-8000-000000000101"),
                 category="Meals",
                 flagged=False,
             )

@@ -1,9 +1,12 @@
 import { RequestHandler } from "express";
 import inject from "light-my-request";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createApp } from "../app.js";
 import { issueTokenPair } from "../auth/tokens.js";
+import { ExpenseReportController } from "../controllers/expense-report-controller.js";
+import { UpstreamEngineError } from "../errors/problem-json.js";
+import type { ExpenseReportService } from "../services/expense-report-service.js";
 
 const tenantId = "00000000-0000-4000-8000-000000000901";
 const userId = "synthetic-user-00000000-0000-4000-8000-000000000902";
@@ -47,6 +50,54 @@ describe("Expense Report route rate-limit wiring", () => {
 
     expect(response.statusCode).toBe(401);
     expect(idempotencyMiddlewareCalled).toBe(false);
+  });
+
+  it("rejects unauthenticated submit requests before the controller runs", async () => {
+    const service = makeExpenseReportService({
+      submitForApReview: vi.fn()
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/v1/expense-reports/00000000-0000-4000-8000-000000000903/submit",
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(service.submitForApReview).not.toHaveBeenCalled();
+  });
+
+  it("returns clean Problem JSON when submit engine coding fails", async () => {
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(
+        makeExpenseReportService({
+          submitForApReview: vi.fn(async () => {
+            throw new UpstreamEngineError("GL coding engine unavailable after retries.");
+          })
+        })
+      )
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/v1/expense-reports/00000000-0000-4000-8000-000000000903/submit",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      type: "/problems/upstream-engine",
+      title: "Bad Gateway",
+      status: 502,
+      detail: "GL coding engine unavailable after retries.",
+      instance: "/v1/expense-reports/00000000-0000-4000-8000-000000000903/submit"
+    });
   });
 
   it("runs write slow-down before the hard limiter and before the controller", async () => {
@@ -139,4 +190,15 @@ function createAuthorizationHeader(): string {
   });
 
   return `Bearer ${tokenPair.accessToken}`;
+}
+
+function makeExpenseReportService(
+  overrides: Partial<ExpenseReportService> = {}
+): ExpenseReportService {
+  return {
+    createDraftReport: vi.fn(),
+    findReport: vi.fn(),
+    submitForApReview: vi.fn(),
+    ...overrides
+  } as ExpenseReportService;
 }

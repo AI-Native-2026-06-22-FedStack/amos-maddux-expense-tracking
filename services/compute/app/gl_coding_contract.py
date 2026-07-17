@@ -14,7 +14,7 @@ UnmappedMarker = Literal["UNMAPPED_GL_CATEGORY"]
 class GlCodingLineItem(BaseModel):
     """Monetary Expense Report line item submitted for GL coding."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
     line_item_id: UUID
     amount: Decimal = Field(gt=Decimal("0"), max_digits=12, decimal_places=2)
@@ -25,7 +25,7 @@ class GlCodingLineItem(BaseModel):
 class GlCodingMileageEntry(BaseModel):
     """Mileage entry submitted for GL coding as distance only."""
 
-    model_config = ConfigDict(frozen=True, extra="forbid", strict=True, str_strip_whitespace=True)
+    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
 
     mileage_entry_id: UUID
     miles: Decimal = Field(gt=Decimal("0"), max_digits=8, decimal_places=2)

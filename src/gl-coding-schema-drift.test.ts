@@ -8,9 +8,7 @@ import { checkSchemaCompatibility } from "./gl-coding-schema-drift.js";
 type JsonObject = Record<string, unknown>;
 
 const currentSchemaPath = resolve("packages/shared-schemas/gl-coding.schema.json");
-const previousSchemaPath = resolve(
-  "packages/shared-schemas/snapshots/gl-coding-1.0.0.schema.json"
-);
+const previousSchemaPath = resolve("packages/shared-schemas/snapshots/gl-coding-1.0.0.schema.json");
 const packageJsonPath = resolve("packages/shared-schemas/package.json");
 
 describe("GL coding schema drift", () => {
@@ -54,7 +52,9 @@ describe("GL coding schema drift", () => {
     const result = checkSchemaCompatibility(previousSchema, currentSchema, "1.0.0", "1.1.0");
 
     expect(result.compatible).toBe(false);
-    expect(result.breakingChanges).toContain("#/$defs/Synthetic/required/approval_code became required");
+    expect(result.breakingChanges).toContain(
+      "#/$defs/Synthetic/required/approval_code became required"
+    );
   });
 
   it("rejects removed fields without a major version bump", () => {

@@ -3,6 +3,7 @@ import { pinoHttp } from "pino-http";
 import { apiReference } from "@scalar/express-api-reference";
 import type { Logger } from "pino";
 
+import { ExpenseReportController } from "./controllers/expense-report-controller.js";
 import { NotFoundError, problemJsonErrorHandler } from "./errors/problem-json.js";
 import { logger as rootLogger } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_LOG_FIELD } from "./middleware/correlation.js";
@@ -20,6 +21,7 @@ interface CreateAppOptions {
   logger?: Logger;
   expenseWriteRateLimiters?: readonly RequestHandler[];
   expenseReportIdempotencyMiddleware?: RequestHandler;
+  expenseReportController?: ExpenseReportController;
 }
 
 export function createApp(options: CreateAppOptions = {}): express.Express {
@@ -54,7 +56,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const createExpenseReportRoutes = () =>
     createExpenseReportRouter({
       expenseWriteRateLimiters: options.expenseWriteRateLimiters,
-      expenseReportIdempotencyMiddleware: options.expenseReportIdempotencyMiddleware
+      expenseReportIdempotencyMiddleware: options.expenseReportIdempotencyMiddleware,
+      expenseReportController: options.expenseReportController
     });
 
   const v1Router = express.Router();

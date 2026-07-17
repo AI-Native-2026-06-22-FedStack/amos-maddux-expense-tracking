@@ -78,7 +78,12 @@ function compareSchemaNode(
   const currentDefs = objectProperty(currentNode, "$defs");
   if (previousDefs !== undefined && currentDefs !== undefined) {
     for (const [defName, previousDef] of Object.entries(previousDefs)) {
-      compareSchemaNode(previousDef, currentDefs[defName], `${path}/$defs/${defName}`, breakingChanges);
+      compareSchemaNode(
+        previousDef,
+        currentDefs[defName],
+        `${path}/$defs/${defName}`,
+        breakingChanges
+      );
     }
   }
 
@@ -103,7 +108,12 @@ function compareArrayKeyword(
   }
 
   previousItems.forEach((previousItem, index) => {
-    compareSchemaNode(previousItem, currentItems[index], `${path}/${keyword}/${index}`, breakingChanges);
+    compareSchemaNode(
+      previousItem,
+      currentItems[index],
+      `${path}/${keyword}/${index}`,
+      breakingChanges
+    );
   });
 }
 
