@@ -30,6 +30,25 @@ describe("Expense Report route rate-limit wiring", () => {
     expect(limiterCalled).toBe(false);
   });
 
+  it("rejects unauthenticated write requests before idempotency middleware runs", async () => {
+    let idempotencyMiddlewareCalled = false;
+    const app = createApp({
+      expenseReportIdempotencyMiddleware: (_request, _response, next) => {
+        idempotencyMiddlewareCalled = true;
+        next();
+      }
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/v1/expense-reports",
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(idempotencyMiddlewareCalled).toBe(false);
+  });
+
   it("runs write slow-down before the hard limiter and before the controller", async () => {
     const sequence: string[] = [];
     const slowDownLimiter: RequestHandler = (_request, _response, next) => {

@@ -3,9 +3,11 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "test": "vitest run",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "dynamodb:setup-local": "tsx scripts/setup-dynamodb-local.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1087.0",
     "@aws-sdk/client-secrets-manager": "^3.1086.0",
     "drizzle-orm": "^0.45.2",
     "express-rate-limit": "^8.5.2",

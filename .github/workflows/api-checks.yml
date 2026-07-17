@@ -1,0 +1,71 @@
+name: API checks
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: API checks
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      localstack:
+        image: localstack/localstack:3.8.1
+        env:
+          SERVICES: secretsmanager
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install API dependencies
+        working-directory: apps/api
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Run external-service integration tests
+        env:
+          RUN_LOCALSTACK_TESTS: "1"
+          AWS_ENDPOINT: http://localhost:4566
+          AWS_REGION: us-east-1
+          REDIS_URL: redis://localhost:6379
+        run: >
+          npx vitest run --config apps/api/vitest.config.ts
+          apps/api/test/localstack-secrets.integration.test.ts
+          apps/api/test/rate-limit-redis.integration.test.ts

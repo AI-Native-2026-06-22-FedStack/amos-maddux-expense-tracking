@@ -321,7 +321,7 @@ describe("createApp", () => {
     expect(response.headers.link).toBe('</v1/expense-reports>; rel="successor-version"');
   });
 
-  it("does not emit deprecation headers on non-selected legacy routes", async () => {
+  it("emits deprecation headers on legacy auth routes", async () => {
     const response = await inject(createApp(), {
       method: "POST",
       url: "/auth/login",
@@ -329,9 +329,9 @@ describe("createApp", () => {
     });
 
     expect(response.statusCode).toBe(400);
-    expect(response.headers.deprecation).toBeUndefined();
-    expect(response.headers.sunset).toBeUndefined();
-    expect(response.headers.link).toBeUndefined();
+    expect(response.headers.deprecation).toBe("@1783987200");
+    expect(response.headers.sunset).toBe("Mon, 12 Oct 2026 00:00:00 GMT");
+    expect(response.headers.link).toBe('</v1/auth/login>; rel="successor-version"');
   });
 
   it("rejects invalid Expense Report create bodies before creation", async () => {
@@ -377,6 +377,35 @@ describe("createApp", () => {
     });
 
     expect(readResponse.statusCode).toBe(200);
+    expect(readResponse.json()).toEqual(createResponse.json());
+  });
+
+  it("emits deprecation headers when reading legacy Expense Report routes", async () => {
+    const app = createApp();
+    const createResponse = await inject(app, {
+      method: "POST",
+      url: "/v1/expense-reports",
+      headers: {
+        authorization: createAuthorizationHeader()
+      },
+      payload: validCreateRequest
+    });
+    const createdReport = createResponse.json<{ id: string }>();
+
+    const readResponse = await inject(app, {
+      method: "GET",
+      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      headers: {
+        authorization: createAuthorizationHeader()
+      }
+    });
+
+    expect(readResponse.statusCode).toBe(200);
+    expect(readResponse.headers.deprecation).toBe("@1783987200");
+    expect(readResponse.headers.sunset).toBe("Mon, 12 Oct 2026 00:00:00 GMT");
+    expect(readResponse.headers.link).toBe(
+      `</v1/expense-reports/${createdReport.id}>; rel="successor-version"`
+    );
     expect(readResponse.json()).toEqual(createResponse.json());
   });
 
