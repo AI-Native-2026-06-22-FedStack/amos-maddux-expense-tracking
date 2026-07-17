@@ -5,10 +5,11 @@ import pytest
 from pydantic import ValidationError
 
 from app.gl_coding_contract import (
-    CodedLineItem,
-    CodedMileageEntry,
     GlCodingRequest,
     GlCodingResponse,
+    MappedCodedLineItem,
+    MappedCodedMileageEntry,
+    UnmappedCodedLineItem,
 )
 
 LINE_ITEM_ID = UUID("00000000-0000-4000-8000-000000000101")
@@ -109,7 +110,7 @@ def test_gl_coding_request_rejects_unsupported_category() -> None:
 def test_gl_coding_response_includes_flagged_line_item_field() -> None:
     response = GlCodingResponse(
         coded_line_items=[
-            CodedLineItem(
+            MappedCodedLineItem(
                 line_item_id=LINE_ITEM_ID,
                 category="Meals",
                 gl_code_id=GL_CODE_ID,
@@ -120,9 +121,10 @@ def test_gl_coding_response_includes_flagged_line_item_field() -> None:
             )
         ],
         coded_mileage_entries=[
-            CodedMileageEntry(
+            MappedCodedMileageEntry(
                 mileage_entry_id=MILEAGE_ENTRY_ID,
                 miles=Decimal("18.25"),
+                reimbursable_amount=Decimal("12.23"),
                 gl_code_id=GL_CODE_ID,
                 account_code="6300",
                 account_name="Synthetic Mileage Expense",
@@ -134,3 +136,31 @@ def test_gl_coding_response_includes_flagged_line_item_field() -> None:
 
     assert response.model_dump()["flagged_line_item"] == LINE_ITEM_ID
     assert response.coded_mileage_entries[0].miles == Decimal("18.25")
+
+
+def test_gl_coding_response_accepts_valid_category_unmapped_line_item() -> None:
+    response = GlCodingResponse(
+        coded_line_items=[
+            UnmappedCodedLineItem(
+                line_item_id=LINE_ITEM_ID,
+                category="Supplies",
+                flagged=False,
+            )
+        ],
+        flagged_line_item=None,
+    )
+
+    dumped = response.model_dump()
+
+    assert dumped["coded_line_items"][0]["status"] == "unmapped"
+    assert dumped["coded_line_items"][0]["unmapped_marker"] == "UNMAPPED_GL_CATEGORY"
+    assert "gl_code_id" not in dumped["coded_line_items"][0]
+
+
+def test_mapped_gl_coding_response_requires_gl_account_fields() -> None:
+    with pytest.raises(ValidationError):
+        MappedCodedLineItem(
+            line_item_id=LINE_ITEM_ID,
+            category="Meals",
+            flagged=False,
+        )

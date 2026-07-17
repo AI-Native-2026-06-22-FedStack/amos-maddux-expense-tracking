@@ -1,8 +1,10 @@
 import importlib
 import logging
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from types import ModuleType
 from typing import Callable
+from uuid import UUID
 
 import jwt
 import pytest
@@ -152,6 +154,111 @@ def test_me_route_returns_current_user_for_valid_token(monkeypatch: pytest.Monke
     }
 
 
+def test_v1_coding_route_rejects_missing_authorization(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _load_test_client(monkeypatch)
+
+    response = client.post("/v1/coding", json={"line_items": [], "mileage_entries": []})
+
+    assert response.status_code == 401
+
+
+def test_v1_coding_route_codes_with_authenticated_tenant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = _load_test_main(monkeypatch)
+    main.app.dependency_overrides[main.get_db_session] = lambda: FakeDbSession(
+        [
+            (
+                "Meals",
+                UUID("00000000-0000-4000-8000-000000000301"),
+                "6100",
+                "Synthetic Meals Expense",
+                "debit",
+            )
+        ]
+    )
+    monkeypatch.setenv("MILEAGE_REIMBURSEMENT_RATE", "0.67")
+    client = TestClient(main.app)
+    token = mint_test_access_token(
+        user_id="00000000-0000-4000-8000-000000000212",
+        tenant_id="00000000-0000-4000-8000-000000000112",
+        role="Employee",
+    )
+
+    response = client.post(
+        "/v1/coding",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "line_items": [
+                {
+                    "line_item_id": "00000000-0000-4000-8000-000000000101",
+                    "amount": "500.01",
+                    "currency": "USD",
+                    "category": "Meals",
+                },
+                {
+                    "line_item_id": "00000000-0000-4000-8000-000000000102",
+                    "amount": "42.50",
+                    "currency": "USD",
+                    "category": "Supplies",
+                },
+            ],
+            "mileage_entries": [],
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "coded_line_items": [
+            {
+                "status": "mapped",
+                "line_item_id": "00000000-0000-4000-8000-000000000101",
+                "category": "Meals",
+                "gl_code_id": "00000000-0000-4000-8000-000000000301",
+                "account_code": "6100",
+                "account_name": "Synthetic Meals Expense",
+                "normal_balance": "debit",
+                "flagged": True,
+            },
+            {
+                "status": "unmapped",
+                "line_item_id": "00000000-0000-4000-8000-000000000102",
+                "category": "Supplies",
+                "unmapped_marker": "UNMAPPED_GL_CATEGORY",
+                "flagged": False,
+            },
+        ],
+        "coded_mileage_entries": [],
+        "flagged_line_item": "00000000-0000-4000-8000-000000000101",
+    }
+
+
+def test_v1_coding_route_keeps_unknown_category_as_422(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    main = _load_test_main(monkeypatch)
+    main.app.dependency_overrides[main.get_db_session] = lambda: FakeDbSession([])
+    client = TestClient(main.app)
+    token = mint_test_access_token()
+
+    response = client.post(
+        "/v1/coding",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "line_items": [
+                {
+                    "line_item_id": "00000000-0000-4000-8000-000000000101",
+                    "amount": "42.50",
+                    "currency": "USD",
+                    "category": "Travel",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def _load_auth_with_test_key(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     monkeypatch.setenv("JWT_PUBLIC_KEY_PEM", TEST_JWT_PUBLIC_KEY_PEM)
     monkeypatch.setenv("JWT_KEY_ID", TEST_JWT_KEY_ID)
@@ -164,12 +271,17 @@ def _load_auth_with_test_key(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
 
 
 def _load_test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    main = _load_test_main(monkeypatch)
+    return TestClient(main.app)
+
+
+def _load_test_main(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     _load_auth_with_test_key(monkeypatch)
 
     import app.main
 
     main = importlib.reload(app.main)
-    return TestClient(main.app)
+    return main
 
 
 def _assert_unauthorized(verify_token: Callable[[str], object], token: str) -> None:
@@ -197,3 +309,33 @@ def _mint_token_without_roles() -> str:
 def _tamper_signature(signature: str) -> str:
     replacement = "A" if signature[0] != "A" else "B"
     return f"{replacement}{signature[1:]}"
+
+
+class FakeCursor:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def execute(self, query: str, params: dict[str, object]) -> object:
+        return None
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class FakeCursorContext:
+    def __init__(self, cursor: FakeCursor) -> None:
+        self._cursor = cursor
+
+    def __enter__(self) -> FakeCursor:
+        return self._cursor
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        return None
+
+
+class FakeDbSession:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._cursor = FakeCursor(rows)
+
+    def cursor(self) -> FakeCursorContext:
+        return FakeCursorContext(self._cursor)

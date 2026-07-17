@@ -1,12 +1,21 @@
 import logging
 import sys
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
+from uuid import UUID
 
 import structlog
-from fastapi import Depends, FastAPI, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 from app.auth import CurrentUser, get_current_user
+from app.coding import DbSession, code_expense_report, load_mileage_reimbursement_rate
+from app.db import get_db_session
+from app.gl_coding_contract import GlCodingRequest, GlCodingResponse
 from app.log_redaction import redact_sensitive_fields
+from app.shared_schema import (
+    validate_gl_coding_request_contract,
+    validate_gl_coding_response_contract,
+)
 
 CORRELATION_ID_HEADER = "X-Correlation-Id"
 REQUEST_ID_HEADER = "X-Request-Id"
@@ -74,6 +83,24 @@ def read_current_user(current_user: CurrentUser = Depends(get_current_user)) -> 
     return current_user
 
 
+@app.post("/v1/coding", response_model=GlCodingResponse)
+def code_gl_items(
+    request: GlCodingRequest,
+    db_session: DbSession = Depends(get_db_session),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> GlCodingResponse:
+    validate_gl_coding_request_contract(request)
+    response = code_expense_report(
+        request,
+        tenant_id=_parse_tenant_id(current_user.tenant_id),
+        db_session=db_session,
+        mileage_rate=load_mileage_reimbursement_rate(),
+    )
+    validate_gl_coding_response_contract(response)
+
+    return response
+
+
 def read_correlation_id(request: Request) -> str | None:
     correlation_id = request.headers.get(CORRELATION_ID_HEADER)
     if correlation_id is not None and correlation_id.strip() != "":
@@ -84,3 +111,10 @@ def read_correlation_id(request: Request) -> str | None:
         return request_id
 
     return None
+
+
+def _parse_tenant_id(tenant_id: str) -> UUID:
+    try:
+        return UUID(tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
