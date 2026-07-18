@@ -71,7 +71,7 @@ class FetchGlCodingEngineClient implements GlCodingEngineClient {
         const response = await this.postCodingRequest(request, bearerToken);
 
         if (response.ok) {
-          const payload: unknown = await response.json();
+          const payload = await readJsonResponse(response);
           validateGlCodingResponsePayload(payload);
 
           return payload;
@@ -163,6 +163,14 @@ function defaultSleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, milliseconds);
   });
+}
+
+async function readJsonResponse(response: Response): Promise<unknown> {
+  try {
+    return await response.json();
+  } catch {
+    throw new BoundaryContractError("GL coding response was not valid JSON.");
+  }
 }
 
 class TransientEngineRequestError extends UpstreamEngineError {

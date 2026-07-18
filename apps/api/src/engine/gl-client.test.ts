@@ -108,6 +108,23 @@ describe("GlCodingEngineClient", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("rejects non-JSON 2xx engine responses as boundary errors without retrying", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("synthetic-not-json", { status: 200 })
+    ) as unknown as typeof fetch;
+    const client = createGlCodingEngineClient({
+      baseUrl: "http://compute.example.test",
+      fetchImpl,
+      sleep: async () => undefined
+    });
+
+    await expect(client.codeExpenseReport(validRequest, "synthetic-token")).rejects.toThrow(
+      BoundaryContractError
+    );
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("passes a per-attempt abort signal and bearer token to the versioned endpoint", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(validResponse, 200)

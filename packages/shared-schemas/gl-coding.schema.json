@@ -27,40 +27,16 @@
       "format": "uuid"
     },
     "Money": {
-      "anyOf": [
-        {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        {
-          "type": "string",
-          "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"
-        }
-      ]
+      "type": "string",
+      "pattern": "^(?!0+(\\.0{1,2})?$)[0-9]{1,10}(\\.[0-9]{1,2})?$"
     },
     "NonNegativeMoney": {
-      "anyOf": [
-        {
-          "type": "number",
-          "minimum": 0
-        },
-        {
-          "type": "string",
-          "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"
-        }
-      ]
+      "type": "string",
+      "pattern": "^[0-9]{1,10}(\\.[0-9]{1,2})?$"
     },
     "Miles": {
-      "anyOf": [
-        {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        {
-          "type": "string",
-          "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"
-        }
-      ]
+      "type": "string",
+      "pattern": "^(?!0+(\\.0{1,2})?$)[0-9]{1,6}(\\.[0-9]{1,2})?$"
     },
     "GlCodingLineItem": {
       "type": "object",

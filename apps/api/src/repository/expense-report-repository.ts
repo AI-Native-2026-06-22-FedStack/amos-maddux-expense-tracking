@@ -10,6 +10,7 @@ import {
   mileageEntry,
   stageTransition
 } from "../db/schema.js";
+import { ConflictError } from "../errors/problem-json.js";
 import type {
   AuditEntrySelect,
   ExpenseReportInsert,
@@ -181,7 +182,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         .returning();
 
       if (updatedReport === undefined) {
-        throw new Error("Expense Report submit failed.");
+        throw new ConflictError("Expense Report must be Drafted before submit.");
       }
 
       if (request.flaggedLineItemIds.length > 0) {

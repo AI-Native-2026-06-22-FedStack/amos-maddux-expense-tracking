@@ -6,6 +6,7 @@ export default defineConfig({
     clearMocks: true,
     fileParallelism: false,
     globalSetup: ["./test/setup/postgres-container.ts"],
+    include: ["src/**/*.test.ts", "test/**/*.test.ts"],
     restoreMocks: true,
     setupFiles: ["./test/setup/database-cleanup.ts"]
   }

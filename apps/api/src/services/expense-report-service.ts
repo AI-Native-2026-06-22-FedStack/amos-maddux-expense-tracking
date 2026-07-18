@@ -1,5 +1,5 @@
 import { GlCodingEngineClient, createGlCodingEngineClient } from "../engine/gl-client.js";
-import { ConflictError, NotFoundError } from "../errors/problem-json.js";
+import { BoundaryContractError, ConflictError, NotFoundError } from "../errors/problem-json.js";
 import {
   ExpenseReportRepository,
   ExpenseReportForSubmit,
@@ -67,15 +67,17 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new ConflictError("Expense Report must be Drafted before submit.");
     }
 
+    assertGlCodingCategoriesAreSupported(report);
+    const glCodingRequest = toGlCodingRequest(report);
     const glCodingResponse = await this.glCodingEngineClient.codeExpenseReport(
-      toGlCodingRequest(report),
+      glCodingRequest,
       request.bearerToken
     );
     const submittedReport = await this.expenseReportRepository.submitForApReview({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
-      flaggedLineItemIds: readFlaggedLineItemIds(glCodingResponse)
+      flaggedLineItemIds: readFlaggedLineItemIds(glCodingResponse, glCodingRequest)
     });
 
     return submittedReport;
@@ -88,6 +90,8 @@ export function createExpenseReportService(
 ): ExpenseReportService {
   return new RepositoryExpenseReportService(expenseReportRepository, glCodingEngineClient);
 }
+
+const supportedGlCodingCategories = new Set(["Meals", "Lodging", "Mileage", "Supplies", "Other"]);
 
 function toGlCodingRequest(report: ExpenseReportForSubmit) {
   return {
@@ -109,12 +113,34 @@ function centsToUsdString(amountCents: number): string {
   return (amountCents / 100).toFixed(2);
 }
 
-function readFlaggedLineItemIds(response: unknown): string[] {
+function assertGlCodingCategoriesAreSupported(report: ExpenseReportForSubmit): void {
+  const unsupportedCategory = report.lineItems.find(
+    (item) => !supportedGlCodingCategories.has(item.category)
+  )?.category;
+
+  if (unsupportedCategory !== undefined) {
+    throw new ConflictError(
+      `Expense Report contains unsupported category: ${unsupportedCategory}.`
+    );
+  }
+}
+
+function readFlaggedLineItemIds(
+  response: unknown,
+  request: ReturnType<typeof toGlCodingRequest>
+): string[] {
   if (!isRecord(response) || !Array.isArray(response.coded_line_items)) {
     return [];
   }
 
-  return response.coded_line_items.filter(isFlaggedCodedLineItem).map((item) => item.line_item_id);
+  const requestLineItemIds = new Set(request.line_items.map((item) => item.line_item_id));
+  return response.coded_line_items.filter(isFlaggedCodedLineItem).map((item) => {
+    if (!requestLineItemIds.has(item.line_item_id)) {
+      throw new BoundaryContractError("GL coding response included an unknown line item ID.");
+    }
+
+    return item.line_item_id;
+  });
 }
 
 function isFlaggedCodedLineItem(value: unknown): value is { line_item_id: string; flagged: true } {

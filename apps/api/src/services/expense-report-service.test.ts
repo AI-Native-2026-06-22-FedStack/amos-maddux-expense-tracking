@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { UpstreamEngineError } from "../errors/problem-json.js";
+import {
+  BoundaryContractError,
+  ConflictError,
+  UpstreamEngineError
+} from "../errors/problem-json.js";
 import type { GlCodingEngineClient } from "../engine/gl-client.js";
 import type { ExpenseReportRepository } from "../repository/expense-report-repository.js";
 import { createExpenseReportService } from "./expense-report-service.js";
@@ -106,6 +110,71 @@ describe("ExpenseReportService submit", () => {
       })
     ).rejects.toThrow(UpstreamEngineError);
 
+    expect(repository.submitForApReview).not.toHaveBeenCalled();
+  });
+
+  it("rejects engine responses that reference unknown line item IDs", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ id: lineItemId })],
+        mileageEntries: []
+      }))
+    });
+    const engineClient = {
+      codeExpenseReport: vi.fn(async () => ({
+        coded_line_items: [
+          {
+            status: "unmapped",
+            line_item_id: "00000000-0000-4000-8000-000000000599",
+            category: "Meals",
+            unmapped_marker: "UNMAPPED_GL_CATEGORY",
+            flagged: true
+          }
+        ],
+        coded_mileage_entries: [],
+        flagged_line_item: "00000000-0000-4000-8000-000000000599"
+      }))
+    } satisfies GlCodingEngineClient;
+    const service = createExpenseReportService(repository, engineClient);
+
+    await expect(
+      service.submitForApReview({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        bearerToken: "synthetic-forwarded-token"
+      })
+    ).rejects.toThrow(BoundaryContractError);
+
+    expect(repository.submitForApReview).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported persisted categories before calling the engine", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ category: "Travel" })],
+        mileageEntries: []
+      }))
+    });
+    const engineClient = {
+      codeExpenseReport: vi.fn()
+    } satisfies GlCodingEngineClient;
+    const service = createExpenseReportService(repository, engineClient);
+
+    await expect(
+      service.submitForApReview({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        bearerToken: "synthetic-forwarded-token"
+      })
+    ).rejects.toThrow(ConflictError);
+
+    expect(engineClient.codeExpenseReport).not.toHaveBeenCalled();
     expect(repository.submitForApReview).not.toHaveBeenCalled();
   });
 });

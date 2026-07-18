@@ -87,4 +87,20 @@ describe("GL coding shared contract", () => {
       })
     ).toThrow("GL coding response does not match the shared schema.");
   });
+
+  it("rejects numeric money values so AJV matches the compute Decimal contract", () => {
+    expect(() =>
+      validateGlCodingRequestPayload({
+        line_items: [
+          {
+            line_item_id: "00000000-0000-4000-8000-000000000101",
+            amount: 42.5,
+            currency: "USD",
+            category: "Meals"
+          }
+        ],
+        mileage_entries: []
+      })
+    ).toThrow("GL coding request does not match the shared schema.");
+  });
 });
