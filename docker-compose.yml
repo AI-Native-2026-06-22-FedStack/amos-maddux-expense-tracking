@@ -28,3 +28,29 @@ services:
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
       - "8000:8000"
+
+  pact-broker-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pact_broker
+      POSTGRES_PASSWORD: pact_broker
+      POSTGRES_DB: pact_broker
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pact_broker -d pact_broker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pact-broker:
+    image: pactfoundation/pact-broker:latest
+    depends_on:
+      pact-broker-db:
+        condition: service_healthy
+    environment:
+      PACT_BROKER_DATABASE_ADAPTER: postgres
+      PACT_BROKER_DATABASE_HOST: pact-broker-db
+      PACT_BROKER_DATABASE_NAME: pact_broker
+      PACT_BROKER_DATABASE_USERNAME: pact_broker
+      PACT_BROKER_DATABASE_PASSWORD: pact_broker
+    ports:
+      - "9292:9292"

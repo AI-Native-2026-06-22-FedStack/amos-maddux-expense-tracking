@@ -4,6 +4,7 @@ export default defineConfig({
   root: import.meta.dirname,
   test: {
     clearMocks: true,
+    exclude: ["test/**/*.pact.test.ts"],
     fileParallelism: false,
     globalSetup: ["./test/setup/postgres-container.ts"],
     include: ["src/**/*.test.ts", "test/**/*.test.ts"],
