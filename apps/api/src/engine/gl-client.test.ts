@@ -52,7 +52,32 @@ describe("GlCodingEngineClient", () => {
     );
 
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(sleeps).toEqual([150, 250]);
+    expect(sleeps).toEqual([150, 300]);
+  });
+
+  it("caps exponential retry backoff before applying multiplicative jitter", async () => {
+    const sleeps: number[] = [];
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("synthetic transport failure");
+    }) as unknown as typeof fetch;
+    const client = createGlCodingEngineClient({
+      baseUrl: "http://compute.example.test",
+      fetchImpl,
+      maxAttempts: 4,
+      baseBackoffMs: 100,
+      maxBackoffMs: 250,
+      random: () => 1,
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+      }
+    });
+
+    await expect(client.codeExpenseReport(validRequest, "synthetic-token")).rejects.toThrow(
+      UpstreamEngineError
+    );
+
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(sleeps).toEqual([200, 250, 250]);
   });
 
   it("succeeds when a transient 5xx recovers on retry", async () => {

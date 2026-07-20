@@ -35,6 +35,7 @@ interface FetchGlCodingEngineClientOptions {
   maxAttempts?: number;
   perAttemptTimeoutMs?: number;
   baseBackoffMs?: number;
+  maxBackoffMs?: number;
   random?: () => number;
   sleep?: (milliseconds: number) => Promise<void>;
 }
@@ -45,6 +46,7 @@ class FetchGlCodingEngineClient implements GlCodingEngineClient {
   private readonly maxAttempts: number;
   private readonly perAttemptTimeoutMs: number;
   private readonly baseBackoffMs: number;
+  private readonly maxBackoffMs: number;
   private readonly random: () => number;
   private readonly sleep: (milliseconds: number) => Promise<void>;
 
@@ -54,6 +56,7 @@ class FetchGlCodingEngineClient implements GlCodingEngineClient {
     this.maxAttempts = options.maxAttempts ?? 3;
     this.perAttemptTimeoutMs = options.perAttemptTimeoutMs ?? 750;
     this.baseBackoffMs = options.baseBackoffMs ?? 100;
+    this.maxBackoffMs = options.maxBackoffMs ?? 1_000;
     this.random = options.random ?? Math.random;
     this.sleep = options.sleep ?? defaultSleep;
   }
@@ -138,10 +141,12 @@ class FetchGlCodingEngineClient implements GlCodingEngineClient {
 
   private calculateBackoffMs(attempt: number): number {
     // Three short attempts keep submit bounded while giving transient engine restarts one recovery window.
-    const exponentialBackoffMs = this.baseBackoffMs * 2 ** (attempt - 1);
-    const jitterMs = Math.floor(this.random() * this.baseBackoffMs);
+    const cappedExponentialBackoffMs = Math.min(
+      this.maxBackoffMs,
+      this.baseBackoffMs * 2 ** attempt
+    );
 
-    return exponentialBackoffMs + jitterMs;
+    return cappedExponentialBackoffMs * (0.5 + this.random() * 0.5);
   }
 }
 
