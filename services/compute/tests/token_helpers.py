@@ -4,7 +4,6 @@ import jwt
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-
 TEST_JWT_ISSUER = "expense-api"
 TEST_JWT_AUDIENCE = "expense-clients"
 TEST_JWT_KEY_ID = "local-development-key"
@@ -32,7 +31,8 @@ def mint_test_access_token(
     if expires_at is None:
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-    # Fake Python-minted tokens avoid the cost of Express auth while proving Python honors the same contract.
+    # Fake Python-minted tokens avoid Express auth while proving Python honors
+    # the same token contract.
     return jwt.encode(
         {
             "sub": user_id,

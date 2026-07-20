@@ -3,7 +3,7 @@
 import os
 from collections.abc import Iterable
 from dataclasses import dataclass
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -158,7 +158,15 @@ def load_gl_mappings(
         )
         rows = cursor.fetchall()
 
-    return {row[0]: _mapping_from_row(row) for row in rows}
+    mappings: dict[ExpenseCategory, GlAccountMapping] = {}
+    for row in rows:
+        category = row[0]
+        if category not in ("Meals", "Lodging", "Mileage", "Supplies", "Other"):
+            raise HTTPException(status_code=500, detail="Invalid GL mapping category")
+
+        mappings[category] = _mapping_from_row(row)
+
+    return mappings
 
 
 def calculate_reimbursable_amount(miles: Decimal, mileage_rate: Decimal) -> Decimal:

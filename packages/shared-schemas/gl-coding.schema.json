@@ -282,6 +282,10 @@
               "type": "null"
             }
           ]
+        },
+        "schema_revision_note": {
+          "type": "string",
+          "maxLength": 120
         }
       }
     }

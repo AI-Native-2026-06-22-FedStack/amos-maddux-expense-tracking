@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from structlog.typing import EventDict, WrappedLogger
 
@@ -8,7 +8,7 @@ CONFIG_PATH = Path(__file__).resolve().parents[3] / "config" / "sensitive-log-fi
 
 
 def _load_config() -> dict[str, Any]:
-    return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
 
 
 _CONFIG = _load_config()
@@ -21,7 +21,7 @@ def redact_sensitive_fields(
     _method_name: str,
     event_dict: EventDict,
 ) -> EventDict:
-    return _redact_value(event_dict)
+    return cast(EventDict, _redact_value(event_dict))
 
 
 def _redact_value(value: Any) -> Any:

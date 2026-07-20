@@ -5,9 +5,8 @@ from typing import Any, Literal
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, ValidationError
 from pwdlib import PasswordHash
-
+from pydantic import BaseModel, ValidationError
 
 Role = Literal["Finance Admin", "Department Manager", "Employee", "Admin"]
 
