@@ -277,7 +277,19 @@ describe("ExpenseReportRepository integration", () => {
       expenseReportId: tenantAReport.id,
       tenantId: tenantA,
       actorId: "synthetic-actor-00000000-0000-4000-8000-000000000433",
-      flaggedLineItemIds: [tenantALineItem.id, tenantBLineItem.id]
+      flaggedLineItemIds: [tenantALineItem.id, tenantBLineItem.id],
+      codedLineItems: [
+        {
+          id: tenantALineItem.id,
+          status: "mapped",
+          flagged: true,
+          glCodeId: "00000000-0000-4000-8000-000000000434",
+          accountCode: "6100",
+          accountName: "Synthetic Meals Expense",
+          normalBalance: "debit",
+          unmappedMarker: null
+        }
+      ]
     });
     const tenantBFound = await repository.findById(tenantBReport.id, tenantB);
     const tenantBLineItems = await db
@@ -285,7 +297,7 @@ describe("ExpenseReportRepository integration", () => {
       .from(lineItem)
       .where(eq(lineItem.tenant_id, tenantB));
 
-    expect(submitted.currentStage).toBe("AP Review");
+    expect(submitted.currentStage).toBe("Submitted");
     expect(tenantBFound?.currentStage).toBe("Drafted");
     expect(tenantBLineItems[0]?.flagged).toBe(false);
     await expect(repository.listAuditEntries(tenantAReport.id, tenantA)).resolves.toHaveLength(2);
@@ -310,9 +322,67 @@ describe("ExpenseReportRepository integration", () => {
         expenseReportId: report.id,
         tenantId: tenantA,
         actorId: "synthetic-actor-00000000-0000-4000-8000-000000000442",
-        flaggedLineItemIds: []
+        flaggedLineItemIds: [],
+        codedLineItems: []
       })
     ).rejects.toThrow(ConflictError);
+  });
+
+  it("advances and sends back reports with ordered transition and audit rows", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000451"
+    });
+
+    const submitted = await repository.submitForApReview({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-submitter-00000000-0000-4000-8000-000000000451",
+      flaggedLineItemIds: [],
+      codedLineItems: []
+    });
+    const managerApproval = await repository.transitionStage({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-manager-00000000-0000-4000-8000-000000000452",
+      fromStage: "Submitted",
+      toStage: "Manager Approval",
+      reason: "Synthetic manager review."
+    });
+    const drafted = await repository.transitionStage({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-manager-00000000-0000-4000-8000-000000000452",
+      fromStage: "Manager Approval",
+      toStage: "Drafted",
+      reason: "Synthetic receipt needs detail.",
+      action: "Expense Report Sent Back"
+    });
+
+    expect(submitted.currentStage).toBe("Submitted");
+    expect(managerApproval.currentStage).toBe("Manager Approval");
+    expect(drafted.currentStage).toBe("Drafted");
+
+    const transitionRows = await db
+      .select()
+      .from(stageTransition)
+      .where(eq(stageTransition.expenseReportId, report.id));
+    const auditRows = await repository.listAuditEntries(report.id, tenantA);
+
+    expect(transitionRows.map((row) => row.toStage)).toEqual([
+      "Drafted",
+      "Submitted",
+      "Manager Approval",
+      "Drafted"
+    ]);
+    expect(auditRows.map((row) => row.action)).toEqual([
+      "Expense Report Created",
+      "Expense Report Submitted",
+      "Expense Report Advanced",
+      "Expense Report Sent Back"
+    ]);
   });
 });
 

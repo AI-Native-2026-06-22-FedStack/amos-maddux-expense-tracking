@@ -29,7 +29,7 @@ const pact = new PactV4({
 describe("Core Case Service GL-coding consumer pact", () => {
   it("submits an over-500 Expense Report line item and records the flagged response path", async () => {
     const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
-    const submittedReport = { ...report, currentStage: "AP Review" as const };
+    const submittedReport = { ...report, currentStage: "Submitted" as const };
     const repository = makeRepository({
       findForSubmit: vi.fn(async () => ({
         ...report,
@@ -44,6 +44,12 @@ describe("Core Case Service GL-coding consumer pact", () => {
             category: "Meals",
             flagged: false,
             flag_cleared: false,
+            gl_coding_status: null,
+            gl_code_id: null,
+            gl_account_code: null,
+            gl_account_name: null,
+            gl_normal_balance: null,
+            gl_unmapped_marker: null,
             deductible: false,
             created_at: new Date("2026-07-17T12:00:00.000Z")
           }
@@ -104,13 +110,25 @@ describe("Core Case Service GL-coding consumer pact", () => {
             actorId,
             bearerToken
           })
-        ).resolves.toMatchObject({ currentStage: "AP Review" });
+        ).resolves.toMatchObject({ currentStage: "Submitted" });
 
         expect(repository.submitForApReview).toHaveBeenCalledWith({
           expenseReportId: reportId,
           tenantId,
           actorId,
-          flaggedLineItemIds: [lineItemId]
+          flaggedLineItemIds: [lineItemId],
+          codedLineItems: [
+            {
+              id: lineItemId,
+              status: "unmapped",
+              flagged: true,
+              glCodeId: null,
+              accountCode: null,
+              accountName: null,
+              normalBalance: null,
+              unmappedMarker: "UNMAPPED_GL_CATEGORY"
+            }
+          ]
         });
       });
   });
@@ -124,6 +142,8 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
     submitForApReview: vi.fn(),
+    transitionStage: vi.fn(),
+    recordDeniedTransition: vi.fn(),
     ...overrides
   } as ExpenseReportRepository;
 }

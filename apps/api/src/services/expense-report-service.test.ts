@@ -13,13 +13,14 @@ import { makeExpenseReport } from "../../test/factories/make-expense-report.js";
 const tenantId = "00000000-0000-4000-8000-000000000501";
 const reportId = "00000000-0000-4000-8000-000000000502";
 const actorId = "synthetic-user-00000000-0000-4000-8000-000000000503";
+const managerId = "synthetic-manager-00000000-0000-4000-8000-000000000506";
 const lineItemId = "00000000-0000-4000-8000-000000000504";
 const mileageEntryId = "00000000-0000-4000-8000-000000000505";
 
 describe("ExpenseReportService submit", () => {
   it("builds the shared GL coding request and persists flags after engine success", async () => {
     const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
-    const submittedReport = { ...report, currentStage: "AP Review" as const };
+    const submittedReport = { ...report, currentStage: "Submitted" as const };
     const repository = makeRepository({
       findForSubmit: vi.fn(async () => ({
         ...report,
@@ -49,13 +50,13 @@ describe("ExpenseReportService submit", () => {
     const service = createExpenseReportService(repository, engineClient);
 
     await expect(
-      service.submitForApReview({
+      service.submit({
         expenseReportId: reportId,
         tenantId,
         actorId,
         bearerToken: "synthetic-forwarded-token"
       })
-    ).resolves.toMatchObject({ currentStage: "AP Review" });
+    ).resolves.toMatchObject({ currentStage: "Submitted" });
 
     expect(engineClient.codeExpenseReport).toHaveBeenCalledWith(
       {
@@ -81,7 +82,19 @@ describe("ExpenseReportService submit", () => {
       expenseReportId: reportId,
       tenantId,
       actorId,
-      flaggedLineItemIds: [lineItemId]
+      flaggedLineItemIds: [lineItemId],
+      codedLineItems: [
+        {
+          id: lineItemId,
+          status: "mapped",
+          flagged: true,
+          glCodeId: "00000000-0000-4000-8000-000000000601",
+          accountCode: "6100",
+          accountName: "Synthetic Meals Expense",
+          normalBalance: "debit",
+          unmappedMarker: null
+        }
+      ]
     });
   });
 
@@ -102,7 +115,7 @@ describe("ExpenseReportService submit", () => {
     const service = createExpenseReportService(repository, engineClient);
 
     await expect(
-      service.submitForApReview({
+      service.submit({
         expenseReportId: reportId,
         tenantId,
         actorId,
@@ -140,7 +153,7 @@ describe("ExpenseReportService submit", () => {
     const service = createExpenseReportService(repository, engineClient);
 
     await expect(
-      service.submitForApReview({
+      service.submit({
         expenseReportId: reportId,
         tenantId,
         actorId,
@@ -166,7 +179,7 @@ describe("ExpenseReportService submit", () => {
     const service = createExpenseReportService(repository, engineClient);
 
     await expect(
-      service.submitForApReview({
+      service.submit({
         expenseReportId: reportId,
         tenantId,
         actorId,
@@ -176,6 +189,100 @@ describe("ExpenseReportService submit", () => {
 
     expect(engineClient.codeExpenseReport).not.toHaveBeenCalled();
     expect(repository.submitForApReview).not.toHaveBeenCalled();
+  });
+
+  it("rejects Employee advance attempts and records the denied attempt", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Submitted" });
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [],
+        mileageEntries: []
+      }))
+    });
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
+
+    await expect(
+      service.advance({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        roles: ["Employee"]
+      })
+    ).rejects.toThrow("Employee cannot transition Expense Reports.");
+
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+    expect(repository.recordDeniedTransition).toHaveBeenCalledWith({
+      expenseReportId: reportId,
+      tenantId,
+      actorId,
+      action: "Expense Report Transition Denied",
+      reason: "Actor is not permitted to transition Expense Reports."
+    });
+  });
+
+  it("blocks advancing a flagged Manager Approval report until the flag is cleared", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Manager Approval" });
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ flagged: true, flag_cleared: false })],
+        mileageEntries: []
+      }))
+    });
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
+
+    await expect(
+      service.advance({
+        expenseReportId: reportId,
+        tenantId,
+        actorId: managerId,
+        roles: ["Department Manager"]
+      })
+    ).rejects.toThrow("Over-500 line items must be cleared before AP Review.");
+
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+    expect(repository.recordDeniedTransition).toHaveBeenCalledWith({
+      expenseReportId: reportId,
+      tenantId,
+      actorId: managerId,
+      action: "Expense Report Transition Denied",
+      reason: "Over-500 line items must be cleared before AP Review."
+    });
+  });
+
+  it("sends Manager Approval reports back to Drafted with the required reason", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Manager Approval" });
+    const draftedReport = { ...report, currentStage: "Drafted" as const };
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ flagged: true, flag_cleared: false })],
+        mileageEntries: []
+      })),
+      transitionStage: vi.fn(async () => draftedReport)
+    });
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
+
+    await expect(
+      service.reject({
+        expenseReportId: reportId,
+        tenantId,
+        actorId: managerId,
+        roles: ["Department Manager"],
+        reason: "Synthetic receipt needs detail."
+      })
+    ).resolves.toMatchObject({ currentStage: "Drafted" });
+
+    expect(repository.transitionStage).toHaveBeenCalledWith({
+      expenseReportId: reportId,
+      tenantId,
+      actorId: managerId,
+      fromStage: "Manager Approval",
+      toStage: "Drafted",
+      reason: "Synthetic receipt needs detail.",
+      action: "Expense Report Sent Back"
+    });
   });
 });
 
@@ -187,6 +294,8 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
     submitForApReview: vi.fn(),
+    transitionStage: vi.fn(),
+    recordDeniedTransition: vi.fn(),
     ...overrides
   } as ExpenseReportRepository;
 }
@@ -202,6 +311,12 @@ function makeLineItem(overrides: Record<string, unknown> = {}) {
     category: "Meals",
     flagged: false,
     flag_cleared: false,
+    gl_coding_status: null,
+    gl_code_id: null,
+    gl_account_code: null,
+    gl_account_name: null,
+    gl_normal_balance: null,
+    gl_unmapped_marker: null,
     deductible: false,
     created_at: new Date(),
     ...overrides

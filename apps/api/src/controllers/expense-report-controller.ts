@@ -5,7 +5,9 @@ import { NotFoundError, UnauthorizedError } from "../errors/problem-json.js";
 import {
   createExpenseReportRequestSchema,
   expenseReportIdParamSchema,
-  expenseReportResponseSchema
+  expenseReportResponseSchema,
+  rejectExpenseReportRequestSchema,
+  transitionRequestSchema
 } from "../schemas/expense-report.schema.js";
 import {
   ExpenseReportService,
@@ -67,13 +69,51 @@ export class ExpenseReportController {
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
     const authContext = requireAuthenticatedContext(request);
-    const submittedReport = await this.expenseReportService.submitForApReview({
+    const submittedReport = await this.expenseReportService.submit({
       expenseReportId: parsedParams.id,
       tenantId: authContext.tenantId,
       actorId: authContext.userId,
       bearerToken: readBearerToken(request.headers.authorization)
     });
     const parsedResponse = expenseReportResponseSchema.parse(submittedReport);
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public advanceExpenseReport = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "body" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = expenseReportIdParamSchema.parse(request.params);
+    const parsedBody = transitionRequestSchema.parse(request.body);
+    const authContext = requireAuthenticatedContext(request);
+    const advancedReport = await this.expenseReportService.advance({
+      expenseReportId: parsedParams.id,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles,
+      reason: parsedBody.reason
+    });
+    const parsedResponse = expenseReportResponseSchema.parse(advancedReport);
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public rejectExpenseReport = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "body" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = expenseReportIdParamSchema.parse(request.params);
+    const parsedBody = rejectExpenseReportRequestSchema.parse(request.body);
+    const authContext = requireAuthenticatedContext(request);
+    const rejectedReport = await this.expenseReportService.reject({
+      expenseReportId: parsedParams.id,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles,
+      reason: parsedBody.reason
+    });
+    const parsedResponse = expenseReportResponseSchema.parse(rejectedReport);
 
     response.status(200).json(parsedResponse);
   };

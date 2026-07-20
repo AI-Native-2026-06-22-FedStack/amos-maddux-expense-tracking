@@ -54,7 +54,7 @@ describe("Expense Report route rate-limit wiring", () => {
 
   it("rejects unauthenticated submit requests before the controller runs", async () => {
     const service = makeExpenseReportService({
-      submitForApReview: vi.fn()
+      submit: vi.fn()
     });
     const app = createApp({
       expenseReportController: new ExpenseReportController(service)
@@ -67,14 +67,59 @@ describe("Expense Report route rate-limit wiring", () => {
     });
 
     expect(response.statusCode).toBe(401);
-    expect(service.submitForApReview).not.toHaveBeenCalled();
+    expect(service.submit).not.toHaveBeenCalled();
+  });
+
+  it("runs submit idempotency before the controller effect", async () => {
+    const sequence: string[] = [];
+    const service = makeExpenseReportService({
+      submit: vi.fn(async () => {
+        sequence.push("controller");
+        return {
+          id: "00000000-0000-4000-8000-000000000903",
+          tenantId,
+          submitterId: userId,
+          assignedOwnerId: null,
+          managerApproverId: null,
+          apReviewerId: null,
+          paymentId: null,
+          currentStage: "Submitted" as const,
+          priority: "Normal" as const,
+          dueDate: null,
+          onHold: false,
+          holdReason: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+      })
+    });
+    const app = createApp({
+      expenseReportIdempotencyMiddleware: (_request, _response, next) => {
+        sequence.push("idempotency");
+        next();
+      },
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "POST",
+      url: "/v1/expense-reports/00000000-0000-4000-8000-000000000903/submit",
+      headers: {
+        authorization: createAuthorizationHeader(),
+        "idempotency-key": "synthetic-submit-idempotency"
+      },
+      payload: {}
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(sequence).toEqual(["idempotency", "controller"]);
   });
 
   it("returns clean Problem JSON when submit engine coding fails", async () => {
     const app = createApp({
       expenseReportController: new ExpenseReportController(
         makeExpenseReportService({
-          submitForApReview: vi.fn(async () => {
+          submit: vi.fn(async () => {
             throw new UpstreamEngineError("GL coding engine unavailable after retries.");
           })
         })
@@ -198,7 +243,10 @@ function makeExpenseReportService(
   return {
     createDraftReport: vi.fn(),
     findReport: vi.fn(),
+    submit: vi.fn(),
     submitForApReview: vi.fn(),
+    advance: vi.fn(),
+    reject: vi.fn(),
     ...overrides
   } as ExpenseReportService;
 }

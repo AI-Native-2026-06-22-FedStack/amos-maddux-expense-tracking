@@ -38,7 +38,22 @@ export function createExpenseReportRouter(options: CreateExpenseReportRouterOpti
     "/expense-reports/:id/submit",
     requireJwtAuthentication,
     ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
     expenseReportController.submitExpenseReport
+  );
+  router.post(
+    "/expense-reports/:id/advance",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.advanceExpenseReport
+  );
+  router.post(
+    "/expense-reports/:id/reject",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.rejectExpenseReport
   );
 
   return router;

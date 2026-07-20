@@ -23,6 +23,13 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class ForbiddenError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "ForbiddenError";
+  }
+}
+
 export class TooManyRequestsError extends Error {
   public constructor(message: string) {
     super(message);
@@ -88,6 +95,16 @@ function toProblemJson(error: unknown, instance: string): ProblemJsonBody {
       type: "/problems/unauthorized",
       title: "Unauthorized",
       status: 401,
+      detail: error.message,
+      instance
+    };
+  }
+
+  if (error instanceof ForbiddenError) {
+    return {
+      type: "/problems/forbidden",
+      title: "Forbidden",
+      status: 403,
       detail: error.message,
       instance
     };
