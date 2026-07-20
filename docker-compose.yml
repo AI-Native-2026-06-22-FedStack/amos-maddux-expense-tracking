@@ -6,12 +6,97 @@ services:
       POSTGRES_DB: expenseflow
       POSTGRES_HOST_AUTH_METHOD: trust
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U expenseflow -d expenseflow"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  core:
+    image: node:24-bookworm-slim
+    working_dir: /workspace
+    command: ["sh", "-c", "npm install && npm run dev"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      compute:
+        condition: service_healthy
+      local-dev-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+      DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
+      JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
+      DATABASE_URI: postgres://expenseflow@postgres:5432/expenseflow
+      REDIS_URL: redis://redis:6379
+      COMPUTE_SERVICE_URL: http://compute:8000
+      EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: "60000"
+      EXPENSE_WRITE_RATE_LIMIT_MAX: "120"
+      EXPENSE_WRITE_SLOW_DOWN_AFTER: "80"
+      EXPENSE_WRITE_DELAY_INCREMENT_MS: "250"
+      EXPENSE_WRITE_MAX_DELAY_MS: "5000"
+      JWT_ISSUER: expense-api
+      JWT_AUDIENCE: expense-clients
+      JWT_KEY_ID: local-development-key
+      JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
+      JWT_REFRESH_TOKEN_TTL_SECONDS: "2592000"
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/workspace
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  compute:
+    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+    working_dir: /workspace/services/compute
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      local-dev-init:
+        condition: service_completed_successfully
+    environment:
+      UV_PROJECT_ENVIRONMENT: /tmp/expenseflow-compute-venv
+      DATABASE_URI: postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow
+      JWT_PUBLIC_KEY_PATH: /run/expenseflow-secrets/jwt-public.pem
+      JWT_KEY_ID: local-development-key
+      JWT_ISSUER: expense-api
+      JWT_AUDIENCE: expense-clients
+      MILEAGE_REIMBURSEMENT_RATE: "0.67"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/workspace
+      - compose-secrets:/run/expenseflow-secrets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
 
   redis:
     image: redis:7-alpine
@@ -27,7 +112,44 @@ services:
     image: amazon/dynamodb-local:2.6.1
     command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
     ports:
-      - "8000:8000"
+      - "8001:8000"
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: secretsmanager
+      AWS_DEFAULT_REGION: us-east-1
+      LOCALSTACK_HOST: localstack
+    ports:
+      - "4566:4566"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  local-dev-init:
+    image: node:24-bookworm-slim
+    working_dir: /workspace
+    command: ["sh", "-c", "npm install && node scripts/compose-dev-init.mjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      dynamodb-local:
+        condition: service_started
+    environment:
+      AWS_ENDPOINT: http://localstack:4566
+      AWS_REGION: us-east-1
+      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
+      DATABASE_URI: postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow
+      DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
+      JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
+      COMPOSE_SECRET_DIR: /run/expenseflow-secrets
+    volumes:
+      - .:/workspace
+      - compose-secrets:/run/expenseflow-secrets
 
   pact-broker-db:
     image: postgres:17-alpine
@@ -54,3 +176,15 @@ services:
       PACT_BROKER_DATABASE_PASSWORD: pact_broker
     ports:
       - "9292:9292"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'ruby -rnet/http -e ''exit(Net::HTTP.get_response(URI("http://127.0.0.1:9292/diagnostic/status/heartbeat")).is_a?(Net::HTTPSuccess) ? 0 : 1)'''
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  compose-secrets:

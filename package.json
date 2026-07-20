@@ -10,6 +10,8 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p apps/api/tsconfig.json",
+    "compose:init": "node scripts/compose-dev-init.mjs",
+    "compose:verify-submit-slice": "node scripts/verify-compose-submit-slice.mjs",
     "dev": "tsx watch apps/api/src/server.ts",
     "lint": "eslint . --max-warnings=0 && prettier . --check",
     "pact:consumer": "cd apps/api && vitest run --config vitest.pact.config.ts && prettier ../../pacts/*.json --write",
