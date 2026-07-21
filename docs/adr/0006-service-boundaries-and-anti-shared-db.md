@@ -1,4 +1,4 @@
-# ADR-0007: Service Boundaries and Anti-Shared-DB Rule
+# ADR-0006: Service Boundaries and Anti-Shared-DB Rule
 
 ## Status
 
@@ -37,7 +37,7 @@ Case data.
 
 A future `/v2` API can coexist with `/v1`. Cross-context calls must target an
 explicit API version, and retired versions must follow the deprecation lifetime
-and deprecation headers documented in ADR-0006.
+and deprecation headers documented in ADR-0005.
 
 ## Alternatives Considered
 

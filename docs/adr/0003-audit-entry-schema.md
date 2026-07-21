@@ -1,4 +1,4 @@
-# ADR-0004: Audit Entry Schema
+# ADR-0003: Audit Entry Schema
 
 ## Status
 

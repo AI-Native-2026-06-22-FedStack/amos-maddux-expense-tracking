@@ -17,6 +17,7 @@ const tenantId = "00000000-0000-4000-8000-000000000501";
 const reportId = "00000000-0000-4000-8000-000000000502";
 const actorId = "synthetic-user-00000000-0000-4000-8000-000000000503";
 const lineItemId = "00000000-0000-4000-8000-000000000504";
+const mappedGlCodeId = "00000000-0000-4000-8000-000000000601";
 const bearerToken = "synthetic-forwarded-token";
 
 const pact = new PactV4({
@@ -27,38 +28,8 @@ const pact = new PactV4({
 });
 
 describe("Core Case Service GL-coding consumer pact", () => {
-  it("submits an over-500 Expense Report line item and records the flagged response path", async () => {
-    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
-    const submittedReport = { ...report, currentStage: "Submitted" as const };
-    const repository = makeRepository({
-      findForSubmit: vi.fn(async () => ({
-        ...report,
-        lineItems: [
-          {
-            id: lineItemId,
-            tenant_id: tenantId,
-            expense_report_id: reportId,
-            merchant: "Synthetic Merchant",
-            amount_cents: 50001,
-            currency: "USD",
-            category: "Meals",
-            flagged: false,
-            flag_cleared: false,
-            gl_coding_status: null,
-            gl_code_id: null,
-            gl_account_code: null,
-            gl_account_name: null,
-            gl_normal_balance: null,
-            gl_unmapped_marker: null,
-            deductible: false,
-            created_at: new Date("2026-07-17T12:00:00.000Z")
-          }
-        ],
-        mileageEntries: []
-      })),
-      submitForApReview: vi.fn(async () => submittedReport)
-    });
-
+  it("submits an over-500 Meals line item and records the mapped flagged response path", async () => {
+    const repository = makeSubmitRepository("Meals");
     await pact
       .addInteraction()
       .given("a tenant has a valid Meals GL-coding category")
@@ -85,9 +56,88 @@ describe("Core Case Service GL-coding consumer pact", () => {
         builder.headers({ "content-type": "application/json" }).jsonBody({
           coded_line_items: [
             {
-              status: equal("unmapped"),
+              status: equal("mapped"),
               line_item_id: regex(uuidPattern, lineItemId),
               category: equal("Meals"),
+              gl_code_id: regex(uuidPattern, mappedGlCodeId),
+              account_code: equal("6100"),
+              account_name: equal("Synthetic Meals Expense"),
+              normal_balance: equal("debit"),
+              flagged: boolean(true)
+            }
+          ],
+          coded_mileage_entries: [],
+          flagged_line_item: like(lineItemId)
+        });
+      })
+      .executeTest(async (mockServer) => {
+        const glCodingEngineClient = createGlCodingEngineClient({
+          baseUrl: mockServer.url,
+          maxAttempts: 1
+        });
+        const service = createExpenseReportService(repository, glCodingEngineClient);
+
+        await expect(
+          service.submitForApReview({
+            expenseReportId: reportId,
+            tenantId,
+            actorId,
+            bearerToken
+          })
+        ).resolves.toMatchObject({ currentStage: "Submitted" });
+
+        expect(repository.submitForApReview).toHaveBeenCalledWith({
+          expenseReportId: reportId,
+          tenantId,
+          actorId,
+          flaggedLineItemIds: [lineItemId],
+          codedLineItems: [
+            {
+              id: lineItemId,
+              status: "mapped",
+              flagged: true,
+              glCodeId: mappedGlCodeId,
+              accountCode: "6100",
+              accountName: "Synthetic Meals Expense",
+              normalBalance: "debit",
+              unmappedMarker: null
+            }
+          ]
+        });
+      });
+  });
+
+  it("submits an over-500 Supplies line item and records the unmapped flagged response path", async () => {
+    const repository = makeSubmitRepository("Supplies");
+    await pact
+      .addInteraction()
+      .given("a tenant has no Supplies GL-coding category")
+      .uponReceiving("a Core submit request asks Compute to code an over-500 Expense Report")
+      .withRequest("POST", "/v1/coding", (builder) => {
+        builder
+          .headers({
+            authorization: regex("Bearer [A-Za-z0-9._-]+", `Bearer ${bearerToken}`),
+            "content-type": "application/json"
+          })
+          .jsonBody({
+            line_items: [
+              {
+                line_item_id: regex(uuidPattern, lineItemId),
+                amount: regex(moneyPattern, "500.01"),
+                currency: equal("USD"),
+                category: equal("Supplies")
+              }
+            ],
+            mileage_entries: []
+          });
+      })
+      .willRespondWith(200, (builder) => {
+        builder.headers({ "content-type": "application/json" }).jsonBody({
+          coded_line_items: [
+            {
+              status: equal("unmapped"),
+              line_item_id: regex(uuidPattern, lineItemId),
+              category: equal("Supplies"),
               unmapped_marker: equal("UNMAPPED_GL_CATEGORY"),
               flagged: boolean(true)
             }
@@ -133,6 +183,40 @@ describe("Core Case Service GL-coding consumer pact", () => {
       });
   });
 });
+
+function makeSubmitRepository(category: "Meals" | "Supplies"): ExpenseReportRepository {
+  const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
+  const submittedReport = { ...report, currentStage: "Submitted" as const };
+
+  return makeRepository({
+    findForSubmit: vi.fn(async () => ({
+      ...report,
+      lineItems: [
+        {
+          id: lineItemId,
+          tenant_id: tenantId,
+          expense_report_id: reportId,
+          merchant: "Synthetic Merchant",
+          amount_cents: 50001,
+          currency: "USD",
+          category,
+          flagged: false,
+          flag_cleared: false,
+          gl_coding_status: null,
+          gl_code_id: null,
+          gl_account_code: null,
+          gl_account_name: null,
+          gl_normal_balance: null,
+          gl_unmapped_marker: null,
+          deductible: false,
+          created_at: new Date("2026-07-17T12:00:00.000Z")
+        }
+      ],
+      mileageEntries: []
+    })),
+    submitForApReview: vi.fn(async () => submittedReport)
+  });
+}
 
 function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): ExpenseReportRepository {
   return {

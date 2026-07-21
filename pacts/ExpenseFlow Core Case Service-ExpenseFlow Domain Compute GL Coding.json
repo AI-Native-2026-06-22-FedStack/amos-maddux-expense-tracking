@@ -89,7 +89,197 @@
           "content": {
             "coded_line_items": [
               {
+                "account_code": "6100",
+                "account_name": "Synthetic Meals Expense",
                 "category": "Meals",
+                "flagged": true,
+                "gl_code_id": "00000000-0000-4000-8000-000000000601",
+                "line_item_id": "00000000-0000-4000-8000-000000000504",
+                "normal_balance": "debit",
+                "status": "mapped"
+              }
+            ],
+            "coded_mileage_entries": [],
+            "flagged_line_item": "00000000-0000-4000-8000-000000000504"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": ["application/json"],
+          "content-type": ["application/json"]
+        },
+        "matchingRules": {
+          "body": {
+            "$.coded_line_items[0].account_code": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.coded_line_items[0].account_name": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.coded_line_items[0].category": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.coded_line_items[0].flagged": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.coded_line_items[0].gl_code_id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.coded_line_items[0].line_item_id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+                }
+              ]
+            },
+            "$.coded_line_items[0].normal_balance": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.coded_line_items[0].status": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.flagged_line_item": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
+          "header": {},
+          "status": {}
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    },
+    {
+      "description": "a Core submit request asks Compute to code an over-500 Expense Report",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "a tenant has no Supplies GL-coding category"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "line_items": [
+              {
+                "amount": "500.01",
+                "category": "Supplies",
+                "currency": "USD",
+                "line_item_id": "00000000-0000-4000-8000-000000000504"
+              }
+            ],
+            "mileage_entries": []
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": ["application/json"],
+          "authorization": ["Bearer synthetic-forwarded-token"],
+          "content-type": ["application/json"]
+        },
+        "matchingRules": {
+          "body": {
+            "$.line_items[0].amount": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^(?!0+(\\.0{1,2})?$)[0-9]{1,10}(\\.[0-9]{1,2})?$"
+                }
+              ]
+            },
+            "$.line_items[0].category": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.line_items[0].currency": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.line_items[0].line_item_id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
+                }
+              ]
+            }
+          },
+          "header": {
+            "authorization": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "Bearer [A-Za-z0-9._-]+"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/coding"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "coded_line_items": [
+              {
+                "category": "Supplies",
                 "flagged": true,
                 "line_item_id": "00000000-0000-4000-8000-000000000504",
                 "status": "unmapped",
@@ -167,9 +357,6 @@
     }
   ],
   "metadata": {
-    "pact-js": {
-      "version": "13.2.0"
-    },
     "pactRust": {
       "ffi": "0.4.22",
       "models": "1.2.3"

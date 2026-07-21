@@ -1,4 +1,4 @@
-# ADR-0010: Storage per Bounded Context
+# ADR-0009: Storage per Bounded Context
 
 ## Status
 

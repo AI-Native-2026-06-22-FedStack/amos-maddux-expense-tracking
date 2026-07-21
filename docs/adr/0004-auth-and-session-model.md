@@ -1,4 +1,4 @@
-# ADR-0005: Auth and Session Model
+# ADR-0004: Auth and Session Model
 
 ## Status
 
