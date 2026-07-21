@@ -1,0 +1,9 @@
+{
+  "name": "@expenseflow/shared-schemas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./gl-coding.schema.json": "./gl-coding.schema.json"
+  }
+}

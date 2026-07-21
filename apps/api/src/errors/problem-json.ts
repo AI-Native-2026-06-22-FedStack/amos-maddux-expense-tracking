@@ -37,6 +37,20 @@ export class ConflictError extends Error {
   }
 }
 
+export class UpstreamEngineError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "UpstreamEngineError";
+  }
+}
+
+export class BoundaryContractError extends Error {
+  public constructor(message: string) {
+    super(message);
+    this.name = "BoundaryContractError";
+  }
+}
+
 export const problemJsonErrorHandler: ErrorRequestHandler = (error, request, response, next) => {
   if (response.headersSent) {
     next(error);
@@ -94,6 +108,16 @@ function toProblemJson(error: unknown, instance: string): ProblemJsonBody {
       type: "/problems/conflict",
       title: "Conflict",
       status: 409,
+      detail: error.message,
+      instance
+    };
+  }
+
+  if (error instanceof UpstreamEngineError || error instanceof BoundaryContractError) {
+    return {
+      type: "/problems/upstream-engine",
+      title: "Bad Gateway",
+      status: 502,
       detail: error.message,
       instance
     };

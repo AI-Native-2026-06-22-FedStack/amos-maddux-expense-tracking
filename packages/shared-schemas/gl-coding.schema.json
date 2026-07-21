@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://expenseflow.local/schemas/gl-coding.schema.json",
+  "title": "ExpenseFlow GL Coding Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["request", "response"],
+  "properties": {
+    "request": {
+      "$ref": "#/$defs/GlCodingRequest"
+    },
+    "response": {
+      "$ref": "#/$defs/GlCodingResponse"
+    }
+  },
+  "$defs": {
+    "ExpenseCategory": {
+      "type": "string",
+      "enum": ["Meals", "Lodging", "Mileage", "Supplies", "Other"]
+    },
+    "NormalBalance": {
+      "type": "string",
+      "enum": ["debit", "credit"]
+    },
+    "Uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "Money": {
+      "type": "string",
+      "pattern": "^(?!0+(\\.0{1,2})?$)[0-9]{1,10}(\\.[0-9]{1,2})?$"
+    },
+    "NonNegativeMoney": {
+      "type": "string",
+      "pattern": "^[0-9]{1,10}(\\.[0-9]{1,2})?$"
+    },
+    "Miles": {
+      "type": "string",
+      "pattern": "^(?!0+(\\.0{1,2})?$)[0-9]{1,6}(\\.[0-9]{1,2})?$"
+    },
+    "GlCodingLineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line_item_id", "amount", "currency", "category"],
+      "properties": {
+        "line_item_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "currency": {
+          "const": "USD"
+        },
+        "category": {
+          "$ref": "#/$defs/ExpenseCategory"
+        }
+      }
+    },
+    "GlCodingMileageEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mileage_entry_id", "miles"],
+      "properties": {
+        "mileage_entry_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "miles": {
+          "$ref": "#/$defs/Miles"
+        },
+        "category": {
+          "const": "Mileage",
+          "default": "Mileage"
+        }
+      }
+    },
+    "GlCodingRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "line_items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GlCodingLineItem"
+          },
+          "default": []
+        },
+        "mileage_entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GlCodingMileageEntry"
+          },
+          "default": []
+        }
+      }
+    },
+    "MappedCodedLineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "line_item_id",
+        "category",
+        "gl_code_id",
+        "account_code",
+        "account_name",
+        "normal_balance",
+        "flagged"
+      ],
+      "properties": {
+        "status": {
+          "const": "mapped"
+        },
+        "line_item_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "category": {
+          "$ref": "#/$defs/ExpenseCategory"
+        },
+        "gl_code_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "account_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "account_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "normal_balance": {
+          "$ref": "#/$defs/NormalBalance"
+        },
+        "flagged": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UnmappedCodedLineItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "line_item_id", "category", "unmapped_marker", "flagged"],
+      "properties": {
+        "status": {
+          "const": "unmapped"
+        },
+        "line_item_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "category": {
+          "$ref": "#/$defs/ExpenseCategory"
+        },
+        "unmapped_marker": {
+          "const": "UNMAPPED_GL_CATEGORY"
+        },
+        "flagged": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MappedCodedMileageEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "mileage_entry_id",
+        "miles",
+        "reimbursable_amount",
+        "category",
+        "gl_code_id",
+        "account_code",
+        "account_name",
+        "normal_balance"
+      ],
+      "properties": {
+        "status": {
+          "const": "mapped"
+        },
+        "mileage_entry_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "miles": {
+          "$ref": "#/$defs/Miles"
+        },
+        "reimbursable_amount": {
+          "$ref": "#/$defs/NonNegativeMoney"
+        },
+        "category": {
+          "const": "Mileage"
+        },
+        "gl_code_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "account_code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "account_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "normal_balance": {
+          "$ref": "#/$defs/NormalBalance"
+        }
+      }
+    },
+    "UnmappedCodedMileageEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "mileage_entry_id",
+        "miles",
+        "reimbursable_amount",
+        "category",
+        "unmapped_marker"
+      ],
+      "properties": {
+        "status": {
+          "const": "unmapped"
+        },
+        "mileage_entry_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "miles": {
+          "$ref": "#/$defs/Miles"
+        },
+        "reimbursable_amount": {
+          "$ref": "#/$defs/NonNegativeMoney"
+        },
+        "category": {
+          "const": "Mileage"
+        },
+        "unmapped_marker": {
+          "const": "UNMAPPED_GL_CATEGORY"
+        }
+      }
+    },
+    "GlCodingResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coded_line_items", "coded_mileage_entries", "flagged_line_item"],
+      "properties": {
+        "coded_line_items": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/MappedCodedLineItem"
+              },
+              {
+                "$ref": "#/$defs/UnmappedCodedLineItem"
+              }
+            ]
+          },
+          "default": []
+        },
+        "coded_mileage_entries": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/MappedCodedMileageEntry"
+              },
+              {
+                "$ref": "#/$defs/UnmappedCodedMileageEntry"
+              }
+            ]
+          },
+          "default": []
+        },
+        "flagged_line_item": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

@@ -5,7 +5,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import * as schema from "../src/db/schema.js";
-import { auditEntry, expenseReport, lineItem, stageTransition } from "../src/db/schema.js";
+import {
+  auditEntry,
+  expenseReport,
+  lineItem,
+  mileageEntry,
+  stageTransition
+} from "../src/db/schema.js";
+import { ConflictError } from "../src/errors/problem-json.js";
 import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
 
@@ -168,6 +175,144 @@ describe("ExpenseReportRepository integration", () => {
       }
     }
     expect(logger.queryCount).toBe(1);
+  });
+
+  it("finds submit data only for the requested tenant", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const tenantAReport = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000421"
+    });
+    const tenantBReport = await repository.createDraftReport({
+      tenantId: tenantB,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000422"
+    });
+
+    await db.insert(lineItem).values([
+      {
+        tenant_id: tenantA,
+        expense_report_id: tenantAReport.id,
+        merchant: "Synthetic Tenant A Merchant",
+        amount_cents: 50001,
+        currency: "USD",
+        category: "Meals"
+      },
+      {
+        tenant_id: tenantB,
+        expense_report_id: tenantBReport.id,
+        merchant: "Synthetic Tenant B Merchant",
+        amount_cents: 75000,
+        currency: "USD",
+        category: "Meals"
+      }
+    ]);
+    await db.insert(mileageEntry).values([
+      {
+        tenant_id: tenantA,
+        expense_report_id: tenantAReport.id,
+        trip_date: "2026-07-17",
+        origin: "Synthetic Origin A",
+        destination: "Synthetic Destination A",
+        miles: "18.25",
+        business_purpose: "Synthetic tenant A purpose"
+      },
+      {
+        tenant_id: tenantB,
+        expense_report_id: tenantBReport.id,
+        trip_date: "2026-07-18",
+        origin: "Synthetic Origin B",
+        destination: "Synthetic Destination B",
+        miles: "42.00",
+        business_purpose: "Synthetic tenant B purpose"
+      }
+    ]);
+
+    const submitData = await repository.findForSubmit(tenantAReport.id, tenantA);
+
+    expect(submitData?.id).toBe(tenantAReport.id);
+    expect(submitData?.tenantId).toBe(tenantA);
+    expect(submitData?.lineItems).toHaveLength(1);
+    expect(submitData?.lineItems[0]?.tenant_id).toBe(tenantA);
+    expect(submitData?.mileageEntries).toHaveLength(1);
+    expect(submitData?.mileageEntries[0]?.tenant_id).toBe(tenantA);
+    await expect(repository.findForSubmit(tenantAReport.id, tenantB)).resolves.toBeNull();
+  });
+
+  it("submits only the requested tenant report and flags only matching tenant line items", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const tenantAReport = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000431"
+    });
+    const tenantBReport = await repository.createDraftReport({
+      tenantId: tenantB,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000432"
+    });
+    const [tenantALineItem] = await db
+      .insert(lineItem)
+      .values({
+        tenant_id: tenantA,
+        expense_report_id: tenantAReport.id,
+        merchant: "Synthetic Tenant A Merchant",
+        amount_cents: 50001,
+        currency: "USD",
+        category: "Meals"
+      })
+      .returning();
+    const [tenantBLineItem] = await db
+      .insert(lineItem)
+      .values({
+        tenant_id: tenantB,
+        expense_report_id: tenantBReport.id,
+        merchant: "Synthetic Tenant B Merchant",
+        amount_cents: 50001,
+        currency: "USD",
+        category: "Meals"
+      })
+      .returning();
+
+    const submitted = await repository.submitForApReview({
+      expenseReportId: tenantAReport.id,
+      tenantId: tenantA,
+      actorId: "synthetic-actor-00000000-0000-4000-8000-000000000433",
+      flaggedLineItemIds: [tenantALineItem.id, tenantBLineItem.id]
+    });
+    const tenantBFound = await repository.findById(tenantBReport.id, tenantB);
+    const tenantBLineItems = await db
+      .select()
+      .from(lineItem)
+      .where(eq(lineItem.tenant_id, tenantB));
+
+    expect(submitted.currentStage).toBe("AP Review");
+    expect(tenantBFound?.currentStage).toBe("Drafted");
+    expect(tenantBLineItems[0]?.flagged).toBe(false);
+    await expect(repository.listAuditEntries(tenantAReport.id, tenantA)).resolves.toHaveLength(2);
+    await expect(repository.listAuditEntries(tenantBReport.id, tenantB)).resolves.toHaveLength(1);
+  });
+
+  it("returns a conflict when the report is no longer Drafted at submit write time", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000441"
+    });
+
+    await db
+      .update(expenseReport)
+      .set({ currentStage: "AP Review" })
+      .where(eq(expenseReport.id, report.id));
+
+    await expect(
+      repository.submitForApReview({
+        expenseReportId: report.id,
+        tenantId: tenantA,
+        actorId: "synthetic-actor-00000000-0000-4000-8000-000000000442",
+        flaggedLineItemIds: []
+      })
+    ).rejects.toThrow(ConflictError);
   });
 });
 

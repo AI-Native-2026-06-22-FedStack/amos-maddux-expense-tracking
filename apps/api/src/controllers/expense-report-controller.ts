@@ -1,7 +1,7 @@
 import { NextFunction } from "express";
 
 import { RequestWithAuthContext, requireAuthenticatedContext } from "../auth/verifier.js";
-import { NotFoundError } from "../errors/problem-json.js";
+import { NotFoundError, UnauthorizedError } from "../errors/problem-json.js";
 import {
   createExpenseReportRequestSchema,
   expenseReportIdParamSchema,
@@ -60,8 +60,38 @@ export class ExpenseReportController {
 
     response.status(200).json(parsedResponse);
   };
+
+  public submitExpenseReport = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "headers" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = expenseReportIdParamSchema.parse(request.params);
+    const authContext = requireAuthenticatedContext(request);
+    const submittedReport = await this.expenseReportService.submitForApReview({
+      expenseReportId: parsedParams.id,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      bearerToken: readBearerToken(request.headers.authorization)
+    });
+    const parsedResponse = expenseReportResponseSchema.parse(submittedReport);
+
+    response.status(200).json(parsedResponse);
+  };
 }
 
 export function createExpenseReportController(): ExpenseReportController {
   return new ExpenseReportController();
+}
+
+function readBearerToken(authorizationHeader: string | string[] | undefined): string {
+  if (typeof authorizationHeader !== "string") {
+    throw new UnauthorizedError("Missing or invalid bearer token.");
+  }
+
+  const match = authorizationHeader.match(/^Bearer (?<token>.+)$/i);
+  if (match?.groups?.token === undefined || match.groups.token.trim() === "") {
+    throw new UnauthorizedError("Missing or invalid bearer token.");
+  }
+
+  return match.groups.token;
 }

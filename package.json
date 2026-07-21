@@ -4,6 +4,10 @@
   "description": "ExpenseFlow TypeScript Node bootstrap.",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "apps/api",
+    "packages/*"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p apps/api/tsconfig.json",
     "dev": "tsx watch apps/api/src/server.ts",

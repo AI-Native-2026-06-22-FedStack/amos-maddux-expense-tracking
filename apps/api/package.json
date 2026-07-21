@@ -1,4 +1,7 @@
 {
+  "name": "@expenseflow/api",
+  "version": "0.1.0",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -7,6 +10,7 @@
     "dynamodb:setup-local": "tsx scripts/setup-dynamodb-local.ts"
   },
   "dependencies": {
+    "@expenseflow/shared-schemas": "file:../../packages/shared-schemas",
     "@aws-sdk/client-dynamodb": "^3.1087.0",
     "@aws-sdk/client-secrets-manager": "^3.1086.0",
     "drizzle-orm": "^0.45.2",
