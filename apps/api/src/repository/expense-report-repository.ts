@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { getDb } from "../db/client.js";
@@ -18,6 +18,7 @@ import type {
   LineItemSelect,
   MileageEntrySelect
 } from "../db/schema.js";
+import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
 
 type ExpenseReportDatabase = NodePgDatabase<typeof schema>;
@@ -38,6 +39,8 @@ export interface ExpenseReportRepository {
   listAuditEntries(expenseReportId: string, tenantId: string): Promise<AuditEntrySelect[]>;
   listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]>;
   submitForApReview(request: SubmitForApReviewRequest): Promise<ExpenseReportSelect>;
+  transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect>;
+  recordDeniedTransition(request: RecordDeniedTransitionRequest): Promise<void>;
 }
 
 export interface SubmitForApReviewRequest {
@@ -45,6 +48,36 @@ export interface SubmitForApReviewRequest {
   tenantId: string;
   actorId: string;
   flaggedLineItemIds: string[];
+  codedLineItems: CodedLineItemForPersistence[];
+}
+
+export interface CodedLineItemForPersistence {
+  id: string;
+  status: "mapped" | "unmapped";
+  flagged: boolean;
+  glCodeId: string | null;
+  accountCode: string | null;
+  accountName: string | null;
+  normalBalance: "debit" | "credit" | null;
+  unmappedMarker: string | null;
+}
+
+export interface TransitionStageRequest {
+  expenseReportId: string;
+  tenantId: string;
+  actorId: string;
+  fromStage: ExpenseReportStage;
+  toStage: ExpenseReportStage;
+  reason: string;
+  action?: string;
+}
+
+export interface RecordDeniedTransitionRequest {
+  expenseReportId: string;
+  tenantId: string;
+  actorId: string;
+  action: string;
+  reason: string;
 }
 
 class DrizzleExpenseReportRepository implements ExpenseReportRepository {
@@ -169,7 +202,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
       const [updatedReport] = await tx
         .update(expenseReport)
         .set({
-          currentStage: "AP Review",
+          currentStage: "Submitted",
           updatedAt: this.now()
         })
         .where(
@@ -185,15 +218,23 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         throw new ConflictError("Expense Report must be Drafted before submit.");
       }
 
-      if (request.flaggedLineItemIds.length > 0) {
+      for (const item of request.codedLineItems) {
         await tx
           .update(lineItem)
-          .set({ flagged: true })
+          .set({
+            flagged: item.flagged,
+            gl_coding_status: item.status,
+            gl_code_id: item.glCodeId,
+            gl_account_code: item.accountCode,
+            gl_account_name: item.accountName,
+            gl_normal_balance: item.normalBalance,
+            gl_unmapped_marker: item.unmappedMarker
+          })
           .where(
             and(
               eq(lineItem.tenant_id, request.tenantId),
               eq(lineItem.expense_report_id, request.expenseReportId),
-              inArray(lineItem.id, request.flaggedLineItemIds)
+              eq(lineItem.id, item.id)
             )
           );
       }
@@ -202,9 +243,9 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         tenantId: request.tenantId,
         expenseReportId: request.expenseReportId,
         fromStage: "Drafted",
-        toStage: "AP Review",
+        toStage: "Submitted",
         actorId: request.actorId,
-        reason: "Expense Report submitted for AP Review."
+        reason: "Expense Report submitted after GL coding."
       });
       await tx.insert(auditEntry).values(
         auditEntryWriteSchema.parse({
@@ -212,7 +253,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           expenseReportId: request.expenseReportId,
           actorId: request.actorId,
           action: "Expense Report Submitted",
-          reason: "Expense Report submitted for AP Review after GL coding.",
+          reason: "Expense Report submitted after GL coding.",
           result: "success",
           occurredAt: this.now()
         })
@@ -220,6 +261,65 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
 
       return updatedReport;
     });
+  }
+
+  public async transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect> {
+    return this.db.transaction(async (tx) => {
+      const [updatedReport] = await tx
+        .update(expenseReport)
+        .set({
+          currentStage: request.toStage,
+          updatedAt: this.now()
+        })
+        .where(
+          and(
+            eq(expenseReport.id, request.expenseReportId),
+            eq(expenseReport.tenantId, request.tenantId),
+            eq(expenseReport.currentStage, request.fromStage)
+          )
+        )
+        .returning();
+
+      if (updatedReport === undefined) {
+        throw new ConflictError(`Expense Report must be ${request.fromStage} before transition.`);
+      }
+
+      await tx.insert(stageTransition).values({
+        tenantId: request.tenantId,
+        expenseReportId: request.expenseReportId,
+        fromStage: request.fromStage,
+        toStage: request.toStage,
+        actorId: request.actorId,
+        reason: request.reason
+      });
+      await tx.insert(auditEntry).values(
+        auditEntryWriteSchema.parse({
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          actorId: request.actorId,
+          action: request.action ?? "Expense Report Advanced",
+          reason: request.reason,
+          result: "success",
+          occurredAt: this.now()
+        })
+      );
+
+      return updatedReport;
+    });
+  }
+
+  public async recordDeniedTransition(request: RecordDeniedTransitionRequest): Promise<void> {
+    await this.db.insert(auditEntry).values(
+      auditEntryWriteSchema.parse({
+        tenantId: request.tenantId,
+        expenseReportId: request.expenseReportId,
+        actorId: request.actorId,
+        action: request.action,
+        reason: request.reason,
+        result: "failure",
+        occurredAt: this.now()
+      })
+    );
   }
 }
 

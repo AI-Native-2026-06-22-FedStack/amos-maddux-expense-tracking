@@ -1,5 +1,10 @@
 import { GlCodingEngineClient, createGlCodingEngineClient } from "../engine/gl-client.js";
-import { BoundaryContractError, ConflictError, NotFoundError } from "../errors/problem-json.js";
+import {
+  BoundaryContractError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError
+} from "../errors/problem-json.js";
 import {
   ExpenseReportRepository,
   ExpenseReportForSubmit,
@@ -18,7 +23,10 @@ export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
 export interface ExpenseReportService {
   createDraftReport(request: CreateDraftExpenseReportRequest): Promise<ExpenseReportResponse>;
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
+  submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   submitForApReview(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
+  advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse>;
+  reject(request: RejectExpenseReportRequest): Promise<ExpenseReportResponse>;
 }
 
 export interface SubmitExpenseReportRequest {
@@ -27,6 +35,18 @@ export interface SubmitExpenseReportRequest {
   actorId: string;
   bearerToken: string;
 }
+
+export interface TransitionExpenseReportRequest {
+  expenseReportId: string;
+  tenantId: string;
+  actorId: string;
+  roles: string[];
+  reason?: string;
+}
+
+export type RejectExpenseReportRequest = TransitionExpenseReportRequest & {
+  reason: string;
+};
 
 class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(
@@ -51,9 +71,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
     return report;
   }
 
-  public async submitForApReview(
-    request: SubmitExpenseReportRequest
-  ): Promise<ExpenseReportResponse> {
+  public async submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse> {
     const report = await this.expenseReportRepository.findForSubmit(
       request.expenseReportId,
       request.tenantId
@@ -73,14 +91,103 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       glCodingRequest,
       request.bearerToken
     );
+    const codedLineItems = readCodedLineItems(glCodingResponse, glCodingRequest);
     const submittedReport = await this.expenseReportRepository.submitForApReview({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
-      flaggedLineItemIds: readFlaggedLineItemIds(glCodingResponse, glCodingRequest)
+      flaggedLineItemIds: codedLineItems.filter((item) => item.flagged).map((item) => item.id),
+      codedLineItems
     });
 
     return submittedReport;
+  }
+
+  public async submitForApReview(
+    request: SubmitExpenseReportRequest
+  ): Promise<ExpenseReportResponse> {
+    return this.submit(request);
+  }
+
+  public async advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse> {
+    const report = await this.expenseReportRepository.findForSubmit(
+      request.expenseReportId,
+      request.tenantId
+    );
+
+    if (report === null) {
+      throw new NotFoundError("Expense Report not found.");
+    }
+
+    if (!canReview(request.roles)) {
+      await this.expenseReportRepository.recordDeniedTransition({
+        expenseReportId: request.expenseReportId,
+        tenantId: request.tenantId,
+        actorId: request.actorId,
+        action: "Expense Report Transition Denied",
+        reason: "Actor is not permitted to transition Expense Reports."
+      });
+      throw new ForbiddenError("Employee cannot transition Expense Reports.");
+    }
+
+    if (report.currentStage === "Manager Approval" && hasUnclearedFlag(report)) {
+      await this.expenseReportRepository.recordDeniedTransition({
+        expenseReportId: request.expenseReportId,
+        tenantId: request.tenantId,
+        actorId: request.actorId,
+        action: "Expense Report Transition Denied",
+        reason: "Over-500 line items must be cleared before AP Review."
+      });
+      throw new ConflictError("Over-500 line items must be cleared before AP Review.");
+    }
+
+    const toStage = nextStage(report.currentStage);
+    return this.expenseReportRepository.transitionStage({
+      expenseReportId: request.expenseReportId,
+      tenantId: request.tenantId,
+      actorId: request.actorId,
+      fromStage: report.currentStage,
+      toStage,
+      reason: request.reason ?? `Expense Report advanced to ${toStage}.`
+    });
+  }
+
+  public async reject(request: RejectExpenseReportRequest): Promise<ExpenseReportResponse> {
+    const report = await this.expenseReportRepository.findForSubmit(
+      request.expenseReportId,
+      request.tenantId
+    );
+
+    if (report === null) {
+      throw new NotFoundError("Expense Report not found.");
+    }
+
+    if (!canReview(request.roles)) {
+      await this.expenseReportRepository.recordDeniedTransition({
+        expenseReportId: request.expenseReportId,
+        tenantId: request.tenantId,
+        actorId: request.actorId,
+        action: "Expense Report Send Back Denied",
+        reason: "Actor is not permitted to send back Expense Reports."
+      });
+      throw new ForbiddenError("Employee cannot transition Expense Reports.");
+    }
+
+    if (report.currentStage !== "Manager Approval" && report.currentStage !== "AP Review") {
+      throw new ConflictError(
+        "Expense Report can only be rejected from Manager Approval or AP Review."
+      );
+    }
+
+    return this.expenseReportRepository.transitionStage({
+      expenseReportId: request.expenseReportId,
+      tenantId: request.tenantId,
+      actorId: request.actorId,
+      fromStage: report.currentStage,
+      toStage: "Drafted",
+      reason: request.reason,
+      action: "Expense Report Sent Back"
+    });
   }
 }
 
@@ -125,26 +232,122 @@ function assertGlCodingCategoriesAreSupported(report: ExpenseReportForSubmit): v
   }
 }
 
-function readFlaggedLineItemIds(
+function readCodedLineItems(
   response: unknown,
   request: ReturnType<typeof toGlCodingRequest>
-): string[] {
+): {
+  id: string;
+  status: "mapped" | "unmapped";
+  flagged: boolean;
+  glCodeId: string | null;
+  accountCode: string | null;
+  accountName: string | null;
+  normalBalance: "debit" | "credit" | null;
+  unmappedMarker: string | null;
+}[] {
   if (!isRecord(response) || !Array.isArray(response.coded_line_items)) {
     return [];
   }
 
   const requestLineItemIds = new Set(request.line_items.map((item) => item.line_item_id));
-  return response.coded_line_items.filter(isFlaggedCodedLineItem).map((item) => {
+  return response.coded_line_items.map((item) => {
+    if (!isCodedLineItem(item)) {
+      throw new BoundaryContractError("GL coding response included an invalid line item.");
+    }
+
     if (!requestLineItemIds.has(item.line_item_id)) {
       throw new BoundaryContractError("GL coding response included an unknown line item ID.");
     }
 
-    return item.line_item_id;
+    if (item.status === "mapped") {
+      return {
+        id: item.line_item_id,
+        status: item.status,
+        flagged: item.flagged,
+        glCodeId: item.gl_code_id,
+        accountCode: item.account_code,
+        accountName: item.account_name,
+        normalBalance: item.normal_balance,
+        unmappedMarker: null
+      };
+    }
+
+    return {
+      id: item.line_item_id,
+      status: item.status,
+      flagged: item.flagged,
+      glCodeId: null,
+      accountCode: null,
+      accountName: null,
+      normalBalance: null,
+      unmappedMarker: item.unmapped_marker
+    };
   });
 }
 
-function isFlaggedCodedLineItem(value: unknown): value is { line_item_id: string; flagged: true } {
-  return isRecord(value) && typeof value.line_item_id === "string" && value.flagged === true;
+type CodedLineItemFromEngine =
+  | {
+      line_item_id: string;
+      status: "mapped";
+      flagged: boolean;
+      gl_code_id: string;
+      account_code: string;
+      account_name: string;
+      normal_balance: "debit" | "credit";
+    }
+  | {
+      line_item_id: string;
+      status: "unmapped";
+      flagged: boolean;
+      unmapped_marker: "UNMAPPED_GL_CATEGORY";
+    };
+
+function isCodedLineItem(value: unknown): value is CodedLineItemFromEngine {
+  if (!isRecord(value) || typeof value.line_item_id !== "string") {
+    return false;
+  }
+
+  if (value.status === "mapped") {
+    return (
+      typeof value.flagged === "boolean" &&
+      typeof value.gl_code_id === "string" &&
+      typeof value.account_code === "string" &&
+      typeof value.account_name === "string" &&
+      (value.normal_balance === "debit" || value.normal_balance === "credit")
+    );
+  }
+
+  return (
+    value.status === "unmapped" &&
+    typeof value.flagged === "boolean" &&
+    value.unmapped_marker === "UNMAPPED_GL_CATEGORY"
+  );
+}
+
+function canReview(roles: string[]): boolean {
+  return roles.includes("Department Manager") || roles.includes("Finance Admin");
+}
+
+function hasUnclearedFlag(report: ExpenseReportForSubmit): boolean {
+  return report.lineItems.some((item) => item.flagged && !item.flag_cleared);
+}
+
+function nextStage(
+  stage: ExpenseReportResponse["currentStage"]
+): ExpenseReportResponse["currentStage"] {
+  if (stage === "Submitted") {
+    return "Manager Approval";
+  }
+
+  if (stage === "Manager Approval") {
+    return "AP Review";
+  }
+
+  if (stage === "AP Review") {
+    return "Paid";
+  }
+
+  throw new ConflictError(`Expense Report cannot advance from ${stage}.`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

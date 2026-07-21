@@ -9,7 +9,10 @@ describe("ExpenseReportController", () => {
     const service = {
       createDraftReport: vi.fn(),
       findReport: vi.fn(),
-      submitForApReview: vi.fn()
+      submit: vi.fn(),
+      submitForApReview: vi.fn(),
+      advance: vi.fn(),
+      reject: vi.fn()
     } satisfies ExpenseReportService;
     const controller = new ExpenseReportController(service);
     const request = {
@@ -41,7 +44,7 @@ describe("ExpenseReportController", () => {
       managerApproverId: null,
       apReviewerId: null,
       paymentId: null,
-      currentStage: "AP Review" as const,
+      currentStage: "Submitted" as const,
       priority: "Normal" as const,
       dueDate: null,
       onHold: false,
@@ -52,7 +55,10 @@ describe("ExpenseReportController", () => {
     const service = {
       createDraftReport: vi.fn(),
       findReport: vi.fn(),
-      submitForApReview: vi.fn(async () => submittedReport)
+      submit: vi.fn(async () => submittedReport),
+      submitForApReview: vi.fn(async () => submittedReport),
+      advance: vi.fn(),
+      reject: vi.fn()
     } satisfies ExpenseReportService;
     const controller = new ExpenseReportController(service);
     const responseJson = vi.fn();
@@ -79,7 +85,7 @@ describe("ExpenseReportController", () => {
       response
     );
 
-    expect(service.submitForApReview).toHaveBeenCalledWith({
+    expect(service.submit).toHaveBeenCalledWith({
       expenseReportId: "00000000-0000-4000-8000-000000000331",
       tenantId: "00000000-0000-4000-8000-000000000321",
       actorId: "synthetic-user-00000000-0000-4000-8000-000000000322",
@@ -89,7 +95,7 @@ describe("ExpenseReportController", () => {
     expect(responseJson).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "00000000-0000-4000-8000-000000000331",
-        currentStage: "AP Review"
+        currentStage: "Submitted"
       })
     );
   });

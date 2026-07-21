@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
+import { setApiRuntimeConfigForTest } from "./config/runtime-config.js";
 import { sensitiveLogCensor, sensitiveLogPaths } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_HEADER_LOWERCASE } from "./middleware/correlation.js";
 
@@ -162,16 +163,29 @@ describe("createApp", () => {
   });
 
   it("returns not ready from GET /ready when compute is unavailable", async () => {
-    const response = await inject(createApp(), {
-      method: "GET",
-      url: "/ready"
-    });
+    const previousComputeServiceUrl = process.env.COMPUTE_SERVICE_URL;
+    process.env.COMPUTE_SERVICE_URL = "http://127.0.0.1:1";
+    setApiRuntimeConfigForTest(undefined);
 
-    expect(response.statusCode).toBe(503);
-    expect(response.json()).toEqual({
-      service: "ExpenseFlow API",
-      status: "not ready"
-    });
+    try {
+      const response = await inject(createApp(), {
+        method: "GET",
+        url: "/ready"
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({
+        service: "ExpenseFlow API",
+        status: "not ready"
+      });
+    } finally {
+      if (previousComputeServiceUrl === undefined) {
+        delete process.env.COMPUTE_SERVICE_URL;
+      } else {
+        process.env.COMPUTE_SERVICE_URL = previousComputeServiceUrl;
+      }
+      setApiRuntimeConfigForTest(undefined);
+    }
   });
 
   it("serves the generated OpenAPI document", async () => {

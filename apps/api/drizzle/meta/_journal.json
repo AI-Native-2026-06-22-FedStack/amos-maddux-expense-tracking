@@ -36,6 +36,13 @@
       "when": 1783710000000,
       "tag": "0004_audit_entry_five_dimensions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1784584800000,
+      "tag": "0005_gl_coded_line_items",
+      "breakpoints": true
     }
   ]
 }

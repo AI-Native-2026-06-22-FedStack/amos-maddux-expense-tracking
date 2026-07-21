@@ -1,7 +1,6 @@
 import logging
 import sys
 from collections.abc import Awaitable, Callable
-from decimal import Decimal
 from uuid import UUID
 
 import structlog

@@ -198,6 +198,12 @@ export const lineItem = pgTable(
     category: text("category").notNull(),
     flagged: boolean("flagged").notNull().default(false),
     flag_cleared: boolean("flag_cleared").notNull().default(false),
+    gl_coding_status: text("gl_coding_status"),
+    gl_code_id: uuid("gl_code_id"),
+    gl_account_code: text("gl_account_code"),
+    gl_account_name: text("gl_account_name"),
+    gl_normal_balance: text("gl_normal_balance"),
+    gl_unmapped_marker: text("gl_unmapped_marker"),
     deductible: boolean("deductible").notNull().default(false),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
@@ -218,6 +224,14 @@ export const lineItem = pgTable(
     check(
       "expense_line_item_flag_state_check",
       sql`${table.flag_cleared} = false or ${table.flagged} = true`
+    ),
+    check(
+      "expense_line_item_gl_coding_status_check",
+      sql`${table.gl_coding_status} is null or ${table.gl_coding_status} in ('mapped', 'unmapped')`
+    ),
+    check(
+      "expense_line_item_gl_normal_balance_check",
+      sql`${table.gl_normal_balance} is null or ${table.gl_normal_balance} in ('debit', 'credit')`
     )
   ]
 );

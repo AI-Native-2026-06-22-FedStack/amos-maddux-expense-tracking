@@ -21,7 +21,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["vitest.config.ts"]
+          allowDefaultProject: ["vitest.config.ts", "scripts/*.mjs"]
         },
         tsconfigRootDir: import.meta.dirname
       }
@@ -33,6 +33,17 @@ export default tseslint.config(
           ignoreVoid: false
         }
       ]
+    }
+  },
+  {
+    files: ["scripts/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+        setTimeout: "readonly"
+      }
     }
   }
 );
