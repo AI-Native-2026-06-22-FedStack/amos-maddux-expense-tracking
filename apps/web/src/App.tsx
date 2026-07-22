@@ -1,10 +1,20 @@
 import { Sidebar } from "./components/Sidebar";
+import type { UserRole } from "./domain";
+import { ExpenseReportsScreen } from "./screens/ExpenseReportsScreen";
 import styles from "./App.module.css";
+
+const currentRole: UserRole = "Finance Admin";
+
+const currentUser = {
+  initials: "MH",
+  name: "Marcus Hill",
+  organization: "Demo Tenant",
+};
 
 export function App() {
   return (
     <div className={styles.appContainer}>
-      <Sidebar />
+      <Sidebar activePage="expense-reports" caseCount={17} role={currentRole} user={currentUser} />
       <div className={styles.mainContent}>
         <header className={styles.topBar}>
           <div className={styles.topBarLeft}>
@@ -12,11 +22,11 @@ export function App() {
           </div>
           <div className={styles.roleSwitcher} aria-label="Current role view">
             <span className={styles.labelPill}>View as</span>
-            <span>Finance Admin</span>
+            <span>{currentRole}</span>
           </div>
         </header>
         <main className={styles.contentSection} aria-label="Expense Report workspace">
-          <div className={styles.shellPlaceholder} aria-label="Task 2 workspace placeholder" />
+          <ExpenseReportsScreen />
         </main>
       </div>
     </div>

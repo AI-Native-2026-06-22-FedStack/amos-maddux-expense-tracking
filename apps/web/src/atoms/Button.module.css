@@ -1,0 +1,30 @@
+.button {
+  align-items: center;
+  border: none;
+  border-radius: var(--radius-md);
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 8px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 16px;
+  transition: var(--transition);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.primary {
+  background: var(--primary);
+  color: var(--text-on-accent);
+}
+
+.secondary {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+}
+

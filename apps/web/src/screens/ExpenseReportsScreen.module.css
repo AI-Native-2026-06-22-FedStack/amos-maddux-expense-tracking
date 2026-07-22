@@ -1,0 +1,38 @@
+.stageCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 32px;
+  overflow: hidden;
+}
+
+.stageHeader {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.stageTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.stageBody {
+  padding: 0 24px 20px;
+}
+
+.caseId {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-xs);
+  color: var(--text-muted);
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
+.fontSemibold {
+  font-weight: 600;
+}
+

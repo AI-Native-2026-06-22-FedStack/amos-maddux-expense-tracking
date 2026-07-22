@@ -1,0 +1,95 @@
+.kpiGrid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  margin-bottom: 32px;
+}
+
+.kpiCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+.kpiHeader {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.kpiLabel {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.kpiIcon {
+  align-items: center;
+  border-radius: var(--radius-md);
+  display: flex;
+  font-size: 20px;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.primary {
+  background: var(--primary-soft);
+  color: var(--primary-light);
+}
+
+.warning {
+  background: var(--warning-badge);
+  color: var(--warning);
+}
+
+.info {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.danger {
+  background: var(--danger-badge);
+  color: var(--danger);
+}
+
+.kpiValue {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.kpiFooter {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.kpiChange {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  display: flex;
+  font-weight: 600;
+  gap: 4px;
+  padding: 4px 8px;
+}
+
+.positive {
+  background: var(--success-faint);
+  color: var(--success);
+}
+
+.negative {
+  background: var(--danger-faint);
+  color: var(--danger);
+}
+
+.kpiPeriod {
+  color: var(--text-muted);
+}
+

@@ -1,0 +1,60 @@
+.stageStepper {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  list-style: none;
+  padding: 12px 0;
+}
+
+.stageItem {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.stageStep {
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  color: var(--text-muted);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 6px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.done {
+  background: var(--success-soft);
+  border-color: var(--success-border);
+  color: var(--success);
+}
+
+.current {
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
+  color: var(--primary-light);
+}
+
+.upcoming {
+  background: var(--bg-card);
+  color: var(--text-muted);
+}
+
+.stepDot {
+  background: currentColor;
+  border-radius: 50%;
+  height: 6px;
+  opacity: 0.7;
+  width: 6px;
+}
+
+.stageArrow {
+  color: var(--text-muted);
+  font-size: 14px;
+  opacity: 0.5;
+}
+

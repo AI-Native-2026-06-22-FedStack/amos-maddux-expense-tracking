@@ -49,12 +49,44 @@
   text-transform: uppercase;
 }
 
-.navPlaceholder {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  height: 42px;
-  margin: 8px 20px 0;
+.navItem {
+  align-items: center;
+  border-left: 3px solid transparent;
+  color: var(--text-secondary);
+  display: flex;
+  font-size: 14px;
+  font-weight: 500;
+  gap: 12px;
+  padding: 12px 20px;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.navItem:hover {
+  background: var(--bg-hover);
+}
+
+.active {
+  background: var(--primary-faint-gradient);
+  border-left-color: var(--primary);
+  color: var(--primary-light);
+}
+
+.navIcon {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  width: 20px;
+}
+
+.navBadge {
+  background: var(--warning-badge);
+  border-radius: 10px;
+  color: var(--warning);
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 1px 8px;
 }
 
 .sidebarFooter {
