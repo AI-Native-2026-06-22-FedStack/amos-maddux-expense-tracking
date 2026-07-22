@@ -1,4 +1,4 @@
-# ADR-0008: Managed Runtime Secrets
+# ADR-0007: Managed Runtime Secrets
 
 ## Status
 

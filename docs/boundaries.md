@@ -49,7 +49,7 @@ database.
 
 Storage placement for Expense Report state, the Case Queue read model,
 idempotency keys, and dashboard caches is recorded in
-[`ADR-0010`](adr/0010-storage-per-bounded-context.md).
+[`ADR-0009`](adr/0009-storage-per-bounded-context.md).
 
 ## Tenant Isolation
 

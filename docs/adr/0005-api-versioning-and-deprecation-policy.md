@@ -1,4 +1,4 @@
-# ADR-0006: API Versioning and Deprecation Policy
+# ADR-0005: API Versioning and Deprecation Policy
 
 ## Status
 
