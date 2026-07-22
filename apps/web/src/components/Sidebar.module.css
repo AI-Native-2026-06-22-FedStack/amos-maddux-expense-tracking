@@ -1,0 +1,109 @@
+.sidebar {
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+}
+
+.sidebarHeader {
+  border-bottom: 1px solid var(--border);
+  padding: 24px 20px;
+}
+
+.logo {
+  align-items: center;
+  display: flex;
+  font-size: 20px;
+  font-weight: 700;
+  gap: 12px;
+}
+
+.logoIcon {
+  align-items: center;
+  background: var(--brand-gradient);
+  border-radius: var(--radius-md);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  height: 36px;
+  justify-content: center;
+  width: 36px;
+}
+
+.navMenu {
+  flex: 1;
+  padding: 16px 0;
+}
+
+.navSection {
+  margin: 0;
+}
+
+.navSectionLabel {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 16px 20px 6px;
+  text-transform: uppercase;
+}
+
+.navPlaceholder {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  height: 42px;
+  margin: 8px 20px 0;
+}
+
+.sidebarFooter {
+  border-top: 1px solid var(--border);
+  padding: 16px 20px;
+}
+
+.userProfile {
+  align-items: center;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+}
+
+.userAvatar {
+  align-items: center;
+  background: var(--brand-gradient);
+  border-radius: 50%;
+  display: flex;
+  font-size: 16px;
+  font-weight: 600;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.userName {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.userRole {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.roleBadge {
+  align-items: center;
+  background: var(--success-subtle);
+  border-radius: 10px;
+  color: var(--success);
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  gap: 4px;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+  padding: 2px 8px;
+  text-transform: uppercase;
+}
