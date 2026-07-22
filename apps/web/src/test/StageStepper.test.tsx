@@ -19,4 +19,3 @@ describe("StageStepper", () => {
     expect(screen.getByText("AP Review")).toHaveAttribute("aria-current", "step");
   });
 });
-

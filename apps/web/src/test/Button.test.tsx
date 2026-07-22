@@ -10,7 +10,7 @@ describe("Button", () => {
     render(
       <Button onClick={handleClick} variant="primary">
         Open Sample Case
-      </Button>,
+      </Button>
     );
 
     await user.click(screen.getByRole("button", { name: "Open Sample Case" }));
@@ -25,7 +25,7 @@ describe("Button", () => {
     render(
       <Button disabled onClick={handleClick} variant="secondary">
         View
-      </Button>,
+      </Button>
     );
 
     const button = screen.getByRole("button", { name: "View" });
@@ -37,4 +37,3 @@ describe("Button", () => {
     expect(handleClick).not.toHaveBeenCalled();
   });
 });
-

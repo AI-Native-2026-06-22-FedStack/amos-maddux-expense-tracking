@@ -30,23 +30,39 @@ const statusClassByStage: Record<ExpenseReportStage, string> = {
   "Manager Approval": styles.info,
   "AP Review": styles.info,
   Paid: styles.success,
-  Reconciled: styles.success,
+  Reconciled: styles.success
 };
 
 const priorityClassByValue: Record<Priority, string> = {
   Urgent: styles.priorityUrgent,
   High: styles.priorityHigh,
   Normal: styles.priorityNormal,
-  Low: styles.priorityLow,
+  Low: styles.priorityLow
+};
+
+const slaLabelByTone: Record<SlaBadgeProps["tone"], string> = {
+  ok: "SLA ok",
+  warn: "SLA warning",
+  breach: "SLA breach"
 };
 
 export function Badge(props: BadgeProps) {
   if (props.kind === "status") {
-    return <span className={`${styles.badge} ${statusClassByStage[props.stage]}`}>{props.stage}</span>;
+    return (
+      <span className={`${styles.badge} ${statusClassByStage[props.stage]}`}>{props.stage}</span>
+    );
   }
 
   if (props.kind === "sla") {
-    return <span className={`${styles.slaBadge} ${styles[props.tone]}`}>{props.label}</span>;
+    return (
+      <span
+        aria-label={`${slaLabelByTone[props.tone]}: ${props.label}`}
+        className={`${styles.slaBadge} ${styles[props.tone]}`}
+        role="status"
+      >
+        {props.label}
+      </span>
+    );
   }
 
   if (props.kind === "priority") {
@@ -59,4 +75,3 @@ export function Badge(props: BadgeProps) {
 
   return <span className={`${styles.badge} ${styles.neutral}`}>{props.label}</span>;
 }
-

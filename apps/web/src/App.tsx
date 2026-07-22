@@ -8,7 +8,7 @@ const currentRole: UserRole = "Finance Admin";
 const currentUser = {
   initials: "MH",
   name: "Marcus Hill",
-  organization: "Demo Tenant",
+  organization: "Demo Tenant"
 };
 
 export function App() {

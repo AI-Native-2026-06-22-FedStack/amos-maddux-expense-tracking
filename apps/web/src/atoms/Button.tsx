@@ -11,7 +11,13 @@ export interface ButtonProps {
   onClick?: MouseEventHandler<HTMLButtonElement>;
 }
 
-export function Button({ children, disabled = false, onClick, type = "button", variant }: ButtonProps) {
+export function Button({
+  children,
+  disabled = false,
+  onClick,
+  type = "button",
+  variant
+}: ButtonProps) {
   return (
     <button
       className={`${styles.button} ${styles[variant]}`}
@@ -23,4 +29,3 @@ export function Button({ children, disabled = false, onClick, type = "button", v
     </button>
   );
 }
-

@@ -30,7 +30,10 @@ export function StageStepper({ currentStage }: StageStepperProps) {
 
         return (
           <li className={styles.stageItem} key={stage}>
-            <span className={`${styles.stageStep} ${styles[stepState]}`} aria-current={stepState === "current" ? "step" : undefined}>
+            <span
+              className={`${styles.stageStep} ${styles[stepState]}`}
+              aria-current={stepState === "current" ? "step" : undefined}
+            >
               <span className={styles.stepDot} />
               {stage}
             </span>
@@ -45,4 +48,3 @@ export function StageStepper({ currentStage }: StageStepperProps) {
     </ol>
   );
 }
-

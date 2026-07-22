@@ -47,21 +47,21 @@ const navSections: readonly NavSection[] = [
         icon: "DB",
         label: "Finance Dashboard",
         page: "dashboard",
-        roles: workspaceRoles,
+        roles: workspaceRoles
       },
       {
         icon: "ER",
         label: "Expense Reports",
         page: "expense-reports",
-        roles: workspaceRoles,
+        roles: workspaceRoles
       },
       {
         icon: "AQ",
         label: "Approval Queue",
         page: "approval-queue",
-        roles: workspaceRoles,
-      },
-    ],
+        roles: workspaceRoles
+      }
+    ]
   },
   {
     label: "Employee Portal",
@@ -70,21 +70,21 @@ const navSections: readonly NavSection[] = [
         icon: "MS",
         label: "My Submissions",
         page: "my-submissions",
-        roles: ["Employee"],
+        roles: ["Employee"]
       },
       {
         icon: "SE",
         label: "Submit Expense",
         page: "submit-expense",
-        roles: ["Employee"],
+        roles: ["Employee"]
       },
       {
         icon: "LM",
         label: "Log Mileage",
         page: "log-mileage",
-        roles: ["Employee"],
-      },
-    ],
+        roles: ["Employee"]
+      }
+    ]
   },
   {
     label: "Administration",
@@ -93,16 +93,16 @@ const navSections: readonly NavSection[] = [
         icon: "TU",
         label: "All Tenants & Users",
         page: "admin-users",
-        roles: ["Platform Admin"],
+        roles: ["Platform Admin"]
       },
       {
         icon: "RP",
         label: "Roles & Permissions",
         page: "admin-roles",
-        roles: ["Platform Admin"],
-      },
-    ],
-  },
+        roles: ["Platform Admin"]
+      }
+    ]
+  }
 ];
 
 function entryBadge(entry: NavEntry, caseCount?: number): string | undefined {
@@ -117,7 +117,7 @@ export function Sidebar({ activePage, caseCount, role, user }: SidebarProps) {
   const visibleSections = navSections
     .map((section) => ({
       ...section,
-      entries: section.entries.filter((entry) => entry.roles.includes(role)),
+      entries: section.entries.filter((entry) => entry.roles.includes(role))
     }))
     .filter((section) => section.entries.length > 0);
 
@@ -173,4 +173,3 @@ export function Sidebar({ activePage, caseCount, role, user }: SidebarProps) {
     </aside>
   );
 }
-

@@ -44,4 +44,3 @@ export function MetricGrid({ metrics }: MetricGridProps) {
     </section>
   );
 }
-

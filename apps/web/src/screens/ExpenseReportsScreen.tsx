@@ -26,37 +26,37 @@ const metrics: readonly MetricCard[] = [
     label: "Open Reports",
     period: "$284,920 in flight",
     tone: "primary",
-    value: "128",
+    value: "128"
   },
   {
     icon: "MA",
     label: "Awaiting Mgr Approval",
     period: "8 due today",
     tone: "warning",
-    value: "42",
+    value: "42"
   },
   {
     change: {
       direction: "positive",
-      label: "12.5%",
+      label: "12.5%"
     },
     icon: "DA",
     label: "Deductible Amount",
     period: "vs last month",
     tone: "info",
-    value: "$18,234",
+    value: "$18,234"
   },
   {
     change: {
       direction: "negative",
-      label: "8.2%",
+      label: "8.2%"
     },
     icon: "OD",
     label: "Overdue",
     period: "Past due date",
     tone: "danger",
-    value: "2",
-  },
+    value: "2"
+  }
 ];
 
 const expenseReports: readonly ExpenseReportRow[] = [
@@ -66,7 +66,7 @@ const expenseReports: readonly ExpenseReportRow[] = [
     due: { label: "18h", tone: "warn" },
     priority: "High",
     stage: "Manager Approval",
-    submitter: "Riley Park",
+    submitter: "Riley Park"
   },
   {
     amount: "$5,612.40",
@@ -74,7 +74,7 @@ const expenseReports: readonly ExpenseReportRow[] = [
     due: { label: "Overdue", tone: "breach" },
     priority: "Urgent",
     stage: "Submitted",
-    submitter: "Casey Reed",
+    submitter: "Casey Reed"
   },
   {
     amount: "$4,200.00",
@@ -82,7 +82,7 @@ const expenseReports: readonly ExpenseReportRow[] = [
     due: { label: "2d 4h", tone: "ok" },
     priority: "Normal",
     stage: "AP Review",
-    submitter: "Sam Rivera",
+    submitter: "Sam Rivera"
   },
   {
     amount: "$1,485.00",
@@ -90,35 +90,35 @@ const expenseReports: readonly ExpenseReportRow[] = [
     due: "none",
     priority: "Normal",
     stage: "Reconciled",
-    submitter: "Jordan Lee",
-  },
+    submitter: "Jordan Lee"
+  }
 ];
 
 const columns: readonly DataTableColumn<ExpenseReportRow>[] = [
   {
     header: "Case ID",
     key: "caseId",
-    render: (row) => <span className={styles.caseId}>{row.caseId}</span>,
+    render: (row) => <span className={styles.caseId}>{row.caseId}</span>
   },
   {
     header: "Submitter",
     key: "submitter",
-    render: (row) => <span className={styles.fontSemibold}>{row.submitter}</span>,
+    render: (row) => <span className={styles.fontSemibold}>{row.submitter}</span>
   },
   {
     header: "Stage",
     key: "stage",
-    render: (row) => <Badge kind="status" stage={row.stage} />,
+    render: (row) => <Badge kind="status" stage={row.stage} />
   },
   {
     header: "Amount",
     key: "amount",
-    render: (row) => <span className={styles.fontSemibold}>{row.amount}</span>,
+    render: (row) => <span className={styles.fontSemibold}>{row.amount}</span>
   },
   {
     header: "Priority",
     key: "priority",
-    render: (row) => <Badge kind="priority" priority={row.priority} />,
+    render: (row) => <Badge kind="priority" priority={row.priority} />
   },
   {
     header: "Due",
@@ -128,13 +128,13 @@ const columns: readonly DataTableColumn<ExpenseReportRow>[] = [
         <Badge kind="neutral" label="-" />
       ) : (
         <Badge kind="sla" label={row.due.label} tone={row.due.tone} />
-      ),
+      )
   },
   {
     header: "Actions",
     key: "actions",
-    render: () => <Button variant="secondary">View</Button>,
-  },
+    render: () => <Button variant="secondary">View</Button>
+  }
 ];
 
 export function ExpenseReportsScreen() {
@@ -156,10 +156,10 @@ export function ExpenseReportsScreen() {
       <DataTable
         actions={<Button variant="primary">Open Sample Case</Button>}
         columns={columns}
+        getRowKey={(row) => row.caseId}
         rows={expenseReports}
         title="Expense Report Cases"
       />
     </div>
   );
 }
-

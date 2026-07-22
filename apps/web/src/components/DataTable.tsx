@@ -10,20 +10,20 @@ export interface DataTableColumn<T> {
 export interface DataTableProps<T> {
   actions?: ReactNode;
   columns: readonly DataTableColumn<T>[];
+  getRowKey: (row: T) => string;
   rows: readonly T[];
   title: string;
 }
 
-export function DataTable<T>({ actions, columns, rows, title }: DataTableProps<T>) {
+export function DataTable<T>({ actions, columns, getRowKey, rows, title }: DataTableProps<T>) {
   return (
-    <section className={styles.tableContainer} aria-labelledby="expense-report-table-title">
+    <section className={styles.tableContainer} aria-label={title}>
       <div className={styles.tableHeader}>
-        <h2 className={styles.tableTitle} id="expense-report-table-title">
-          {title}
-        </h2>
+        <h2 className={styles.tableTitle}>{title}</h2>
         {actions ? <div className={styles.tableActions}>{actions}</div> : null}
       </div>
       <table className={styles.table}>
+        <caption className={styles.tableCaption}>{title}</caption>
         <thead>
           <tr>
             {columns.map((column) => (
@@ -34,8 +34,8 @@ export function DataTable<T>({ actions, columns, rows, title }: DataTableProps<T
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rowIndex) => (
-            <tr key={rowIndex}>
+          {rows.map((row) => (
+            <tr key={getRowKey(row)}>
               {columns.map((column) => (
                 <td key={column.key}>{column.render(row)}</td>
               ))}
@@ -46,4 +46,3 @@ export function DataTable<T>({ actions, columns, rows, title }: DataTableProps<T
     </section>
   );
 }
-

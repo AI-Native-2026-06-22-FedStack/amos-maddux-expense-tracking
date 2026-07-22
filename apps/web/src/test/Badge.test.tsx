@@ -11,7 +11,7 @@ describe("Badge", () => {
   it("renders an overdue SLA breach message", () => {
     render(<Badge kind="sla" label="Overdue" tone="breach" />);
 
-    expect(screen.getByText("Overdue")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "SLA breach: Overdue" })).toBeInTheDocument();
   });
 
   it("renders a priority label", () => {
@@ -20,4 +20,3 @@ describe("Badge", () => {
     expect(screen.getByText("Urgent")).toBeInTheDocument();
   });
 });
-
