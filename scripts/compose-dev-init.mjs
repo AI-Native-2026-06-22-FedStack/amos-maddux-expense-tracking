@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { generateKeyPairSync } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { createCipheriv, generateKeyPairSync, randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 import {
@@ -17,8 +18,12 @@ import {
   waitUntilTableExists
 } from "@aws-sdk/client-dynamodb";
 import pg from "pg";
+import argon2 from "argon2";
 
-const tenantId = "00000000-0000-4000-8000-000000000701";
+import { localDevAuthFixture } from "./local-dev-auth-fixture.mjs";
+
+const tenantId = localDevAuthFixture.tenantId;
+const encryptedTotpSecretPrefix = "v1";
 const dbPasswordSecretId = process.env.DB_PASSWORD_SECRET_ID ?? "expenseflow/local/db-password";
 const jwtSigningKeysSecretId =
   process.env.JWT_SIGNING_KEYS_SECRET_ID ?? "expenseflow/local/jwt-signing-keys";
@@ -58,10 +63,21 @@ await withPgClient(async (client) => {
   await applyMigrations(client, "apps/api/drizzle", "api");
   await applyMigrations(client, "services/compute/db/migrations", "compute");
   await seedGlMapping(client);
+  await seedLocalAuthUser(client);
 });
 await ensureCaseQueueTable();
 
 console.log("Compose local-dev initialization complete.");
+console.log(
+  [
+    "Seeded local sign-in:",
+    `Tenant ID: ${localDevAuthFixture.tenantId}`,
+    `Email: ${localDevAuthFixture.email}`,
+    `Password: ${localDevAuthFixture.password}`,
+    `MFA secret: ${localDevAuthFixture.mfaSecret}`,
+    "Run `npm run compose:login` for a current MFA code."
+  ].join("\n")
+);
 
 async function ensureJwtKeys() {
   await mkdir(secretDirectory, { recursive: true });
@@ -203,6 +219,130 @@ async function seedGlMapping(client) {
     `,
     [tenantId]
   );
+}
+
+async function seedLocalAuthUser(client) {
+  const roleId = await upsertLocalRole(client);
+  const passwordHash = await argon2.hash(localDevAuthFixture.password, {
+    type: argon2.argon2id,
+    memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? "19456"),
+    timeCost: Number(process.env.ARGON2_TIME_COST ?? "2"),
+    parallelism: Number(process.env.ARGON2_PARALLELISM ?? "1")
+  });
+  const encryptedTotpSecret = protectTotpSecret(localDevAuthFixture.mfaSecret);
+  const userResult = await client.query(
+    `
+    insert into "user" (
+      tenant_id,
+      role_id,
+      email,
+      display_name,
+      disabled_at
+    )
+    values ($1::uuid, $2::uuid, $3, $4, null)
+    on conflict (tenant_id, email) do update
+    set
+      role_id = excluded.role_id,
+      display_name = excluded.display_name,
+      disabled_at = null,
+      updated_at = now()
+    returning id;
+    `,
+    [tenantId, roleId, localDevAuthFixture.email, localDevAuthFixture.displayName]
+  );
+  const userId = userResult.rows[0]?.id;
+
+  if (typeof userId !== "string") {
+    throw new Error("Local auth user seed did not return a user id.");
+  }
+
+  await client.query(
+    `
+    insert into credential (
+      tenant_id,
+      user_id,
+      password_hash
+    )
+    values ($1::uuid, $2::uuid, $3)
+    on conflict (tenant_id, user_id) do update
+    set
+      password_hash = excluded.password_hash,
+      updated_at = now();
+    `,
+    [tenantId, userId, passwordHash]
+  );
+  await client.query(
+    `
+    insert into mfa_enrollment (
+      tenant_id,
+      user_id,
+      encrypted_totp_secret,
+      totp_secret_key_id,
+      disabled_at,
+      last_accepted_totp_time_step,
+      last_accepted_totp_at
+    )
+    values ($1::uuid, $2::uuid, $3, $4, null, null, null)
+    on conflict (tenant_id, user_id) do update
+    set
+      encrypted_totp_secret = excluded.encrypted_totp_secret,
+      totp_secret_key_id = excluded.totp_secret_key_id,
+      disabled_at = null,
+      last_accepted_totp_time_step = null,
+      last_accepted_totp_at = null;
+    `,
+    [tenantId, userId, encryptedTotpSecret, localDevAuthFixture.totpSecretKeyId]
+  );
+}
+
+async function upsertLocalRole(client) {
+  const result = await client.query(
+    `
+    insert into role (
+      tenant_id,
+      name
+    )
+    values ($1::uuid, $2)
+    on conflict (tenant_id, name) do update
+    set updated_at = now()
+    returning id;
+    `,
+    [tenantId, localDevAuthFixture.role]
+  );
+  const roleId = result.rows[0]?.id;
+
+  if (typeof roleId !== "string") {
+    throw new Error("Local auth role seed did not return a role id.");
+  }
+
+  return roleId;
+}
+
+function protectTotpSecret(secret) {
+  const configuredKey = process.env.TOTP_SECRET_ENCRYPTION_KEY;
+
+  if (configuredKey === undefined || configuredKey.trim() === "") {
+    throw new Error("TOTP_SECRET_ENCRYPTION_KEY is required to seed local auth users.");
+  }
+
+  const key = Buffer.from(configuredKey, "base64");
+
+  if (key.length !== 32) {
+    throw new Error("TOTP_SECRET_ENCRYPTION_KEY must decode to 32 bytes.");
+  }
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+
+  return [
+    encryptedTotpSecretPrefix,
+    localDevAuthFixture.totpSecretKeyId,
+    iv.toString("base64url"),
+    tag.toString("base64url"),
+    ciphertext.toString("base64url")
+  ].join(":");
 }
 
 async function ensureCaseQueueTable() {

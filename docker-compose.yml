@@ -48,6 +48,7 @@ services:
       JWT_KEY_ID: local-development-key
       JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
       JWT_REFRESH_TOKEN_TTL_SECONDS: "2592000"
+      TOTP_SECRET_ENCRYPTION_KEY: ZXhwZW5zZWZsb3ctbG9jYWwtZGV2LXRvdHAta2V5ISE=
     ports:
       - "3000:3000"
     volumes:
@@ -147,6 +148,7 @@ services:
       DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
       JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
       COMPOSE_SECRET_DIR: /run/expenseflow-secrets
+      TOTP_SECRET_ENCRYPTION_KEY: ZXhwZW5zZWZsb3ctbG9jYWwtZGV2LXRvdHAta2V5ISE=
     volumes:
       - .:/workspace
       - compose-secrets:/run/expenseflow-secrets

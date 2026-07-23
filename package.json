@@ -12,6 +12,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && tsc -p apps/api/tsconfig.json && npm --workspace @expenseflow/web run build",
     "compose:init": "node scripts/compose-dev-init.mjs",
+    "compose:login": "node scripts/print-local-dev-login.mjs",
+    "compose:mfa": "node scripts/print-local-dev-mfa-code.mjs",
     "compose:verify-submit-slice": "node scripts/verify-compose-submit-slice.mjs",
     "dev": "tsx watch apps/api/src/server.ts",
     "lint": "eslint . --max-warnings=0 && prettier . --check",
