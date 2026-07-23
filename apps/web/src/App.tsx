@@ -1,28 +1,48 @@
+import { Button } from "./atoms/Button";
+import { AuthSessionProvider, useAuthSession } from "./auth";
 import { Sidebar } from "./components/Sidebar";
-import type { UserRole } from "./domain";
 import { ExpenseReportsScreen } from "./screens/ExpenseReportsScreen";
+import { SignInScreen } from "./screens/SignInScreen";
 import styles from "./App.module.css";
-
-const currentRole: UserRole = "Finance Admin";
-
-const currentUser = {
-  initials: "MH",
-  name: "Marcus Hill",
-  organization: "Demo Tenant"
-};
 
 export function App() {
   return (
+    <AuthSessionProvider>
+      <ExpenseFlowApp />
+    </AuthSessionProvider>
+  );
+}
+
+function ExpenseFlowApp() {
+  const authSession = useAuthSession();
+  const session = authSession.session;
+
+  if (session === null) {
+    return <SignInScreen />;
+  }
+
+  const currentUser = {
+    initials: "AU",
+    name: "Authenticated User",
+    organization: session.tenantId
+  };
+
+  return (
     <div className={styles.appContainer}>
-      <Sidebar activePage="expense-reports" caseCount={17} role={currentRole} user={currentUser} />
+      <Sidebar activePage="expense-reports" caseCount={17} role={session.role} user={currentUser} />
       <div className={styles.mainContent}>
         <header className={styles.topBar}>
           <div className={styles.topBarLeft}>
             <h1>Expense Reports</h1>
           </div>
-          <div className={styles.roleSwitcher} aria-label="Current role view">
-            <span className={styles.labelPill}>View as</span>
-            <span>{currentRole}</span>
+          <div className={styles.sessionActions}>
+            <div className={styles.roleSwitcher} aria-label="Current role view">
+              <span className={styles.labelPill}>View as</span>
+              <span>{session.role}</span>
+            </div>
+            <Button onClick={authSession.logout} type="button" variant="secondary">
+              Logout
+            </Button>
           </div>
         </header>
         <main className={styles.contentSection} aria-label="Expense Report workspace">
