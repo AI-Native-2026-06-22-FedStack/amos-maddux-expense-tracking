@@ -93,6 +93,10 @@ function toAuthSession(response: AuthenticatedResponse): AuthSession {
 }
 
 export function selectPrimaryRole(roles: readonly string[]): UserRole {
+  if (roles.includes("ExpenseFlow Platform Admin") || roles.includes("Platform Admin")) {
+    return "Platform Admin";
+  }
+
   const supportedRoles: readonly UserRole[] = ["Finance Admin", "Department Manager", "Employee"];
 
   return supportedRoles.find((role) => roles.includes(role)) ?? "Employee";

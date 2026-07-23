@@ -65,6 +65,14 @@ describe("App", () => {
       1,
       "/v1/auth/login",
       expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          email: "synthetic.employee@example.test",
+          password: "synthetic-password"
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        },
         method: "POST"
       })
     );
@@ -72,6 +80,14 @@ describe("App", () => {
       2,
       "/v1/auth/mfa",
       expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          userId,
+          code: "123456"
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        },
         method: "POST"
       })
     );
@@ -124,7 +140,12 @@ function createFetchResponse(body: object): Response {
 
 function createSyntheticJwt(expiresInMs: number): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
-  const payload = base64UrlEncode({ exp: Math.floor((Date.now() + expiresInMs) / 1000) });
+  const payload = base64UrlEncode({
+    exp: Math.floor((Date.now() + expiresInMs) / 1000),
+    roles: ["Finance Admin"],
+    sub: userId,
+    tenantId
+  });
 
   return `${header}.${payload}.synthetic-signature`;
 }

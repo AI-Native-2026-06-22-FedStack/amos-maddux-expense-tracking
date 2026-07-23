@@ -1,4 +1,17 @@
+export interface AccessTokenClaims {
+  exp: number;
+  roles: readonly string[];
+  subject: string;
+  tenantId: string;
+}
+
 export function readAccessTokenExpiry(accessToken: string): number | null {
+  const claims = readAccessTokenClaims(accessToken);
+
+  return claims === null ? null : claims.exp * 1000;
+}
+
+export function readAccessTokenClaims(accessToken: string): AccessTokenClaims | null {
   const [, payload] = accessToken.split(".");
 
   if (payload === undefined) {
@@ -13,11 +26,24 @@ export function readAccessTokenExpiry(accessToken: string): number | null {
     );
     const decodedPayload: unknown = JSON.parse(window.atob(paddedPayload));
 
-    if (!isRecord(decodedPayload) || typeof decodedPayload.exp !== "number") {
+    if (
+      !isRecord(decodedPayload) ||
+      typeof decodedPayload.exp !== "number" ||
+      typeof decodedPayload.tenantId !== "string" ||
+      !Array.isArray(decodedPayload.roles) ||
+      !decodedPayload.roles.every((role) => typeof role === "string")
+    ) {
       return null;
     }
 
-    return decodedPayload.exp * 1000;
+    const subject = typeof decodedPayload.sub === "string" ? decodedPayload.sub : "";
+
+    return {
+      exp: decodedPayload.exp,
+      roles: decodedPayload.roles,
+      subject,
+      tenantId: decodedPayload.tenantId
+    };
   } catch {
     return null;
   }

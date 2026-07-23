@@ -6,6 +6,7 @@ import {
   type AuthSession,
   type AuthSessionStorage,
   type RefreshSession,
+  authSessionStorageKey,
   useAuthSession
 } from "../auth";
 
@@ -102,6 +103,21 @@ describe("useAuthSession", () => {
     expect(storage.snapshot()).toBeNull();
   });
 
+  it("discards stored sessions when storage identity differs from token claims", () => {
+    window.sessionStorage.setItem(
+      authSessionStorageKey,
+      JSON.stringify({
+        ...createSession(),
+        tenantId: "00000000-0000-4000-8000-000000000999"
+      })
+    );
+
+    const { result } = renderAuthHook();
+
+    expect(result.current.phase).toBe("unauthenticated");
+    expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull();
+  });
+
   it("aborts an in-flight refresh and clears its timer on unmount", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-23T12:00:00.000Z"));
@@ -124,6 +140,103 @@ describe("useAuthSession", () => {
 
     expect(refreshSignals[0]?.aborted).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not re-authenticate when refresh resolves after logout", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-23T12:00:00.000Z"));
+
+    let resolveRefresh: ((session: AuthSession) => void) | undefined;
+    const storage = createMemoryStorage(createSession({ expiresInMs: 61_000 }));
+    const refreshSession: RefreshSession = () =>
+      new Promise<AuthSession>((resolve) => {
+        resolveRefresh = resolve;
+      });
+    const { result } = renderAuthHook({ refreshSession, storage });
+
+    act(() => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(result.current.phase).toBe("refreshing");
+
+    act(() => {
+      result.current.logout();
+    });
+    await act(async () => {
+      resolveRefresh?.(createSession({ roles: ["Finance Admin"] }));
+      await Promise.resolve();
+    });
+
+    expect(result.current.phase).toBe("unauthenticated");
+    expect(result.current.session).toBeNull();
+  });
+
+  it("ignores an older login response that resolves after a newer login response", async () => {
+    let resolveFirstLogin: ((result: Awaited<ReturnType<AuthClient["login"]>>) => void) | undefined;
+    let resolveSecondLogin:
+      | ((result: Awaited<ReturnType<AuthClient["login"]>>) => void)
+      | undefined;
+    const authClient: AuthClient = {
+      login: vi
+        .fn<AuthClient["login"]>()
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveFirstLogin = resolve;
+            })
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveSecondLogin = resolve;
+            })
+        ),
+      completeMfa: async () => createSession()
+    };
+    const { result } = renderAuthHook({ authClient });
+    let firstLoginPromise: Promise<void> | undefined;
+    let secondLoginPromise: Promise<void> | undefined;
+
+    act(() => {
+      firstLoginPromise = result.current.login({
+        tenantId,
+        email: "first.synthetic@example.test",
+        password: "synthetic-password"
+      });
+    });
+    act(() => {
+      secondLoginPromise = result.current.login({
+        tenantId,
+        email: "second.synthetic@example.test",
+        password: "synthetic-password"
+      });
+    });
+
+    await act(async () => {
+      resolveSecondLogin?.({
+        status: "mfa_required",
+        challenge: {
+          tenantId,
+          userId: "00000000-0000-4000-8000-000000000602",
+          message: "MFA required."
+        }
+      });
+      await Promise.resolve();
+    });
+    await act(async () => {
+      resolveFirstLogin?.({
+        status: "mfa_required",
+        challenge: {
+          tenantId,
+          userId: "00000000-0000-4000-8000-000000000603",
+          message: "MFA required."
+        }
+      });
+      await Promise.resolve();
+    });
+
+    await Promise.all([firstLoginPromise, secondLoginPromise]);
+    expect(result.current.mfaChallenge?.userId).toBe("00000000-0000-4000-8000-000000000602");
   });
 });
 
@@ -201,7 +314,12 @@ function createSession(options: CreateSessionOptions = {}): AuthSession {
 
 function createSyntheticJwt(expiresInMs: number): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
-  const payload = base64UrlEncode({ exp: Math.floor((Date.now() + expiresInMs) / 1000) });
+  const payload = base64UrlEncode({
+    exp: Math.floor((Date.now() + expiresInMs) / 1000),
+    roles: ["Employee"],
+    sub: userId,
+    tenantId
+  });
 
   return `${header}.${payload}.synthetic-signature`;
 }

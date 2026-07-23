@@ -5,6 +5,7 @@ import {
   useEffect,
   useMemo,
   useReducer,
+  useRef,
   type ReactNode
 } from "react";
 import {
@@ -129,6 +130,34 @@ export function AuthSessionProvider({
   const sessionStorageAdapter = useMemo(() => storage ?? createSessionStorage(), [storage]);
   const [state, dispatch] = useReducer(authReducer, sessionStorageAdapter, createInitialState);
   const activeSession = state.session;
+  const activeAuthRequestRef = useRef<{ controller: AbortController; id: number } | null>(null);
+  const authRequestIdRef = useRef(0);
+  const sessionGenerationRef = useRef(0);
+
+  const abortActiveAuthRequest = useCallback(() => {
+    activeAuthRequestRef.current?.controller.abort();
+    activeAuthRequestRef.current = null;
+  }, []);
+
+  const beginAuthRequest = useCallback(() => {
+    abortActiveAuthRequest();
+
+    const request = {
+      controller: new AbortController(),
+      id: authRequestIdRef.current + 1
+    };
+    authRequestIdRef.current = request.id;
+    activeAuthRequestRef.current = request;
+
+    return request;
+  }, [abortActiveAuthRequest]);
+
+  const isActiveAuthRequest = useCallback(
+    (request: { controller: AbortController; id: number }) => {
+      return activeAuthRequestRef.current?.id === request.id && !request.controller.signal.aborted;
+    },
+    []
+  );
 
   useEffect(() => {
     if (state.session !== null) {
@@ -139,12 +168,15 @@ export function AuthSessionProvider({
     sessionStorageAdapter.clear();
   }, [state.session, sessionStorageAdapter]);
 
+  useEffect(() => abortActiveAuthRequest, [abortActiveAuthRequest]);
+
   useEffect(() => {
     if (activeSession === null) {
       return;
     }
 
     const controller = new AbortController();
+    const refreshGeneration = sessionGenerationRef.current;
     const expiresAt = readAccessTokenExpiry(activeSession.accessToken);
     const refreshDelayMs =
       expiresAt === null ? 0 : Math.max(expiresAt - Date.now() - refreshSkewMs, 0);
@@ -158,6 +190,10 @@ export function AuthSessionProvider({
       dispatch({ type: "refresh_started" });
       void refreshSession(activeSession, controller.signal)
         .then((nextSession) => {
+          if (controller.signal.aborted || refreshGeneration !== sessionGenerationRef.current) {
+            return;
+          }
+
           dispatch({ type: "authenticated", session: nextSession });
         })
         .catch((error: unknown) => {
@@ -177,24 +213,36 @@ export function AuthSessionProvider({
 
   const login = useCallback(
     async (credentials: LoginCredentials) => {
-      const controller = new AbortController();
+      const request = beginAuthRequest();
 
       dispatch({ type: "login_started" });
 
       try {
-        const result = await authClient.login(credentials, controller.signal);
+        const result = await authClient.login(credentials, request.controller.signal);
+
+        if (!isActiveAuthRequest(request)) {
+          return;
+        }
+
+        activeAuthRequestRef.current = null;
 
         if (result.status === "mfa_required") {
           dispatch({ type: "mfa_required", challenge: result.challenge });
           return;
         }
 
+        sessionGenerationRef.current += 1;
         dispatch({ type: "authenticated", session: result.session });
       } catch (error) {
+        if (!isActiveAuthRequest(request)) {
+          return;
+        }
+
+        activeAuthRequestRef.current = null;
         dispatch({ type: "failed", message: readErrorMessage(error) });
       }
     },
-    [authClient]
+    [authClient, beginAuthRequest, isActiveAuthRequest]
   );
 
   const completeMfa = useCallback(
@@ -205,7 +253,7 @@ export function AuthSessionProvider({
       }
 
       const challenge = state.mfaChallenge;
-      const controller = new AbortController();
+      const request = beginAuthRequest();
       const input: CompleteMfaInput = {
         tenantId: challenge.tenantId,
         userId: challenge.userId,
@@ -215,18 +263,32 @@ export function AuthSessionProvider({
       dispatch({ type: "mfa_started", challenge });
 
       try {
-        const session = await authClient.completeMfa(input, controller.signal);
+        const session = await authClient.completeMfa(input, request.controller.signal);
+
+        if (!isActiveAuthRequest(request)) {
+          return;
+        }
+
+        activeAuthRequestRef.current = null;
+        sessionGenerationRef.current += 1;
         dispatch({ type: "authenticated", session });
       } catch (error) {
+        if (!isActiveAuthRequest(request)) {
+          return;
+        }
+
+        activeAuthRequestRef.current = null;
         dispatch({ type: "failed", message: readErrorMessage(error), challenge });
       }
     },
-    [authClient, state.mfaChallenge]
+    [authClient, beginAuthRequest, isActiveAuthRequest, state.mfaChallenge]
   );
 
   const logout = useCallback(() => {
+    abortActiveAuthRequest();
+    sessionGenerationRef.current += 1;
     dispatch({ type: "logged_out" });
-  }, []);
+  }, [abortActiveAuthRequest]);
 
   const getCurrentAccessToken = useCallback(
     () => state.session?.accessToken ?? null,
