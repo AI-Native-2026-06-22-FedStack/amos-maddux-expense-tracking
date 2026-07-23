@@ -1,0 +1,46 @@
+.appContainer {
+  display: flex;
+  min-height: 100vh;
+}
+
+.mainContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.topBar {
+  align-items: center;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 32px;
+}
+
+.topBarLeft h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.roleSwitcher {
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  display: flex;
+  font-size: 12px;
+  gap: 8px;
+  padding: 6px 12px;
+}
+
+.labelPill {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.contentSection {
+  padding: 32px;
+}

@@ -1,0 +1,301 @@
+Week undefined · Day undefined · Deliverable · Expense Tracking & Automatic Deduction Identification
+"Read the Wireframe into a Typed Component Library"
+Scaffold apps/web as a Vite + React 18 + strict-TypeScript design system, decompose ExpenseFlow’s wireframe into typed components — buttons, badges, a six-stage stepper, and a role-aware sidebar as pure functions of typed props with no any — and prove behavior with Vitest + React Testing Library, no snapshots.
+
+01
+Section 1 of 6
+Context
+Why This Deliverable
+You are continuing on the ExpenseFlow Corporate team building the Expense Tracking & Automatic Deduction Identification capstone. Modules 1–4 gave ExpenseFlow a secure, polyglot backend — the Express Core Case Service (apps/api), the FastAPI engine (services/compute), Postgres, DynamoDB, and Redis — but that backend has no face. Every demo so far has been curl and test output. This is the opening of Sprint 3, the dedicated UI week: the frozen backend gets a Vite + React 18 + strict-TypeScript single-page app, and this deliverable lays its foundation.
+
+Everything in that SPA is built from components, so before hooks, data, routing, or forms, you need the core model right: a component is a function of its props that returns markup, screens are composed from small components, and every prop is precisely typed with no any. In this deliverable you create the apps/web subtree inside your existing monorepo, decompose ExpenseFlow’s provided wireframe into a typed component library — the shared buttons, status/overdue badges, the six-stage expense-case stepper, and a role-aware sidebar — and prove each behaves correctly with behavioral tests. Get this foundation right and the rest of the UI week is tractable; get it wrong and you end up rewriting screens. Deliverable 2 will give these presentational components their logic (hooks), and Deliverable 4 will reuse the atoms inside forms, tables, and dashboards — so today’s library is what the whole SPA rides on.
+
+Objective & Project Scenario
+ExpenseFlow’s operators live in a Finance Dashboard, an Expense Reports list, an Approval Queue, and more; employees see My Submissions, Submit Expense, and Log Mileage. Rather than build one sprawling screen component, the team builds the presentational pieces first — a Button, a status/overdue Badge, the six-stage stepper that tracks a case through its lifecycle, and the sidebar that shows entries by role — each a pure function of its typed props, composed into the app shell. No data fetching yet; just the shapes the wireframe shows.
+
+In this deliverable you will scaffold apps/web as a Vite + React 18 + strict-TypeScript project in a design-system layout (atoms/, components/, screens/), port the provided wireframe’s semantic CSS and -- design tokens into CSS Modules, and record ADR-0011 for the styling strategy. You will then decompose the wireframe into a typed component tree and build ExpenseFlow’s shared atoms as pure functions of typed props — a discriminated-union variant for the badge, no any anywhere in props, and one generic reusable component — plus the role-aware sidebar that shows or hides entries by role. Finally you will prove behavior with at least eight Vitest + React Testing Library tests that query by role, label, and text and cover each component’s real states (default, disabled, error), with no snapshot tests. Every artifact transfers straight into the capstone.
+
+Task Overview
+!
+Warning
+Budget about 1 hour 10 minutes. This is a build-it-and-attack-it deliverable. A component that renders once is not proof — a prop typed any that silently accepts the wrong shape is the defect, and a snapshot test that passes trivially while catching nothing is the defect. If a wrong prop shape renders blank instead of failing at compile time, that discovery is the point: record it and tighten the type, do not work around it.
+
+Deliverable Progress
+0 / 9 complete
+Prep
+Sync main in your existing capstone repo
+~3 min
+Create the m5d1-implementation branch and open a Pull Request
+~5 min
+Scaffold apps/web (Vite + React 18 + strict TS), install Vitest + @testing-library/react + @testing-library/jest-dom, and confirm npm run dev renders and npm test runs
+~15 min
+Tasks
+Task 1 — Scaffold apps/web as a Vite + React 18 + strict-TS design system
+~20 min
+Task 2 — Build the typed component library from the wireframe
+~30 min
+Task 3 — Prove behavior with Vitest + React Testing Library
+~20 min
+Submit
+Run npm run dev (shell renders), npm run typecheck (no any in props), and npm test (≥8 RTL tests green, no snapshots)
+~5 min
+Paste the verification output into the PR description and write your AI-tool reflection
+~10 min
+Self-assign the PR and request review from your ES
+~2 min
+Reset progress
+02
+Section 2 of 6
+Prerequisites
+Lessons & Environment
+M5 L1 · T1
+React fundamentals
+components, props, composition (a component is a pure function of its props returning JSX; compose small components rather than configuring one mega-component)
+M5 L1 · T2
+Strict TypeScript in React
+typed props, no any (props are a typed contract; discriminated unions model variants; generics keep reusable components type-safe)
+M5 L1 · T3
+Reading a wireframe into a typed component tree (identify repeated units, shared atoms, and the composing page; a Vite design-system layout; CSS Modules consuming design tokens)
+M5 L1 · T4
+Behavioral component tests with Vitest + React Testing Library (query by role/label/text; no snapshot tests; cover the real states
+default, disabled, error)
+Node 24 + npm are available — node -v reports v24.x; npm -v resolves
+Vite scaffolds and serves the SPA — npm run dev starts the dev server and the shell renders in the browser; npm run build produces a production bundle
+React 18 is the UI runtime — React 18 (React Compiler is out of scope; there is no data fetching, routing, or forms yet — those are later deliverables)
+TypeScript runs in strict mode — npm run typecheck passes with strict on and no any in props
+Vitest + React Testing Library are installed — @testing-library/react, @testing-library/jest-dom, and @testing-library/user-event are in apps/web’s dev dependencies; npm test runs the suite
+OpenAI Codex is installed and authenticated, with the MCP servers from your config.toml available
+You are working in your existing Module 1–4 capstone repo — apps/api (the secure Express Core Case Service), services/compute (the FastAPI engine), packages/shared-schemas (the zod schemas the forms will reuse later), packages/shared-types, AGENTS.md, config.toml, docs/adr/ (ADR-0001…0010), prompt-journal/, and evidence/ are already present. There is no apps/web yet — you create it here
+03
+Section 3 of 6
+Deliverable Prep
+GitHub Setup & Web-App Bootstrap
+1
+Return to your module repository
+You already created <firstname-lastname>-expense-tracking in Module 1 — you are continuing in the same repository. Do not create a new one.
+
+2
+Sync main and create your Deliverable 1 implementation branch
+Bring main up to date, then branch your Deliverable 1 work from it. (Each deliverable gets its own branch off main.)
+
+cd <firstname-lastname>-expense-tracking
+git checkout main
+git pull origin main
+git checkout -b m5d1-implementation main
+Copy
+3
+Open a Pull Request: m5d1-implementation → main
+Push your first commit, then open the PR on GitHub. Set yourself in Assignees, and request your ES under Reviewers. All subsequent pushes to m5d1-implementation append to the same PR automatically.
+
+i
+Note
+One PR for the whole Deliverable 1. When your Code Coach or ES requests a change, push the fix to m5d1-implementation. The PR updates automatically — do not open a new one.
+
+The SPA lives at apps/web, a new Vite React app added to the monorepo alongside apps/api. It is a workspace of the existing repo, not a separate project: it uses the repo’s Node/npm setup and its own package.json, tsconfig, and Vite config scoped to the web app. Scaffold it with Codex, then confirm the dev server and the test runner both work before you build any components.
+
+apps/web/package.json
+// path: apps/web/package.json
+// The apps/web workspace manifest. Describe the shape only — exact versions and
+// script names are your choice, but the scripts must cover the lesson's workflow:
+//   - "dev"       : vite            (start the dev server; the shell renders)
+//   - "build"     : vite build      (production bundle — ef-067 AC)
+//   - "typecheck" : tsc --noEmit    (strict TS; must pass with no `any` in props)
+//   - "test"      : vitest run      (Vitest + React Testing Library)
+// Dependencies: react + react-dom (React 18). Dev deps: vite + the React plugin,
+// typescript, vitest, @testing-library/react, @testing-library/jest-dom,
+// @testing-library/user-event, jsdom. No axios, no Next.js, no data/router/form libs yet.
+Copy
+apps/web/tsconfig.json
+// path: apps/web/tsconfig.json
+// Strict TypeScript for the web app. Describe the intent — settings your choice:
+//   - "strict": true and the "no implicit any" family ON — the program bans `any` in props.
+//   - JSX configured for React 18 ("react-jsx").
+//   - DOM + ESNext libs; bundler/Node module resolution as Vite expects.
+// The goal is that a wrong prop shape is a COMPILE error, not a runtime blank.
+Copy
+apps/web/vite.config.ts
+// path: apps/web/vite.config.ts
+// Vite + React plugin, with the Vitest test config. Describe only:
+//   - the React plugin enabled; CSS Modules work out of the box (no extra config).
+//   - test block: environment "jsdom", globals as you prefer, and a setup file that
+//     imports "@testing-library/jest-dom" so matchers like toBeDisabled are available.
+// Do not hand-author a full config — let Codex scaffold it and confirm dev + test run.
+Copy
+The component library lives under apps/web/src in a design-system layout — atoms/ for the smallest reusable pieces, components/ for composed units, screens/ for the pages, and styles/ for the ported design tokens. Carry forward the existing monorepo and add only the new apps/web subtree this deliverable creates.
+
+<firstname-lastname>-expense-tracking/      # existing Module 1-4 repo
+├── apps/
+│   ├── api/                                # existing secure Express Core Case Service (frozen this week)
+│   └── web/                                # NEW (Prep) — Vite + React 18 + strict-TS SPA
+│       ├── package.json                    # NEW — dev/build/typecheck/test scripts
+│       ├── tsconfig.json                   # NEW — strict TS, no `any`
+│       ├── vite.config.ts                  # NEW — React plugin + Vitest (jsdom)
+│       ├── index.html                      # NEW — Vite entry
+│       ├── src/
+│       │   ├── main.tsx                     # NEW — React 18 root render
+│       │   ├── App.tsx                      # NEW — app shell (top bar + sidebar region)
+│       │   ├── atoms/                        # NEW (Task 2) — Button, Badge, StageStepper
+│       │   │   ├── Button.tsx + Button.module.css
+│       │   │   ├── Badge.tsx  + Badge.module.css
+│       │   │   └── StageStepper.tsx + StageStepper.module.css
+│       │   ├── components/                   # NEW (Task 2) — Sidebar (role-aware) + composed units
+│       │   │   └── Sidebar.tsx + Sidebar.module.css
+│       │   ├── screens/                      # NEW (Task 2) — screen shells composed from the atoms
+│       │   ├── styles/
+│       │   │   └── tokens.css                # NEW (Task 1) — the wireframe's `--` design tokens in :root
+│       │   └── test/                         # NEW (Task 3) — Vitest setup + component tests
+│       │       ├── setup.ts                  # NEW — imports @testing-library/jest-dom
+│       │       ├── Badge.test.tsx            # NEW (Task 3) — variants + states, no snapshots
+│       │       ├── Button.test.tsx           # NEW (Task 3) — default + disabled behavior
+│       │       └── Sidebar.test.tsx          # NEW (Task 3) — role-aware entries shown/hidden
+│       └── ...
+├── services/compute/                       # existing — FastAPI engine (frozen this week)
+├── packages/shared-schemas/                # existing — zod schemas (consumed by the UI in D4)
+├── packages/shared-types/                   # existing
+├── AGENTS.md                               # existing — governs this work (no `any`, no snapshots)
+├── config.toml                             # existing — Codex MCP servers
+├── docs/adr/                               # existing (ADR-0001…0010) — record ADR-0011 (styling)
+├── prompt-journal/                         # existing — add this deliverable's entry
+└── evidence/                               # existing — record the wireframe decomposition + test output
+Copy
+Bootstrap smoke test — confirm the app scaffolds, the dev server renders, and the test runner works before you build any components:
+
+cd <firstname-lastname>-expense-tracking/apps/web
+npm install
+npm run dev        # dev server starts; open the URL and confirm the shell renders
+npm run typecheck  # strict TS passes on the empty skeleton
+npm test           # Vitest runs (0 or a smoke test green) — the runner is wired
+Copy
+04
+Section 4 of 6
+Tasks
+Before You Write Code
+A component library is the worst place to trust a green happy-path render. A component that renders once can still hide a prop typed any that silently accepts { state: "submitted" } where the code reads status — a blank badge found in the demo, not the editor. A "flexible" component reached for with React.FC<any> defeats the whole point of typing props. A snapshot test passes the moment it is written and catches nothing afterward. The design choices here — how you decompose the wireframe, which prop is a discriminated union, where the generic lives, what states each test covers — are exactly what a closed-book check will ask you to defend. Drive Codex to propose each piece, then verify it yourself by trying to break it: pass a wrong status and watch the compiler, change markup without changing behavior and watch the tests, grep the props for any. The compiler error and the surviving test, not Codex’s "looks right," are the judge.
+
+The Three Tasks
+Task 1
+Scaffold apps/web as a Vite + React 18 + strict-TS design system
+~20 min
+Mark Done
+Create the apps/web Vite + React 18 + strict-TypeScript app inside your existing monorepo, laid out as a design system, and port the wireframe’s styling into CSS Modules.
+
+Scaffold the app.
+
+Create the Vite + React + TS app at apps/web with the atoms//components//screens/ layout and a styles/ folder — a predictable home so anyone can find the Badge or add a new atom.
+Render the app shell — a top bar and a sidebar region ready for navigation entries (the entries themselves come in Task 2). npm run dev must render it and npm run build must produce a production bundle.
+Port the wireframe’s styling to CSS Modules.
+
+Move the wireframe’s -- design tokens into one :root in styles/tokens.css, consumed via var(--token) — no hard-coded values and no inline styles outside the tokens (AGENTS.md).
+Style components with CSS Modules — each component gets a scoped .module.css imported as a styles object; because the prototype already ships semantic CSS plus token custom properties, it ports with near-zero rewrite.
+Record the styling decision.
+
+Write ADR-0011 in docs/adr/ choosing CSS Modules as the styling strategy (weighing vanilla-extract as the type-safe alternative).
+You decide: the exact npm script names and the Vite/tsconfig options — the contract is that dev, build, typecheck, and test all run and strict mode is on.
+
+Watch out: Codex may reach for a CSS-in-JS library (styled-components, Emotion) or inline styles instead of CSS Modules + tokens. Reject any styling that is not CSS Modules consuming the wireframe’s design tokens, and confirm ADR-0011 records the decision.
+
+Appendix — Starter Files
+Done when
+npm run dev renders the app shell (top bar + sidebar region) and npm run build produces a bundle. Styling is CSS Modules consuming the wireframe’s -- tokens via var(...) — no CSS-in-JS and no inline styles outside the tokens. ADR-0011 exists in docs/adr/ and records CSS Modules as the styling strategy.
+Task 2
+Build the typed component library from the wireframe
+~30 min
+Mark Done
+Decompose ExpenseFlow’s provided wireframe into a component tree and build the shared library as pure functions of typed props, with no any anywhere in props.
+
+Decompose the wireframe.
+
+Read the wireframe into a tree — identify the repeated units, the shared atoms (the smallest reusable pieces), and the composing screens, and name each component by its role (ExpenseCard, StatusBadge — not Div3), so the tree is legible and the work is shareable.
+Build the shared atoms and the sidebar.
+
+Buttons, badges, and a six-stage stepper — build ExpenseFlow’s shared atoms: buttons, status/overdue badges, and the six-stage stepper that tracks an expense case through its lifecycle, each a pure function of its typed props (no fetching, no state).
+A discriminated-union variant — model the badge’s (or stepper stage’s) variants as a discriminated/literal union so an invalid value like a typo’d status is a compile error, not a blank badge.
+A role-aware sidebar — a Sidebar that renders navigation entries by role: internal roles see the operator screens (Finance Dashboard, Expense Reports, Approval Queue, and so on), an employee sees My Submissions / Submit Expense / Log Mileage, a platform admin sees the admin screens. Entries show or hide based on the role passed in.
+One generic reusable component — build a single generic component (a typed list or table shell, <T>) that stays type-checked for any row type, with no any widening.
+You decide: the component names, the exact prop shapes, and which atom carries the discriminated union and which is the generic — the wireframe is the contract, not a prescribed prop list.
+
+Watch out: Codex frequently types a variant prop as a loose string (allowing typos) or falls back to any / React.FC<any> for a "flexible" component, and may add a useEffect/useState or fetch to a component that should be purely presentational. Reject any prop typed any, confirm the variant is a literal union and the reusable component uses a real generic <T>, and confirm every component takes all its data via props with no state or fetching.
+
+Appendix — Starter Files
+Done when
+The components map to the wireframe’s regions, named by role, in the atoms//components//screens/ layout. Every component is a pure function of typed props with no fetching or state; npm run typecheck passes and any appears nowhere in props (a wrong status value is a compile error). The badge (or stepper stage) uses a discriminated union, the sidebar shows/hides entries by role, and one reusable component is a real generic <T>.
+Task 3
+Prove behavior with Vitest + React Testing Library
+~20 min
+Mark Done
+Write behavioral tests for the library with Vitest + React Testing Library — at least eight tests querying by role, label, and text, covering each component’s real states. No snapshot tests.
+
+Query as a user would — use getByRole / getByLabelText / getByText, not test ids or CSS classes, so a test survives a markup refactor that preserves behavior.
+Cover the real states, not just "it renders" — assert each meaningful state: the default (a button’s click fires onClick), the disabled state (a disabled button does not fire), and an error/variant state (the error badge shows its message). Assert behavior with jest-dom matchers (toBeDisabled, toBeInTheDocument) and drive interaction with userEvent.
+Test the role-aware sidebar’s behavior — render it for two different roles and assert the right entries are present and the wrong ones are absent.
+At least eight tests total across the atoms and the sidebar, and they must be green.
+You decide: how you distribute the eight tests across the components — the contract is behavioral coverage of the real states, not a fixed per-file count.
+
+Watch out: Codex sometimes adds a toMatchSnapshot() "for coverage" (the program forbids snapshots), queries by test id / CSS class instead of accessible role, or tests only the default render and skips the disabled and error states. Confirm every test queries by role/label/text, asserts behavior across the real states, and that toMatchSnapshot appears nowhere.
+
+Appendix — Starter Files
+Done when
+npm test runs at least eight Vitest + RTL tests, all green, querying by role/label/text (not test ids or classes) and asserting behavior — the disabled button does not fire, the error variant shows its message, the sidebar shows/hides entries by role. grep -r toMatchSnapshot apps/web returns nothing. Changing a component’s markup without changing its behavior leaves the tests passing.
+05
+Section 5 of 6
+Evaluation
+Grading Rubric
+Criterion	Pass signal
+SPA scaffolded as a design system	apps/web is a Vite + React 18 + strict-TS app in the atoms//components//screens/ layout; npm run dev renders the shell and npm run build bundles; styling is CSS Modules consuming the wireframe’s -- tokens (no CSS-in-JS/inline styles); ADR-0011 recorded
+Typed component library	The atoms (buttons, badges, six-stage stepper) and the role-aware sidebar are pure functions of typed props; typecheck passes with no any in props; a discriminated-union variant and one generic <T> reusable component are present
+Wireframe decomposed	Components map to the wireframe’s regions, named by role, with repeated units reused (not duplicated); the sidebar shows/hides entries by role
+Behavioral tests	≥8 Vitest + RTL tests query by role/label/text and cover default, disabled, and error states; no snapshot tests (toMatchSnapshot appears nowhere)
+PR description	Verification-command output pasted (dev renders + typecheck clean with no any + ≥8 tests green with no snapshots + test count); AI-tool reflection paragraph names at least one accepted and one rejected suggestion
+PR setup	Branch is m5d1-implementation; PR self-assigned (Assignees); ES requested under Reviewers
+Pull Request description — required items
+Verification output as a code block — npm run dev rendering the shell, npm run typecheck passing with no any in props, and npm test showing ≥8 RTL tests green with no snapshot tests, plus the passing test count
+AI-tool reflection — one paragraph. Name one suggestion Codex made that you accepted (and why) and one you rejected (and why) — for example a discriminated union it proposed, a prop it typed any, or a snapshot test it slipped in.
+A deliverables checklist at the bottom of the PR description with each item above ticked off
+PR self-assigned (Assignees field); your ES requested under Reviewers
+!
+Warning
+Do not open a new PR for change requests. Push fixes to m5d1-implementation and the existing PR updates automatically.
+
+06
+Section 6 of 6
+Appendix — Starter Files
+Starter Files
+apps/web/src/atoms/Badge.tsx — status/overdue badge with a discriminated-union variant (you build this in Task 2)
+// path: apps/web/src/atoms/Badge.tsx
+// A presentational atom — a pure function of its typed props, no state, no fetching.
+// Describe the shape only — the exact prop names and variant values are your choice:
+//   - the variant prop is a DISCRIMINATED/LITERAL UNION (e.g. the case statuses the
+//     wireframe shows), never a loose `string` and never `any`.
+//   - it imports a scoped Badge.module.css and applies styles.<class> per variant.
+//   - it renders the label as text so a test can query it by role/text.
+// No `any`. A wrong variant value must be a COMPILE error, not a blank badge.
+Copy
+apps/web/src/components/Sidebar.tsx — role-aware navigation (you build this in Task 2)
+// path: apps/web/src/components/Sidebar.tsx
+// A pure presentational component that renders navigation entries BY ROLE.
+// Describe only — prop shape your choice:
+//   - takes the signed-in role (a typed union of the roles the wireframe defines) as a prop.
+//   - internal roles see the operator entries (Finance Dashboard, Expense Reports,
+//     Approval Queue, ...); an employee sees My Submissions / Submit Expense / Log Mileage;
+//     a platform admin sees the admin entries.
+//   - entries show or hide based on the role — no data fetching, no state.
+// Type the role precisely (no `any`) so an unknown role is a compile error.
+Copy
+apps/web/src/test/Button.test.tsx — behavioral test for the Button states (you build this in Task 3)
+// path: apps/web/src/test/Button.test.tsx
+// Vitest + React Testing Library. Behavioral, NOT snapshot. Describe the coverage:
+//   - render the Button and query it by accessible role/name (getByRole "button").
+//   - default state: a click fires onClick (userEvent + a vi.fn() spy).
+//   - disabled state: toBeDisabled(), and a click does NOT fire onClick.
+//   - assert behavior with jest-dom matchers — never toMatchSnapshot().
+// One of the ≥8 tests across the atoms + the role-aware sidebar.
+Copy
+docs/adr/ADR-0011-styling-strategy.md — the styling decision (you write this in Task 1)
+<!-- path: docs/adr/ADR-0011-styling-strategy.md -->
+<!-- MADR-format ADR. Describe the decision, not a template to copy verbatim: -->
+<!--   - Context: the SPA needs a styling approach; the wireframe ships semantic CSS -->
+<!--     + `--` design tokens that port into scoped stylesheets with near-zero rewrite. -->
+<!--   - Decision: CSS Modules as the primary styling strategy. -->
+<!--   - Alternatives weighed: vanilla-extract (type-safe) considered and deferred; -->
+<!--     CSS-in-JS rejected for this stack. -->
+<!--   - Consequences: styles are scoped per component; tokens live once in :root. -->

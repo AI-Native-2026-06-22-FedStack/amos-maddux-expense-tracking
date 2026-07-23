@@ -1,4 +1,4 @@
-# ADR-0009: Case Queue DynamoDB Read Model
+# ADR-0008: Case Queue DynamoDB Read Model
 
 ## Status
 

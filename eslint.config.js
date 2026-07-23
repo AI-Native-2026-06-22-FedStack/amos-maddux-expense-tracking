@@ -10,7 +10,7 @@ export default tseslint.config(
       ".uv-cache/**",
       ".uv-python/**",
       ".venv/**",
-      "dist/**",
+      "**/dist/**",
       "eslint.config.js",
       "node_modules/**"
     ]

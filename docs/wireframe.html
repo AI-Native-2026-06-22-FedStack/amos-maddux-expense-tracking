@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>ExpenseFlow — Wireframe reference (trimmed for 5.1 Task 2)</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      :root {
+        --primary: #6366f1;
+        --primary-light: #818cf8;
+        --secondary: #8b5cf6;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+
+        --bg-primary: #0f172a;
+        --bg-secondary: #1e293b;
+        --bg-tertiary: #334155;
+        --bg-card: #1e293b;
+        --bg-hover: #334155;
+
+        --text-primary: #f1f5f9;
+        --text-secondary: #cbd5e1;
+        --text-muted: #94a3b8;
+
+        --border: #334155;
+        --border-light: #475569;
+
+        --radius-sm: 6px;
+        --radius-md: 8px;
+        --radius-lg: 12px;
+
+        --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        line-height: 1.6;
+      }
+
+      .app-container {
+        display: flex;
+        min-height: 100vh;
+      }
+
+      /* ── Sidebar (role-aware nav) ─────────────────────────────── */
+      .sidebar {
+        width: 260px;
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+      }
+      .sidebar-header {
+        padding: 24px 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .logo-icon {
+        width: 36px;
+        height: 36px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+      }
+      .nav-menu {
+        flex: 1;
+        padding: 16px 0;
+      }
+      .nav-section-label {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        padding: 16px 20px 6px;
+        font-weight: 700;
+      }
+      .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 20px;
+        color: var(--text-secondary);
+        font-size: 14px;
+        font-weight: 500;
+        border-left: 3px solid transparent;
+      }
+      .nav-item.active {
+        background: linear-gradient(90deg, rgba(99, 102, 241, 0.1), transparent);
+        color: var(--primary-light);
+        border-left-color: var(--primary);
+      }
+      .nav-icon {
+        font-size: 18px;
+        width: 20px;
+        text-align: center;
+      }
+      .nav-badge {
+        margin-left: auto;
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning);
+        font-size: 11px;
+        padding: 1px 8px;
+        border-radius: 10px;
+        font-weight: 700;
+      }
+      .sidebar-footer {
+        padding: 16px 20px;
+        border-top: 1px solid var(--border);
+      }
+      .user-profile {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        background: var(--bg-tertiary);
+        border-radius: var(--radius-md);
+      }
+      .user-avatar {
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .user-name {
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .user-role {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .role-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: rgba(16, 185, 129, 0.18);
+        color: var(--success);
+        margin-top: 4px;
+      }
+
+      /* ── Main / top bar ───────────────────────────────────────── */
+      .main-content {
+        flex: 1;
+      }
+      .top-bar {
+        background: var(--bg-secondary);
+        border-bottom: 1px solid var(--border);
+        padding: 16px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .top-bar-left h1 {
+        font-size: 24px;
+        font-weight: 700;
+      }
+      .role-switcher {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        padding: 6px 12px;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .role-switcher .label-pill {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+      }
+
+      .content-section {
+        padding: 32px;
+      }
+
+      /* ── KPI / metric cards (generic-component candidate) ────────── */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 20px;
+        margin-bottom: 32px;
+      }
+      .kpi-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 24px;
+      }
+      .kpi-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 16px;
+      }
+      .kpi-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .kpi-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: var(--radius-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      .kpi-icon.primary {
+        background: rgba(99, 102, 241, 0.2);
+        color: var(--primary-light);
+      }
+      .kpi-icon.warning {
+        background: rgba(245, 158, 11, 0.2);
+        color: var(--warning);
+      }
+      .kpi-icon.info {
+        background: rgba(59, 130, 246, 0.2);
+        color: var(--info);
+      }
+      .kpi-icon.danger {
+        background: rgba(239, 68, 68, 0.2);
+        color: var(--danger);
+      }
+      .kpi-value {
+        font-size: 32px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+      .kpi-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+      }
+      .kpi-change {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px 8px;
+        border-radius: var(--radius-sm);
+        font-weight: 600;
+      }
+      .kpi-change.positive {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+      }
+      .kpi-change.negative {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+      }
+      .kpi-period {
+        color: var(--text-muted);
+      }
+
+      /* ── Buttons ───────────────────────────────────────────────── */
+      .button {
+        padding: 10px 16px;
+        border-radius: var(--radius-md);
+        font-size: 14px;
+        font-weight: 500;
+        border: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .button-primary {
+        background: var(--primary);
+        color: white;
+      }
+      .button-secondary {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+      }
+
+      /* ── Status / SLA badges ───────────────────────────────────── */
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: var(--radius-sm);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .badge-success {
+        background: rgba(16, 185, 129, 0.1);
+        color: var(--success);
+      }
+      .badge-warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: var(--warning);
+      }
+      .badge-danger {
+        background: rgba(239, 68, 68, 0.1);
+        color: var(--danger);
+      }
+      .badge-info {
+        background: rgba(59, 130, 246, 0.1);
+        color: var(--info);
+      }
+      .badge-neutral {
+        background: rgba(148, 163, 184, 0.1);
+        color: var(--text-muted);
+      }
+
+      /* overdue-style badge — distinct from status badge above */
+      .sla-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .sla-badge.ok {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--success);
+      }
+      .sla-badge.warn {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning);
+      }
+      .sla-badge.breach {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger);
+      }
+
+      .priority {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .priority.p1 {
+        background: rgba(239, 68, 68, 0.15);
+        color: var(--danger);
+      }
+      .priority.p2 {
+        background: rgba(245, 158, 11, 0.15);
+        color: var(--warning);
+      }
+      .priority.p3 {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--primary-light);
+      }
+      .priority.p4 {
+        background: rgba(148, 163, 184, 0.15);
+        color: var(--text-muted);
+      }
+
+      .case-id {
+        font-family: "SF Mono", Menlo, monospace;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text-muted);
+        padding: 4px 8px;
+        background: var(--bg-tertiary);
+        border-radius: 4px;
+      }
+
+      /* ── Stage stepper ─────────────────────────────────────────── */
+      .stage-stepper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-wrap: wrap;
+        padding: 12px 0;
+      }
+      .stage-step {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+      .stage-step.done {
+        background: rgba(16, 185, 129, 0.15);
+        color: var(--success);
+        border-color: rgba(16, 185, 129, 0.3);
+      }
+      .stage-step.current {
+        background: rgba(99, 102, 241, 0.15);
+        color: var(--primary-light);
+        border-color: rgba(99, 102, 241, 0.4);
+      }
+      .stage-step.upcoming {
+        background: var(--bg-card);
+        color: var(--text-muted);
+      }
+      .stage-step .step-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        opacity: 0.7;
+      }
+      .stage-arrow {
+        color: var(--text-muted);
+        font-size: 14px;
+        opacity: 0.5;
+      }
+
+      /* ── Table / repeated filing rows ─────────────────────────── */
+      .table-container {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+      }
+      .table-header {
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .table-title {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .table-actions {
+        display: flex;
+        gap: 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      thead {
+        background: var(--bg-tertiary);
+      }
+      th {
+        padding: 14px 24px;
+        text-align: left;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 1px solid var(--border);
+      }
+      td {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+      tr:last-child td {
+        border-bottom: none;
+      }
+      .font-semibold {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-container">
+      <!-- ═══ SIDEBAR — role-aware nav ═══
+         data-roles is the real prototype's mechanism for role-gating each entry.
+         Groupings map directly onto 5.1 Task 2's role list:
+           internal (finadmin, deptmgr) → Finance Dashboard / Expense Reports / Approval Queue
+           external (employee)          → My Submissions / Submit Expense / Log Mileage
+           platform (admin)             → admin-only entries -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <div class="logo-icon">💰</div>
+            <span>ExpenseFlow</span>
+          </div>
+        </div>
+
+        <nav class="nav-menu">
+          <div class="nav-section-label">Workspace (internal — finadmin, deptmgr)</div>
+          <div class="nav-item active" data-page="dashboard" data-roles="finadmin,deptmgr,admin">
+            <span class="nav-icon">📊</span><span>Finance Dashboard</span>
+          </div>
+          <div class="nav-item" data-page="cases" data-roles="finadmin,deptmgr,admin">
+            <span class="nav-icon">🗂</span><span>Expense Reports</span>
+            <span class="nav-badge">17</span>
+          </div>
+          <div class="nav-item" data-page="approvals" data-roles="finadmin,deptmgr,admin">
+            <span class="nav-icon">✅</span><span>Approval Queue</span>
+          </div>
+
+          <div class="nav-section-label">Employee Portal (external — employee)</div>
+          <div class="nav-item" data-page="portal" data-roles="employee">
+            <span class="nav-icon">🏠</span><span>My Submissions</span>
+          </div>
+          <div class="nav-item" data-page="portal-submit" data-roles="employee">
+            <span class="nav-icon">➕</span><span>Submit Expense</span>
+          </div>
+          <div class="nav-item" data-page="mileage" data-roles="employee">
+            <span class="nav-icon">🚗</span><span>Log Mileage</span>
+          </div>
+
+          <div class="nav-section-label">Administration (platform — admin)</div>
+          <div class="nav-item" data-page="admin-users" data-roles="admin">
+            <span class="nav-icon">👥</span><span>All Tenants &amp; Users</span>
+          </div>
+          <div class="nav-item" data-page="admin-roles" data-roles="admin">
+            <span class="nav-icon">🔐</span><span>Roles &amp; Permissions</span>
+          </div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="user-profile">
+            <div class="user-avatar">MH</div>
+            <div>
+              <div class="user-name">Marcus Hill</div>
+              <div class="user-role">GlobalTech Inc · Finance Admin</div>
+              <div class="role-badge">Finance Admin</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="main-content">
+        <div class="top-bar">
+          <div class="top-bar-left"><h1>Expense Reports</h1></div>
+          <div class="role-switcher">
+            <span class="label-pill">View as</span>
+            <span>Finance Admin</span>
+          </div>
+        </div>
+
+        <main class="content-section">
+          <!-- ═══ KPI / METRIC CARDS — generic <T> component candidate ═══
+                 Same shape repeated with different content: label, icon, value, delta.
+                 kpi-change positive/negative is a discriminated-union candidate. -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <div class="kpi-label">Open Reports</div>
+                <div class="kpi-icon primary">🗂</div>
+              </div>
+              <div class="kpi-value">128</div>
+              <div class="kpi-footer"><div class="kpi-period">$284,920 in flight</div></div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <div class="kpi-label">Awaiting Mgr Approval</div>
+                <div class="kpi-icon warning">⏳</div>
+              </div>
+              <div class="kpi-value">42</div>
+              <div class="kpi-footer"><div class="kpi-period">8 due today</div></div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <div class="kpi-label">Deductible Amount</div>
+                <div class="kpi-icon info">📄</div>
+              </div>
+              <div class="kpi-value">$18,234</div>
+              <div class="kpi-footer">
+                <div class="kpi-change positive"><span>↑</span><span>12.5%</span></div>
+                <div class="kpi-period">vs last month</div>
+              </div>
+            </div>
+
+            <div class="kpi-card">
+              <div class="kpi-header">
+                <div class="kpi-label">Overdue</div>
+                <div class="kpi-icon danger">⚠️</div>
+              </div>
+              <div class="kpi-value">2</div>
+              <div class="kpi-footer">
+                <div class="kpi-change negative"><span>↓</span><span>8.2%</span></div>
+                <div class="kpi-period">Past due date</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ STAGE STEPPER ═══
+                 Six-stage lifecycle, per the deliverable's authoritative stage list
+                 (supersedes the source prototype, which shipped a stale 7-stage
+                 version with "Audit-Ready" and "Payment Issued" instead of "Paid"):
+                   1. Drafted  2. Submitted  3. Manager Approval
+                   4. AP Review  5. Paid  6. Reconciled -->
+          <div class="table-container" style="margin-bottom: 32px">
+            <div class="table-header" style="border-bottom: none">
+              <div class="table-title" style="font-size: 14px">Case stage (6 stages)</div>
+            </div>
+            <div style="padding: 0 24px 20px">
+              <div class="stage-stepper">
+                <span class="stage-step done"><span class="step-dot"></span>Drafted</span>
+                <span class="stage-arrow">→</span>
+                <span class="stage-step done"><span class="step-dot"></span>Submitted</span>
+                <span class="stage-arrow">→</span>
+                <span class="stage-step current"
+                  ><span class="step-dot"></span>Manager Approval</span
+                >
+                <span class="stage-arrow">→</span>
+                <span class="stage-step upcoming"><span class="step-dot"></span>AP Review</span>
+                <span class="stage-arrow">→</span>
+                <span class="stage-step upcoming"><span class="step-dot"></span>Paid</span>
+                <span class="stage-arrow">→</span>
+                <span class="stage-step upcoming"><span class="step-dot"></span>Reconciled</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ═══ FILING/CASE LIST — the repeated unit (FilingCard-equivalent) ═══
+                 Each row composes: case id, submitter, status badge, priority badge,
+                 SLA/overdue badge, and an action button. -->
+          <div class="table-container">
+            <div class="table-header">
+              <div class="table-title">Expense Report Cases</div>
+              <div class="table-actions">
+                <button class="button button-primary">Open Sample Case</button>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Case ID</th>
+                  <th>Submitter</th>
+                  <th>Stage</th>
+                  <th>Amount</th>
+                  <th>Priority</th>
+                  <th>Due</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><span class="case-id">CASE-EF-2026-04-2241</span></td>
+                  <td class="font-semibold">Riley Park</td>
+                  <td><span class="badge badge-info">Manager Approval</span></td>
+                  <td class="font-semibold">$2,841.30</td>
+                  <td><span class="priority p2">High</span></td>
+                  <td><span class="sla-badge warn">18h</span></td>
+                  <td><button class="button button-secondary">View</button></td>
+                </tr>
+                <tr>
+                  <td><span class="case-id">CASE-EF-2026-03-2191</span></td>
+                  <td class="font-semibold">Casey Reed</td>
+                  <td><span class="badge badge-info">Submitted</span></td>
+                  <td class="font-semibold">$5,612.40</td>
+                  <td><span class="priority p1">Urgent</span></td>
+                  <td><span class="sla-badge breach">Overdue</span></td>
+                  <td><button class="button button-secondary">View</button></td>
+                </tr>
+                <tr>
+                  <td><span class="case-id">CASE-EF-2026-04-2240</span></td>
+                  <td class="font-semibold">Sam Rivera</td>
+                  <td><span class="badge badge-info">AP Review</span></td>
+                  <td class="font-semibold">$4,200.00</td>
+                  <td><span class="priority p3">Normal</span></td>
+                  <td><span class="sla-badge ok">2d 4h</span></td>
+                  <td><button class="button button-secondary">View</button></td>
+                </tr>
+                <tr>
+                  <td><span class="case-id">CASE-EF-2026-03-2188</span></td>
+                  <td class="font-semibold">Riley Park</td>
+                  <td><span class="badge badge-success">Reconciled</span></td>
+                  <td class="font-semibold">$1,485.00</td>
+                  <td><span class="priority p3">Normal</span></td>
+                  <td><span class="badge badge-neutral">—</span></td>
+                  <td><button class="button button-secondary">View</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>
