@@ -97,6 +97,57 @@ When the API dev server is running, open the generated API contract and docs at:
 - OpenAPI JSON: `http://localhost:3000/openapi.json`
 - Scalar API reference: `http://localhost:3000/docs`
 
+### Local Web Sign-In
+
+Use this flow to run the Docker-backed local API and sign into the Vite web app.
+The seeded login is synthetic local-development fixture data only. Do not reuse
+these credentials, MFA seeds, or generated local secret files outside the Docker
+development stack.
+
+From the repository root, start the local services:
+
+```sh
+docker compose up -d
+```
+
+Recreate the one-shot init container and API container so migrations, local
+secrets, and the synthetic sign-in user are current:
+
+```sh
+docker compose up -d --force-recreate local-dev-init core
+```
+
+Start the web app:
+
+```sh
+npm --workspace @expenseflow/web run dev
+```
+
+Open the Vite URL printed by the command, usually `http://localhost:5173`.
+The web dev server proxies `/v1` API calls to the Docker API at
+`http://localhost:3000`.
+
+Print the local synthetic tenant, email, and password:
+
+```sh
+npm run compose:login
+```
+
+When the sign-in screen asks for MFA, print a fresh rotating code:
+
+```sh
+npm run compose:mfa
+```
+
+The MFA code rotates every 30 seconds, so run the command when you are ready to
+submit the MFA step.
+
+If the UI cannot reach the API, check the Docker API health endpoint:
+
+```sh
+curl http://localhost:3000/health
+```
+
 ### LocalStack Secrets Manager
 
 The API loads its database password and RS256 JWT signing keys from AWS Secrets
