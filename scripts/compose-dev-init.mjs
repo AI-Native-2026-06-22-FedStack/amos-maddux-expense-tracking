@@ -1,4 +1,5 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { Buffer } from "node:buffer";
 import { createCipheriv, generateKeyPairSync, randomBytes } from "node:crypto";
 import { join } from "node:path";
@@ -36,6 +37,9 @@ const awsRegion = process.env.AWS_REGION ?? "us-east-1";
 const secretDirectory = process.env.COMPOSE_SECRET_DIR ?? "/run/expenseflow-secrets";
 const privateKeyPath = join(secretDirectory, "jwt-private.pem");
 const publicKeyPath = join(secretDirectory, "jwt-public.pem");
+const totpEncryptionKeyPath =
+  process.env.TOTP_SECRET_ENCRYPTION_KEY_FILE ??
+  join(secretDirectory, "synthetic-local-dev-totp-encryption-key.b64");
 
 const credentials = {
   accessKeyId: "local",
@@ -56,6 +60,7 @@ const dynamodb = new DynamoDBClient({
 await waitForLocalStack();
 await waitForDynamoDB();
 const jwtSigningKeys = await ensureJwtKeys();
+await ensureTotpEncryptionKey();
 await upsertSecret(dbPasswordSecretId, "synthetic-compose-db-password");
 await upsertSecret(jwtSigningKeysSecretId, JSON.stringify(jwtSigningKeys));
 await withPgClient(async (client) => {
@@ -108,6 +113,26 @@ async function ensureJwtKeys() {
     privateKeyPem: keyPair.privateKey,
     publicKeyPem: keyPair.publicKey
   };
+}
+
+async function ensureTotpEncryptionKey() {
+  await mkdir(secretDirectory, { recursive: true });
+
+  if (await pathExists(totpEncryptionKeyPath)) {
+    const existingKey = (await readFile(totpEncryptionKeyPath, "utf8")).trim();
+    const decodedKey = Buffer.from(existingKey, "base64");
+
+    if (decodedKey.length !== 32) {
+      throw new Error(`${totpEncryptionKeyPath} must contain a base64-encoded 32-byte key.`);
+    }
+
+    return existingKey;
+  }
+
+  const generatedKey = randomBytes(32).toString("base64");
+  await writeFile(totpEncryptionKeyPath, `${generatedKey}\n`, { mode: 0o600 });
+
+  return generatedKey;
 }
 
 async function upsertSecret(secretId, secretString) {
@@ -319,11 +344,7 @@ async function upsertLocalRole(client) {
 }
 
 function protectTotpSecret(secret) {
-  const configuredKey = process.env.TOTP_SECRET_ENCRYPTION_KEY;
-
-  if (configuredKey === undefined || configuredKey.trim() === "") {
-    throw new Error("TOTP_SECRET_ENCRYPTION_KEY is required to seed local auth users.");
-  }
+  const configuredKey = readTotpEncryptionKey();
 
   const key = Buffer.from(configuredKey, "base64");
 
@@ -343,6 +364,22 @@ function protectTotpSecret(secret) {
     tag.toString("base64url"),
     ciphertext.toString("base64url")
   ].join(":");
+}
+
+function readTotpEncryptionKey() {
+  const inlineKey = process.env.TOTP_SECRET_ENCRYPTION_KEY;
+
+  if (inlineKey !== undefined && inlineKey.trim() !== "") {
+    return inlineKey.trim();
+  }
+
+  try {
+    return readFileSync(totpEncryptionKeyPath, "utf8").trim();
+  } catch (error) {
+    throw new Error(`Unable to read TOTP encryption key from ${totpEncryptionKeyPath}.`, {
+      cause: error
+    });
+  }
 }
 
 async function ensureCaseQueueTable() {
