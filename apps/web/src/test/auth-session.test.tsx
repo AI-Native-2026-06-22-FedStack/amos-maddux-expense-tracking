@@ -171,6 +171,58 @@ describe("useAuthSession", () => {
     expect(result.current.session).toBeNull();
   });
 
+  it("shares one imperative refresh across concurrent callers", async () => {
+    let resolveRefresh: ((session: AuthSession) => void) | undefined;
+    const storage = createMemoryStorage(createSession());
+    const refreshedSession = createSession({
+      accessTokenLabel: "synthetic-refreshed-token",
+      roles: ["Finance Admin"]
+    });
+    const refreshSession = vi.fn<RefreshSession>(
+      () =>
+        new Promise<AuthSession>((resolve) => {
+          resolveRefresh = resolve;
+        })
+    );
+    const { result } = renderAuthHook({ refreshSession, storage });
+
+    let firstRefresh: Promise<AuthSession> | undefined;
+    let secondRefresh: Promise<AuthSession> | undefined;
+    act(() => {
+      firstRefresh = result.current.refreshCurrentSession();
+      secondRefresh = result.current.refreshCurrentSession();
+    });
+
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveRefresh?.(refreshedSession);
+      await Promise.all([firstRefresh, secondRefresh]);
+    });
+
+    expect(result.current.phase).toBe("authenticated");
+    expect(result.current.session).toEqual(refreshedSession);
+    expect(storage.snapshot()).toEqual(refreshedSession);
+  });
+
+  it("routes to sign-in when imperative refresh fails", async () => {
+    const storage = createMemoryStorage(createSession());
+    const refreshSession = vi.fn<RefreshSession>(async () => {
+      throw new Error("Synthetic refresh failure.");
+    });
+    const { result } = renderAuthHook({ refreshSession, storage });
+
+    await act(async () => {
+      await expect(result.current.refreshCurrentSession()).rejects.toThrow(
+        "Synthetic refresh failure."
+      );
+    });
+
+    expect(result.current.phase).toBe("unauthenticated");
+    expect(result.current.session).toBeNull();
+    expect(storage.snapshot()).toBeNull();
+  });
+
   it("ignores an older login response that resolves after a newer login response", async () => {
     let resolveFirstLogin: ((result: Awaited<ReturnType<AuthClient["login"]>>) => void) | undefined;
     let resolveSecondLogin:
@@ -294,6 +346,7 @@ function createMemoryStorage(initialSession: AuthSession | null): AuthSessionSto
 }
 
 interface CreateSessionOptions {
+  accessTokenLabel?: string;
   expiresInMs?: number;
   roles?: readonly string[];
 }
@@ -302,7 +355,7 @@ function createSession(options: CreateSessionOptions = {}): AuthSession {
   const roles = options.roles ?? ["Employee"];
 
   return {
-    accessToken: createSyntheticJwt(options.expiresInMs ?? 300_000),
+    accessToken: createSyntheticJwt(options.expiresInMs ?? 300_000, options.accessTokenLabel),
     refreshToken: "synthetic-refresh-token",
     tenantId,
     userId,
@@ -312,7 +365,7 @@ function createSession(options: CreateSessionOptions = {}): AuthSession {
   };
 }
 
-function createSyntheticJwt(expiresInMs: number): string {
+function createSyntheticJwt(expiresInMs: number, label = "synthetic-signature"): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
   const payload = base64UrlEncode({
     exp: Math.floor((Date.now() + expiresInMs) / 1000),
@@ -321,7 +374,7 @@ function createSyntheticJwt(expiresInMs: number): string {
     tenantId
   });
 
-  return `${header}.${payload}.synthetic-signature`;
+  return `${header}.${payload}.${label}`;
 }
 
 function base64UrlEncode(value: object): string {

@@ -1,4 +1,5 @@
 import type { UserRole } from "../domain";
+import { createApiClient } from "../api/client";
 
 export interface LoginCredentials {
   tenantId: string;
@@ -44,9 +45,15 @@ export interface AuthClient {
 }
 
 export function createHttpAuthClient(baseUrl = "/v1"): AuthClient {
+  const apiClient = createApiClient({ baseUrl });
+
   return {
     async login(credentials, signal) {
-      const body = await postJson(`${baseUrl}/auth/login`, credentials, signal);
+      const body = await apiClient.requestJson<unknown>("/auth/login", {
+        body: credentials,
+        method: "POST",
+        signal
+      });
 
       if (isMfaRequiredResponse(body)) {
         return {
@@ -69,7 +76,11 @@ export function createHttpAuthClient(baseUrl = "/v1"): AuthClient {
       throw new Error("Unexpected login response.");
     },
     async completeMfa(input, signal) {
-      const body = await postJson(`${baseUrl}/auth/mfa`, input, signal);
+      const body = await apiClient.requestJson<unknown>("/auth/mfa", {
+        body: input,
+        method: "POST",
+        signal
+      });
 
       if (!isAuthenticatedResponse(body)) {
         throw new Error("Unexpected MFA response.");
@@ -100,32 +111,6 @@ export function selectPrimaryRole(roles: readonly string[]): UserRole {
   const supportedRoles: readonly UserRole[] = ["Finance Admin", "Department Manager", "Employee"];
 
   return supportedRoles.find((role) => roles.includes(role)) ?? "Employee";
-}
-
-async function postJson(url: string, payload: object, signal: AbortSignal): Promise<unknown> {
-  const response = await fetch(url, {
-    body: JSON.stringify(payload),
-    headers: {
-      "Content-Type": "application/json"
-    },
-    method: "POST",
-    signal
-  });
-  const body = await response.json().catch((): unknown => ({}));
-
-  if (!response.ok) {
-    throw new Error(readProblemDetail(body) ?? "Authentication request failed.");
-  }
-
-  return body;
-}
-
-function readProblemDetail(body: unknown): string | undefined {
-  if (!isRecord(body)) {
-    return undefined;
-  }
-
-  return typeof body.detail === "string" ? body.detail : undefined;
 }
 
 interface MfaRequiredResponse {
