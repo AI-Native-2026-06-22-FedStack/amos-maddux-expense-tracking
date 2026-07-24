@@ -9,6 +9,7 @@ describe("ExpenseReportController", () => {
     const service = {
       createDraftReport: vi.fn(),
       findReport: vi.fn(),
+      listCaseQueue: vi.fn(),
       submit: vi.fn(),
       submitForApReview: vi.fn(),
       advance: vi.fn(),
@@ -55,6 +56,7 @@ describe("ExpenseReportController", () => {
     const service = {
       createDraftReport: vi.fn(),
       findReport: vi.fn(),
+      listCaseQueue: vi.fn(),
       submit: vi.fn(async () => submittedReport),
       submitForApReview: vi.fn(async () => submittedReport),
       advance: vi.fn(),

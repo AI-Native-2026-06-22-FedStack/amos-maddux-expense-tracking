@@ -11,6 +11,7 @@ import {
   createExpenseReportRepository
 } from "../repository/expense-report-repository.js";
 import {
+  CaseQueueItem,
   CreateExpenseReportRequest,
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
@@ -23,6 +24,7 @@ export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
 export interface ExpenseReportService {
   createDraftReport(request: CreateDraftExpenseReportRequest): Promise<ExpenseReportResponse>;
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
+  listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
   submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   submitForApReview(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse>;
@@ -69,6 +71,19 @@ class RepositoryExpenseReportService implements ExpenseReportService {
     const report = await this.expenseReportRepository.findById(id, tenantId);
 
     return report;
+  }
+
+  public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
+    const reports = await this.expenseReportRepository.listWithLineItems(tenantId);
+
+    return reports.map((report) => ({
+      id: report.id,
+      currentStage: report.currentStage,
+      priority: report.priority,
+      dueDate: report.dueDate,
+      onHold: report.onHold,
+      updatedAt: report.updatedAt
+    }));
   }
 
   public async submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse> {

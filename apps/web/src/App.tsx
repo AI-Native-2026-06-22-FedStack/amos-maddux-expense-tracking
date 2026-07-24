@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Button } from "./atoms/Button";
 import { AuthSessionProvider, useAuthSession } from "./auth";
 import { Sidebar } from "./components/Sidebar";
@@ -5,11 +6,15 @@ import { ExpenseReportsScreen } from "./screens/ExpenseReportsScreen";
 import { SignInScreen } from "./screens/SignInScreen";
 import styles from "./App.module.css";
 
+const queryClient = new QueryClient();
+
 export function App() {
   return (
-    <AuthSessionProvider>
-      <ExpenseFlowApp />
-    </AuthSessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthSessionProvider>
+        <ExpenseFlowApp />
+      </AuthSessionProvider>
+    </QueryClientProvider>
   );
 }
 

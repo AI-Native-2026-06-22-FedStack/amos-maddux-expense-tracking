@@ -198,6 +198,88 @@ describe("Expense Report route rate-limit wiring", () => {
     expect(limiterCalled).toBe(false);
   });
 
+  it("requires authentication for the Case Queue route before reading any cases", async () => {
+    const service = makeExpenseReportService({
+      listCaseQueue: vi.fn()
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/v1/expense-reports/case-queue"
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(service.listCaseQueue).not.toHaveBeenCalled();
+  });
+
+  it("routes Case Queue reads before Expense Report id reads", async () => {
+    const service = makeExpenseReportService({
+      findReport: vi.fn(),
+      listCaseQueue: vi.fn(async () => [
+        {
+          id: "00000000-0000-4000-8000-000000000904",
+          currentStage: "Manager Approval" as const,
+          priority: "High" as const,
+          dueDate: null,
+          onHold: false,
+          updatedAt: new Date("2026-07-20T12:00:00.000Z")
+        }
+      ])
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/v1/expense-reports/case-queue",
+      headers: {
+        authorization: createAuthorizationHeader({ tenantId })
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(service.findReport).not.toHaveBeenCalled();
+    expect(service.listCaseQueue).toHaveBeenCalledWith(tenantId);
+    expect(response.json()).toEqual({
+      cases: [
+        {
+          id: "00000000-0000-4000-8000-000000000904",
+          currentStage: "Manager Approval",
+          priority: "High",
+          dueDate: null,
+          onHold: false,
+          updatedAt: "2026-07-20T12:00:00.000Z"
+        }
+      ]
+    });
+  });
+
+  it("derives the Case Queue tenant from the bearer token", async () => {
+    const tenantB = "00000000-0000-4000-8000-000000000905";
+    const service = makeExpenseReportService({
+      listCaseQueue: vi.fn(async () => [])
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/v1/expense-reports/case-queue",
+      headers: {
+        authorization: createAuthorizationHeader({ tenantId: tenantB })
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(service.listCaseQueue).toHaveBeenCalledWith(tenantB);
+    expect(service.listCaseQueue).not.toHaveBeenCalledWith(tenantId);
+  });
+
   it.each([
     { method: "GET" as const, url: "/health", statusCode: 200 },
     { method: "GET" as const, url: "/docs", statusCode: 200 },
@@ -227,11 +309,11 @@ describe("Expense Report route rate-limit wiring", () => {
   );
 });
 
-function createAuthorizationHeader(): string {
+function createAuthorizationHeader(options: { tenantId?: string; roles?: string[] } = {}): string {
   const tokenPair = issueTokenPair({
-    tenantId,
+    tenantId: options.tenantId ?? tenantId,
     userId,
-    roles: ["Employee"]
+    roles: options.roles ?? ["Employee"]
   });
 
   return `Bearer ${tokenPair.accessToken}`;
@@ -243,6 +325,7 @@ function makeExpenseReportService(
   return {
     createDraftReport: vi.fn(),
     findReport: vi.fn(),
+    listCaseQueue: vi.fn(),
     submit: vi.fn(),
     submitForApReview: vi.fn(),
     advance: vi.fn(),
