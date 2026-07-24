@@ -13,9 +13,16 @@ describe("StageStepper", () => {
     }
   });
 
-  it("marks the current stage with step semantics", () => {
-    render(<StageStepper currentStage="AP Review" />);
+  it.each(expenseReportStages)("marks %s as the current stage with step semantics", (stage) => {
+    render(<StageStepper currentStage={stage} />);
 
+    expect(screen.getByText(stage)).toHaveAttribute("aria-current", "step");
+  });
+
+  it("shows an on-hold paused indicator without losing the current stage position", () => {
+    render(<StageStepper currentStage="AP Review" onHold />);
+
+    expect(screen.getByRole("status", { name: "On hold" })).toBeInTheDocument();
     expect(screen.getByText("AP Review")).toHaveAttribute("aria-current", "step");
   });
 });

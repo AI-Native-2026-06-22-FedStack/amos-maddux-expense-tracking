@@ -1,0 +1,97 @@
+.authPage {
+  align-items: center;
+  background: var(--bg-primary);
+  display: flex;
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0 auto;
+  max-width: 440px;
+  padding: 32px;
+  width: 100%;
+}
+
+.brand {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.brandMark {
+  align-items: center;
+  background: var(--brand-gradient);
+  border-radius: var(--radius-sm);
+  color: var(--text-on-accent);
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 800;
+  height: 40px;
+  justify-content: center;
+  width: 40px;
+}
+
+.brandText {
+  display: grid;
+  gap: 2px;
+}
+
+.brandName {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.brandMeta {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.form {
+  display: grid;
+  gap: 18px;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  min-height: 42px;
+  padding: 9px 12px;
+  width: 100%;
+}
+
+.input:focus {
+  border-color: var(--primary-light);
+  outline: 2px solid var(--primary-soft);
+}
+
+.error {
+  background: var(--danger-faint);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 13px;
+}

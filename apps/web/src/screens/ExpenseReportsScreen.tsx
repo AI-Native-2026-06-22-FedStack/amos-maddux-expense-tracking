@@ -137,6 +137,13 @@ const columns: readonly DataTableColumn<ExpenseReportRow>[] = [
   }
 ];
 
+// Keeps the memoized table from rebuilding static Expense Report rows on auth-shell rerenders.
+const expenseReportTableActions = <Button variant="primary">Open Sample Case</Button>;
+
+function getExpenseReportRowKey(row: ExpenseReportRow): string {
+  return row.caseId;
+}
+
 export function ExpenseReportsScreen() {
   return (
     <div>
@@ -154,9 +161,9 @@ export function ExpenseReportsScreen() {
       </section>
 
       <DataTable
-        actions={<Button variant="primary">Open Sample Case</Button>}
+        actions={expenseReportTableActions}
         columns={columns}
-        getRowKey={(row) => row.caseId}
+        getRowKey={getExpenseReportRowKey}
         rows={expenseReports}
         title="Expense Report Cases"
       />

@@ -39,6 +39,20 @@
   color: var(--primary-light);
 }
 
+.paused {
+  border-color: var(--warning);
+}
+
+.pausedIndicator {
+  background: var(--warning-soft);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-xs);
+  color: var(--warning);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+}
+
 .upcoming {
   background: var(--bg-card);
   color: var(--text-muted);

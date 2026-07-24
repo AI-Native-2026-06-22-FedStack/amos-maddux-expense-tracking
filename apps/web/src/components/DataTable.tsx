@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import styles from "./DataTable.module.css";
 
 export interface DataTableColumn<T> {
@@ -15,7 +15,7 @@ export interface DataTableProps<T> {
   title: string;
 }
 
-export function DataTable<T>({ actions, columns, getRowKey, rows, title }: DataTableProps<T>) {
+function DataTableComponent<T>({ actions, columns, getRowKey, rows, title }: DataTableProps<T>) {
   return (
     <section className={styles.tableContainer} aria-label={title}>
       <div className={styles.tableHeader}>
@@ -46,3 +46,5 @@ export function DataTable<T>({ actions, columns, getRowKey, rows, title }: DataT
     </section>
   );
 }
+
+export const DataTable = memo(DataTableComponent) as typeof DataTableComponent;

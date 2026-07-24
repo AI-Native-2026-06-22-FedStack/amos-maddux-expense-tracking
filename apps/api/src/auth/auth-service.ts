@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { AuthRepository, createAuthRepository } from "./auth-repository.js";
 import { hashPassword, verifyPasswordHash } from "./hashing.js";
@@ -379,7 +380,9 @@ function createDefaultTokenIssuer(): TokenIssuer {
 }
 
 function loadTotpSecretEncryptionKey(): Buffer {
-  const configuredKey = readOptionalStringEnv("TOTP_SECRET_ENCRYPTION_KEY");
+  const configuredKey =
+    readOptionalStringEnv("TOTP_SECRET_ENCRYPTION_KEY") ??
+    readOptionalFileEnv("TOTP_SECRET_ENCRYPTION_KEY_FILE");
 
   if (configuredKey !== undefined) {
     const key = Buffer.from(configuredKey, "base64");
@@ -408,4 +411,14 @@ function readOptionalStringEnv(name: string): string | undefined {
   }
 
   return value;
+}
+
+function readOptionalFileEnv(name: string): string | undefined {
+  const path = readOptionalStringEnv(name);
+
+  if (path === undefined) {
+    return undefined;
+  }
+
+  return readFileSync(path, "utf8").trim();
 }

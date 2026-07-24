@@ -1,50 +1,40 @@
 import { expenseReportStages, type ExpenseReportStage } from "../domain";
+import { useStageStepper } from "../hooks/useStageStepper";
 import styles from "./StageStepper.module.css";
 
 export interface StageStepperProps {
   currentStage: ExpenseReportStage;
+  onHold?: boolean;
 }
 
-type StepState = "done" | "current" | "upcoming";
+export function StageStepper({ currentStage, onHold = false }: StageStepperProps) {
+  const stageStepper = useStageStepper({ currentStage, onHold });
 
-function getStepState(stage: ExpenseReportStage, currentStage: ExpenseReportStage): StepState {
-  const stageIndex = expenseReportStages.indexOf(stage);
-  const currentIndex = expenseReportStages.indexOf(currentStage);
-
-  if (stageIndex < currentIndex) {
-    return "done";
-  }
-
-  if (stageIndex === currentIndex) {
-    return "current";
-  }
-
-  return "upcoming";
-}
-
-export function StageStepper({ currentStage }: StageStepperProps) {
   return (
     <ol className={styles.stageStepper} aria-label="Expense Report stage progress">
-      {expenseReportStages.map((stage, index) => {
-        const stepState = getStepState(stage, currentStage);
-
-        return (
-          <li className={styles.stageItem} key={stage}>
-            <span
-              className={`${styles.stageStep} ${styles[stepState]}`}
-              aria-current={stepState === "current" ? "step" : undefined}
-            >
-              <span className={styles.stepDot} />
-              {stage}
-            </span>
-            {index < expenseReportStages.length - 1 ? (
-              <span className={styles.stageArrow} aria-hidden="true">
-                &gt;
+      {stageStepper.steps.map((step) => (
+        <li className={styles.stageItem} key={step.stage}>
+          <span
+            className={`${styles.stageStep} ${styles[step.state]} ${
+              step.isPaused ? styles.paused : ""
+            }`}
+            aria-current={step.isCurrent ? "step" : undefined}
+          >
+            <span className={styles.stepDot} />
+            {step.stage}
+            {step.isPaused ? (
+              <span aria-label="On hold" className={styles.pausedIndicator} role="status">
+                On hold
               </span>
             ) : null}
-          </li>
-        );
-      })}
+          </span>
+          {step.index < expenseReportStages.length - 1 ? (
+            <span className={styles.stageArrow} aria-hidden="true">
+              &gt;
+            </span>
+          ) : null}
+        </li>
+      ))}
     </ol>
   );
 }
