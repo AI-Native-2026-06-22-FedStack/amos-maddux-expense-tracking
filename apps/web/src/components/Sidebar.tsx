@@ -1,3 +1,4 @@
+import { NavLink } from "react-router-dom";
 import type { UserRole } from "../domain";
 import styles from "./Sidebar.module.css";
 
@@ -113,6 +114,10 @@ function entryBadge(entry: NavEntry, caseCount?: number): string | undefined {
   return entry.badge;
 }
 
+function entryHref(page: SidebarPage): string {
+  return `/app/${page}`;
+}
+
 export function Sidebar({ activePage, caseCount, role, user }: SidebarProps) {
   const visibleSections = navSections
     .map((section) => ({
@@ -137,10 +142,10 @@ export function Sidebar({ activePage, caseCount, role, user }: SidebarProps) {
           <section className={styles.navSection} key={section.label}>
             <h2 className={styles.navSectionLabel}>{section.label}</h2>
             {section.entries.map((entry) => (
-              <a
+              <NavLink
                 aria-current={entry.page === activePage ? "page" : undefined}
                 className={`${styles.navItem} ${entry.page === activePage ? styles.active : ""}`}
-                href={`#${entry.page}`}
+                to={entryHref(entry.page)}
                 key={entry.page}
               >
                 <span className={styles.navIcon} aria-hidden="true">
@@ -150,7 +155,7 @@ export function Sidebar({ activePage, caseCount, role, user }: SidebarProps) {
                 {entryBadge(entry, caseCount) ? (
                   <span className={styles.navBadge}>{entryBadge(entry, caseCount)}</span>
                 ) : null}
-              </a>
+              </NavLink>
             ))}
           </section>
         ))}

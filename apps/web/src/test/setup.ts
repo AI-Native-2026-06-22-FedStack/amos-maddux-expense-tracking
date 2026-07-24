@@ -10,3 +10,13 @@ declare global {
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 window.IS_REACT_ACT_ENVIRONMENT = true;
+
+const NativeRequest = globalThis.Request;
+
+class RouterTestRequest extends NativeRequest {
+  constructor(input: RequestInfo | URL, init?: RequestInit) {
+    super(input, init === undefined ? init : { ...init, signal: undefined });
+  }
+}
+
+globalThis.Request = RouterTestRequest;

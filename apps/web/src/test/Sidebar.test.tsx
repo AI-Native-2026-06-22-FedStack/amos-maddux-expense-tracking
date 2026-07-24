@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { Sidebar, type SidebarPage } from "../components/Sidebar";
 import type { UserRole } from "../domain";
 
@@ -9,7 +10,11 @@ const user = {
 };
 
 function renderSidebar(role: UserRole, activePage: SidebarPage = "expense-reports") {
-  render(<Sidebar activePage={activePage} caseCount={17} role={role} user={user} />);
+  render(
+    <MemoryRouter>
+      <Sidebar activePage={activePage} caseCount={17} role={role} user={user} />
+    </MemoryRouter>
+  );
 
   return screen.getByLabelText("Primary navigation");
 }

@@ -6,6 +6,7 @@ import {
   type AuthSessionStorage,
   authSessionStorageKey
 } from "../auth";
+import type { UserRole } from "../domain";
 
 export const tenantId = "00000000-0000-4000-8000-000000000501";
 export const userId = "00000000-0000-4000-8000-000000000601";
@@ -23,8 +24,11 @@ export function createTestQueryClient(): QueryClient {
   });
 }
 
-export function createQueryAuthWrapper(queryClient = createTestQueryClient()) {
-  const storage = createMemoryStorage(createSession());
+export function createQueryAuthWrapper(
+  queryClient = createTestQueryClient(),
+  session: AuthSession | null = createSession()
+) {
+  const storage = createMemoryStorage(session);
 
   return {
     queryClient,
@@ -38,14 +42,16 @@ export function createQueryAuthWrapper(queryClient = createTestQueryClient()) {
   };
 }
 
-export function createSession(): AuthSession {
+export function createSession(role: UserRole = "Finance Admin"): AuthSession {
+  const roles = [role];
+
   return {
-    accessToken: createSyntheticJwt(300_000),
+    accessToken: createSyntheticJwt(300_000, roles),
     refreshToken: "synthetic-refresh-token",
     tenantId,
     userId,
-    roles: ["Finance Admin"],
-    role: "Finance Admin",
+    roles,
+    role,
     isAuthenticated: true
   };
 }
@@ -74,11 +80,11 @@ function createMemoryStorage(initialSession: AuthSession | null): AuthSessionSto
   };
 }
 
-function createSyntheticJwt(expiresInMs: number): string {
+function createSyntheticJwt(expiresInMs: number, roles: readonly string[]): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
   const payload = base64UrlEncode({
     exp: Math.floor((Date.now() + expiresInMs) / 1000),
-    roles: ["Finance Admin"],
+    roles,
     sub: userId,
     tenantId
   });

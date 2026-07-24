@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "../App";
 import { authSessionStorageKey } from "../auth";
@@ -8,15 +8,19 @@ const tenantId = "00000000-0000-4000-8000-000000000501";
 const userId = "00000000-0000-4000-8000-000000000601";
 
 describe("App", () => {
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   afterEach(() => {
     window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
-  it("renders the sign-in form when unauthenticated", () => {
+  it("renders the sign-in form when unauthenticated", async () => {
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tenant ID")).toBeInTheDocument();
     expect(screen.queryByLabelText("Expense Report workspace")).not.toBeInTheDocument();
   });
@@ -47,7 +51,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.type(screen.getByLabelText("Tenant ID"), tenantId);
+    await user.type(await screen.findByLabelText("Tenant ID"), tenantId);
     await user.type(screen.getByLabelText("Email"), "synthetic.employee@example.test");
     await user.type(screen.getByLabelText("Password"), "synthetic-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
@@ -57,9 +61,9 @@ describe("App", () => {
     await user.type(screen.getByLabelText("MFA code"), "123456");
     await user.click(screen.getByRole("button", { name: "Complete sign in" }));
 
-    await waitFor(() =>
-      expect(screen.getByLabelText("Expense Report workspace")).toBeInTheDocument()
-    );
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Finance Dashboard" })
+    ).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -94,11 +98,12 @@ describe("App", () => {
 
     await user.click(screen.getByRole("button", { name: "Logout" }));
 
-    expect(screen.getByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
     expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull();
   });
 
   it("composes the sidebar, metrics, stage stepper, and Expense Report table when restored", () => {
+    window.history.replaceState(null, "", "/app/expense-reports");
     window.sessionStorage.setItem(
       authSessionStorageKey,
       JSON.stringify({
