@@ -243,7 +243,8 @@ describe("useAuthSession", () => {
               resolveSecondLogin = resolve;
             })
         ),
-      completeMfa: async () => createSession()
+      completeMfa: async () => createSession(),
+      refreshSession: async (session) => session
     };
     const { result } = renderAuthHook({ authClient });
     let firstLoginPromise: Promise<void> | undefined;
@@ -324,7 +325,8 @@ function createAuthClient(options: CreateAuthClientOptions = {}): AuthClient {
         message: "MFA required."
       }
     }),
-    completeMfa: async () => session
+    completeMfa: async () => session,
+    refreshSession: async () => session
   };
 }
 

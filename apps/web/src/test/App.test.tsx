@@ -132,12 +132,87 @@ describe("App", () => {
 
     expect(within(table).getByText("CASE-EF-2026-04-2241")).toBeInTheDocument();
   });
+
+  it("refreshes through the default auth client when an app API request returns 401", async () => {
+    window.history.replaceState(null, "", "/app/approval-queue");
+    const originalAccessToken = createSyntheticJwt(300_000);
+    const refreshedAccessToken = createSyntheticJwt(300_000, "refreshed");
+    window.sessionStorage.setItem(
+      authSessionStorageKey,
+      JSON.stringify({
+        accessToken: originalAccessToken,
+        refreshToken: "synthetic-refresh-token",
+        tenantId,
+        userId,
+        roles: ["Finance Admin"]
+      })
+    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        createFetchResponse(
+          {
+            type: "/problems/unauthorized",
+            title: "Unauthorized",
+            status: 401,
+            detail: "Expired access token."
+          },
+          401
+        )
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          status: "authenticated",
+          tenantId,
+          userId,
+          roles: ["Finance Admin"],
+          accessToken: refreshedAccessToken,
+          refreshToken: "synthetic-refreshed-token"
+        })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          cases: [
+            {
+              id: "00000000-0000-4000-8000-000000000701",
+              currentStage: "Submitted",
+              priority: "High",
+              dueDate: "2026-07-28",
+              onHold: false,
+              updatedAt: "2026-07-24T12:00:00.000Z"
+            }
+          ]
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Case / Approval Queue" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/v1/auth/refresh",
+      expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          userId,
+          refreshToken: "synthetic-refresh-token"
+        }),
+        method: "POST"
+      })
+    );
+    expect(readHeaders(fetchMock, 0).get("Authorization")).toBe(`Bearer ${originalAccessToken}`);
+    expect(readHeaders(fetchMock, 2).get("Authorization")).toBe(`Bearer ${refreshedAccessToken}`);
+  });
 });
 
-function createFetchResponse(body: object): Response {
+function createFetchResponse(body: object, status = 200): Response {
   return {
-    ok: true,
-    status: 200,
+    ok: status >= 200 && status < 300,
+    status,
     json: async () => body
   } as Response;
 }
@@ -155,10 +230,11 @@ function readHeaders(
   return new Headers(init.headers);
 }
 
-function createSyntheticJwt(expiresInMs: number): string {
+function createSyntheticJwt(expiresInMs: number, label = "initial"): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
   const payload = base64UrlEncode({
     exp: Math.floor((Date.now() + expiresInMs) / 1000),
+    label,
     roles: ["Finance Admin"],
     sub: userId,
     tenantId

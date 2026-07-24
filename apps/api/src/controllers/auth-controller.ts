@@ -23,6 +23,12 @@ const completeMfaLoginRequestSchema = z.object({
   code: z.string().regex(/^\d{6}$/u)
 });
 
+const refreshSessionRequestSchema = z.object({
+  tenantId: z.uuid(),
+  userId: z.uuid(),
+  refreshToken: z.string().min(1)
+});
+
 interface JsonResponse {
   status(code: number): {
     json(body: unknown): void;
@@ -56,6 +62,20 @@ export class AuthController {
   ): Promise<void> => {
     const parsedRequest = completeMfaLoginRequestSchema.parse(request.body);
     const result = await this.authService.completeMfaLogin(parsedRequest);
+
+    if (result.status === "unauthorized") {
+      throw new UnauthorizedError(result.message);
+    }
+
+    response.status(200).json(result);
+  };
+
+  public refreshSession = async (
+    request: { body: unknown },
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedRequest = refreshSessionRequestSchema.parse(request.body);
+    const result = await this.authService.refreshSession(parsedRequest);
 
     if (result.status === "unauthorized") {
       throw new UnauthorizedError(result.message);

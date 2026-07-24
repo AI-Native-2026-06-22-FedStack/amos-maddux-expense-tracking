@@ -137,6 +137,7 @@ export function AuthSessionProvider({
   const authRequestIdRef = useRef(0);
   const refreshInFlightRef = useRef<Promise<AuthSession> | null>(null);
   const sessionGenerationRef = useRef(0);
+  const refreshSessionHandler = refreshSession ?? authClient.refreshSession;
 
   const abortActiveAuthRequest = useCallback(() => {
     activeAuthRequestRef.current?.controller.abort();
@@ -165,18 +166,12 @@ export function AuthSessionProvider({
 
   const beginSharedRefresh = useCallback(
     (session: AuthSession, signal: AbortSignal) => {
-      if (refreshSession === undefined) {
-        const error = new Error("Your session expired. Please sign in again.");
-        dispatch({ type: "logged_out", message: error.message });
-        return Promise.reject(error);
-      }
-
       if (refreshInFlightRef.current !== null) {
         return refreshInFlightRef.current;
       }
 
       const refreshGeneration = sessionGenerationRef.current;
-      const refreshPromise = refreshSession(session, signal)
+      const refreshPromise = refreshSessionHandler(session, signal)
         .then((nextSession) => {
           if (!signal.aborted && refreshGeneration === sessionGenerationRef.current) {
             dispatch({ type: "authenticated", session: nextSession });
@@ -201,7 +196,7 @@ export function AuthSessionProvider({
 
       return refreshPromise;
     },
-    [refreshSession]
+    [refreshSessionHandler]
   );
 
   useEffect(() => {

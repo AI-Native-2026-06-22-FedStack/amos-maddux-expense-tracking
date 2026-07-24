@@ -108,9 +108,15 @@ export async function invalidateCaseQueue(
 
 function optimisticAdvance(queue: CaseQueueResponse, id: string): CaseQueueResponse {
   return {
-    cases: queue.cases.map((item) =>
-      item.id === id ? { ...item, currentStage: nextStage(item.currentStage) } : item
-    )
+    cases: queue.cases.flatMap((item) => {
+      if (item.id !== id) {
+        return [item];
+      }
+
+      const advancedStage = nextStage(item.currentStage);
+
+      return isCaseQueueStage(advancedStage) ? [{ ...item, currentStage: advancedStage }] : [];
+    })
   };
 }
 
@@ -173,6 +179,10 @@ function isExpenseReportStage(value: unknown): value is ExpenseReportStage {
     value === "Paid" ||
     value === "Reconciled"
   );
+}
+
+function isCaseQueueStage(stage: ExpenseReportStage): boolean {
+  return stage === "Submitted" || stage === "Manager Approval" || stage === "AP Review";
 }
 
 function isPriority(value: unknown): value is Priority {

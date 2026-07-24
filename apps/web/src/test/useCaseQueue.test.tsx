@@ -108,6 +108,39 @@ describe("useCaseQueue", () => {
       );
     });
   });
+
+  it("optimistically removes a case when advance moves it out of the queue", async () => {
+    let resolveAdvance: ((response: Response) => void) | undefined;
+    const apReviewCase = { ...firstCase, currentStage: "AP Review" } as const;
+    const queryClient = createTestQueryClient();
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(createFetchResponse({ cases: [apReviewCase] }))
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveAdvance = resolve;
+          })
+      )
+      .mockResolvedValue(createFetchResponse({ cases: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { wrapper } = createQueryAuthWrapper(queryClient);
+    const { result } = renderHook(() => useCaseQueue(), { wrapper });
+
+    await waitFor(() => expect(result.current.query.isSuccess).toBe(true));
+
+    let advancePromise: Promise<unknown> | undefined;
+    act(() => {
+      advancePromise = result.current.advanceCase.mutateAsync({ id: firstCase.id });
+    });
+
+    await waitFor(() => expect(readCachedQueue(queryClient).cases).toEqual([]));
+
+    await act(async () => {
+      resolveAdvance?.(createFetchResponse({ ...apReviewCase, currentStage: "Paid" }));
+      await advancePromise;
+    });
+  });
 });
 
 function readCachedQueue(queryClient: ReturnType<typeof createTestQueryClient>): CaseQueueResponse {

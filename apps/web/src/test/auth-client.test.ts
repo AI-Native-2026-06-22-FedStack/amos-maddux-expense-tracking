@@ -28,6 +28,16 @@ describe("auth client", () => {
           accessToken: createSyntheticJwt(300_000),
           refreshToken: "synthetic-refresh-token"
         })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          status: "authenticated",
+          tenantId,
+          userId,
+          roles: ["Employee"],
+          accessToken: createSyntheticJwt(300_000),
+          refreshToken: "synthetic-refreshed-token"
+        })
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -45,6 +55,18 @@ describe("auth client", () => {
         tenantId,
         userId,
         code: "123456"
+      },
+      new AbortController().signal
+    );
+    await authClient.refreshSession(
+      {
+        accessToken: createSyntheticJwt(300_000),
+        refreshToken: "synthetic-refresh-token",
+        tenantId,
+        userId,
+        roles: ["Employee"],
+        role: "Employee",
+        isAuthenticated: true
       },
       new AbortController().signal
     );
@@ -77,6 +99,20 @@ describe("auth client", () => {
     );
     expect(readHeaders(fetchMock, 1).get("Content-Type")).toBe("application/json");
     expect(readHeaders(fetchMock, 1).get("X-Correlation-Id")).toEqual(expect.any(String));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/v1/auth/refresh",
+      expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          userId,
+          refreshToken: "synthetic-refresh-token"
+        }),
+        method: "POST"
+      })
+    );
+    expect(readHeaders(fetchMock, 2).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 2).get("X-Correlation-Id")).toEqual(expect.any(String));
   });
 
   it("maps platform roles without downgrading them to Employee", () => {

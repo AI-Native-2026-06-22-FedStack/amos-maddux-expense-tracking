@@ -42,6 +42,7 @@ export type LoginResult =
 export interface AuthClient {
   login(credentials: LoginCredentials, signal: AbortSignal): Promise<LoginResult>;
   completeMfa(input: CompleteMfaInput, signal: AbortSignal): Promise<AuthSession>;
+  refreshSession(session: AuthSession, signal: AbortSignal): Promise<AuthSession>;
 }
 
 export function createHttpAuthClient(baseUrl = "/v1"): AuthClient {
@@ -84,6 +85,23 @@ export function createHttpAuthClient(baseUrl = "/v1"): AuthClient {
 
       if (!isAuthenticatedResponse(body)) {
         throw new Error("Unexpected MFA response.");
+      }
+
+      return toAuthSession(body);
+    },
+    async refreshSession(session, signal) {
+      const body = await apiClient.requestJson<unknown>("/auth/refresh", {
+        body: {
+          tenantId: session.tenantId,
+          userId: session.userId,
+          refreshToken: session.refreshToken
+        },
+        method: "POST",
+        signal
+      });
+
+      if (!isAuthenticatedResponse(body)) {
+        throw new Error("Unexpected refresh response.");
       }
 
       return toAuthSession(body);
