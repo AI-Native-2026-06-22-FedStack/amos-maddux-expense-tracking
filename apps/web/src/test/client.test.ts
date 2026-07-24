@@ -70,6 +70,7 @@ describe("api client", () => {
     let accessToken = "synthetic-expired-token";
     const refreshSession = vi.fn(async () => {
       accessToken = "synthetic-refreshed-token";
+      return accessToken;
     });
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -90,10 +91,13 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(readHeaders(fetchMock, 0).get("Authorization")).toBe("Bearer synthetic-expired-token");
     expect(readHeaders(fetchMock, 1).get("Authorization")).toBe("Bearer synthetic-refreshed-token");
+    expect(readHeaders(fetchMock, 1).get("X-Correlation-Id")).toBe(
+      readHeaders(fetchMock, 0).get("X-Correlation-Id")
+    );
   });
 
   it("does not loop when the retried request is still 401", async () => {
-    const refreshSession = vi.fn(async () => undefined);
+    const refreshSession = vi.fn(async () => "synthetic-refreshed-token");
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(createJsonResponse({ detail: "Expired." }, 401))
@@ -112,10 +116,10 @@ describe("api client", () => {
   });
 
   it("shares one in-flight refresh across concurrent 401 responses", async () => {
-    let resolveRefresh: (() => void) | undefined;
+    let resolveRefresh: ((accessToken: string) => void) | undefined;
     const refreshSession = vi.fn(
       () =>
-        new Promise<void>((resolve) => {
+        new Promise<string>((resolve) => {
           resolveRefresh = resolve;
         })
     );
@@ -134,7 +138,7 @@ describe("api client", () => {
     const secondRequest = client.requestJson<{ id: string }>("/expense-reports/second");
     await vi.waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
 
-    resolveRefresh?.();
+    resolveRefresh?.("synthetic-refreshed-token");
 
     await expect(firstRequest).resolves.toEqual({ id: "first" });
     await expect(secondRequest).resolves.toEqual({ id: "second" });

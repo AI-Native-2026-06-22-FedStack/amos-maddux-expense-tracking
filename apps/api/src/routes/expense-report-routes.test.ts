@@ -237,7 +237,7 @@ describe("Expense Report route rate-limit wiring", () => {
       method: "GET",
       url: "/v1/expense-reports/case-queue",
       headers: {
-        authorization: createAuthorizationHeader({ tenantId })
+        authorization: createAuthorizationHeader({ tenantId, roles: ["Finance Admin"] })
       }
     });
 
@@ -271,13 +271,36 @@ describe("Expense Report route rate-limit wiring", () => {
       method: "GET",
       url: "/v1/expense-reports/case-queue",
       headers: {
-        authorization: createAuthorizationHeader({ tenantId: tenantB })
+        authorization: createAuthorizationHeader({
+          tenantId: tenantB,
+          roles: ["Department Manager"]
+        })
       }
     });
 
     expect(response.statusCode).toBe(200);
     expect(service.listCaseQueue).toHaveBeenCalledWith(tenantB);
     expect(service.listCaseQueue).not.toHaveBeenCalledWith(tenantId);
+  });
+
+  it("rejects Employee access to the internal Case Queue route", async () => {
+    const service = makeExpenseReportService({
+      listCaseQueue: vi.fn(async () => [])
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/v1/expense-reports/case-queue",
+      headers: {
+        authorization: createAuthorizationHeader({ roles: ["Employee"] })
+      }
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(service.listCaseQueue).not.toHaveBeenCalled();
   });
 
   it.each([

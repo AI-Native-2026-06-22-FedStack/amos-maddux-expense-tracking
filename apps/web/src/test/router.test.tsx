@@ -1,7 +1,12 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AuthSessionProvider, authSessionStorageKey, type AuthSessionStorage } from "../auth";
+import {
+  AuthSessionProvider,
+  authSessionStorageKey,
+  type AuthSessionStorage,
+  type RefreshSession
+} from "../auth";
 import { caseQueueQueryKey } from "../api/useCaseQueue";
 import {
   createExpenseFlowMemoryRouter,
@@ -105,17 +110,47 @@ describe("ExpenseFlow router", () => {
     expect(screen.getByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
     expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull();
   });
+
+  it("clears the query cache when refresh failure logs the user out", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(caseQueueQueryKey(tenantId, "Finance Admin"), {
+      cases: [
+        {
+          id: "00000000-0000-4000-8000-000000000701",
+          currentStage: "Manager Approval",
+          priority: "High",
+          dueDate: null,
+          onHold: false,
+          updatedAt: "2026-07-24T12:00:00.000Z"
+        }
+      ]
+    });
+
+    renderRouter({
+      initialEntries: [routePaths.expenseReports],
+      queryClient,
+      refreshSession: async () => {
+        throw new Error("Synthetic refresh failure.");
+      },
+      session: createSession({ expiresInMs: 60_000 })
+    });
+
+    await waitFor(() => expect(queryClient.getQueryCache().getAll()).toHaveLength(0));
+    expect(await screen.findByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
+  });
 });
 
 interface RenderRouterOptions {
   initialEntries: readonly string[];
   queryClient?: ReturnType<typeof createTestQueryClient>;
+  refreshSession?: RefreshSession;
   session?: ReturnType<typeof createSession> | null;
 }
 
 function renderRouter({
   initialEntries,
   queryClient = createTestQueryClient(),
+  refreshSession,
   session = createSession()
 }: RenderRouterOptions) {
   const storage = createMemoryStorage(session);
@@ -123,7 +158,11 @@ function renderRouter({
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <AuthSessionProvider storage={storage}>
+      <AuthSessionProvider
+        onSessionCleared={() => queryClient.clear()}
+        refreshSession={refreshSession}
+        storage={storage}
+      >
         <ExpenseFlowRouterProvider router={router} />
       </AuthSessionProvider>
     </QueryClientProvider>

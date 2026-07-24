@@ -26,7 +26,8 @@ export function createTestQueryClient(): QueryClient {
 
 export function createQueryAuthWrapper(
   queryClient = createTestQueryClient(),
-  session: AuthSession | null = createSession()
+  session: AuthSession | null = createSession(),
+  onSessionCleared?: () => void
 ) {
   const storage = createMemoryStorage(session);
 
@@ -34,7 +35,7 @@ export function createQueryAuthWrapper(
     queryClient,
     wrapper({ children }: { children: ReactNode }) {
       return (
-        <AuthSessionProvider storage={storage}>
+        <AuthSessionProvider onSessionCleared={onSessionCleared} storage={storage}>
           <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
         </AuthSessionProvider>
       );
@@ -42,11 +43,22 @@ export function createQueryAuthWrapper(
   };
 }
 
-export function createSession(role: UserRole = "Finance Admin"): AuthSession {
+interface CreateSessionOptions {
+  expiresInMs?: number;
+  role?: UserRole;
+}
+
+export function createSession(
+  roleOrOptions: UserRole | CreateSessionOptions = "Finance Admin"
+): AuthSession {
+  const role =
+    typeof roleOrOptions === "string" ? roleOrOptions : (roleOrOptions.role ?? "Finance Admin");
+  const expiresInMs =
+    typeof roleOrOptions === "string" ? 300_000 : (roleOrOptions.expiresInMs ?? 300_000);
   const roles = [role];
 
   return {
-    accessToken: createSyntheticJwt(300_000, roles),
+    accessToken: createSyntheticJwt(expiresInMs, roles),
     refreshToken: "synthetic-refresh-token",
     tenantId,
     userId,

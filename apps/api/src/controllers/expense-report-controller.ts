@@ -1,7 +1,7 @@
 import { NextFunction } from "express";
 
 import { RequestWithAuthContext, requireAuthenticatedContext } from "../auth/verifier.js";
-import { NotFoundError, UnauthorizedError } from "../errors/problem-json.js";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../errors/problem-json.js";
 import {
   caseQueueResponseSchema,
   createExpenseReportRequestSchema,
@@ -69,6 +69,10 @@ export class ExpenseReportController {
     response: JsonResponse
   ): Promise<void> => {
     const authContext = requireAuthenticatedContext(request);
+    if (!canReadCaseQueue(authContext.roles)) {
+      throw new ForbiddenError("Employee cannot read the Case Queue.");
+    }
+
     const cases = await this.expenseReportService.listCaseQueue(authContext.tenantId);
     const parsedResponse = caseQueueResponseSchema.parse({ cases });
 
@@ -146,4 +150,13 @@ function readBearerToken(authorizationHeader: string | string[] | undefined): st
   }
 
   return match.groups.token;
+}
+
+function canReadCaseQueue(roles: readonly string[]): boolean {
+  return (
+    roles.includes("Department Manager") ||
+    roles.includes("Finance Admin") ||
+    roles.includes("Platform Admin") ||
+    roles.includes("ExpenseFlow Platform Admin")
+  );
 }

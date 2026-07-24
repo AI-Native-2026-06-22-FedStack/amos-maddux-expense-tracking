@@ -95,7 +95,7 @@ export function CaseQueue() {
             key: "actions",
             render: (row) => (
               <Button
-                disabled={advanceCase.isPending}
+                disabled={advanceCase.isPending || !canAdvance(row)}
                 onClick={() => advanceCase.mutate({ id: row.id })}
                 type="button"
                 variant="secondary"
@@ -122,7 +122,24 @@ function readErrorMessage(error: Error): string {
 }
 
 function formatDate(value: string): string {
+  const dateOnlyMatch = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(value);
+  if (dateOnlyMatch?.groups !== undefined) {
+    const { day, month, year } = dateOnlyMatch.groups;
+
+    return new Intl.DateTimeFormat("en-US", {
+      dateStyle: "medium"
+    }).format(new Date(Number(year), Number(month) - 1, Number(day)));
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium"
   }).format(new Date(value));
+}
+
+function canAdvance(row: CaseQueueItem): boolean {
+  return (
+    row.currentStage === "Submitted" ||
+    row.currentStage === "Manager Approval" ||
+    row.currentStage === "AP Review"
+  );
 }

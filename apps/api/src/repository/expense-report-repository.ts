@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { getDb } from "../db/client.js";
@@ -18,6 +18,7 @@ import type {
   LineItemSelect,
   MileageEntrySelect
 } from "../db/schema.js";
+import type { CaseQueueItem } from "../schemas/expense-report.schema.js";
 import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
 
@@ -36,6 +37,7 @@ export interface ExpenseReportRepository {
   createDraftReport(report: ExpenseReportInsert): Promise<ExpenseReportSelect>;
   findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null>;
   findForSubmit(id: string, tenantId: string): Promise<ExpenseReportForSubmit | null>;
+  listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
   listAuditEntries(expenseReportId: string, tenantId: string): Promise<AuditEntrySelect[]>;
   listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]>;
   submitForApReview(request: SubmitForApReviewRequest): Promise<ExpenseReportSelect>;
@@ -164,6 +166,37 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         and(eq(auditEntry.expenseReportId, expenseReportId), eq(auditEntry.tenantId, tenantId))
       )
       .orderBy(asc(auditEntry.occurredAt), asc(auditEntry.id));
+  }
+
+  public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
+    return this.db
+      .select({
+        id: expenseReport.id,
+        currentStage: expenseReport.currentStage,
+        priority: expenseReport.priority,
+        dueDate: expenseReport.dueDate,
+        onHold: expenseReport.onHold,
+        updatedAt: expenseReport.updatedAt
+      })
+      .from(expenseReport)
+      .where(
+        and(
+          eq(expenseReport.tenantId, tenantId),
+          inArray(expenseReport.currentStage, ["Submitted", "Manager Approval", "AP Review"])
+        )
+      )
+      .orderBy(
+        asc(expenseReport.dueDate),
+        sql`case ${expenseReport.priority}
+          when 'Urgent' then 1
+          when 'High' then 2
+          when 'Normal' then 3
+          when 'Low' then 4
+          else 5
+        end`,
+        asc(expenseReport.updatedAt),
+        asc(expenseReport.id)
+      );
   }
 
   public async listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]> {

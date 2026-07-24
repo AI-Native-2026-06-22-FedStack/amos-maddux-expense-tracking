@@ -42,21 +42,26 @@ export const routePaths = {
 } as const;
 
 export function createExpenseFlowRouter(queryClient: QueryClient): ExpenseFlowRouter {
-  return createBrowserRouter(routeDefinitions(queryClient));
+  return createBrowserRouter(routeDefinitions(queryClient, { includeTestRoutes: false }));
 }
 
 export function createExpenseFlowMemoryRouter(
   queryClient: QueryClient,
   initialEntries: readonly string[]
 ): ExpenseFlowRouter {
-  return createMemoryRouter(routeDefinitions(queryClient), { initialEntries: [...initialEntries] });
+  return createMemoryRouter(routeDefinitions(queryClient, { includeTestRoutes: true }), {
+    initialEntries: [...initialEntries]
+  });
 }
 
 export function ExpenseFlowRouterProvider({ router }: { router: ExpenseFlowRouter }) {
   return <RouterProvider router={router} />;
 }
 
-function routeDefinitions(queryClient: QueryClient) {
+function routeDefinitions(
+  queryClient: QueryClient,
+  { includeTestRoutes }: { includeTestRoutes: boolean }
+) {
   return [
     {
       path: routePaths.login,
@@ -168,15 +173,19 @@ function routeDefinitions(queryClient: QueryClient) {
               ),
               errorElement: <ShellRouteError />
             },
-            {
-              path: "route-error-test",
-              element: (
-                <RoleGate allowedRoles={internalRoles}>
-                  <ThrowingRoute />
-                </RoleGate>
-              ),
-              errorElement: <ShellRouteError />
-            },
+            ...(includeTestRoutes
+              ? [
+                  {
+                    path: "route-error-test",
+                    element: (
+                      <RoleGate allowedRoles={internalRoles}>
+                        <ThrowingRoute />
+                      </RoleGate>
+                    ),
+                    errorElement: <ShellRouteError />
+                  }
+                ]
+              : []),
             {
               path: "*",
               element: <RoleDefaultRedirect />

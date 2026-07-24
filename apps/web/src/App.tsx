@@ -10,7 +10,7 @@ export function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthSessionProvider>
+      <AuthSessionProvider onSessionCleared={() => queryClient.clear()}>
         <ExpenseFlowRouterProvider router={router} />
       </AuthSessionProvider>
     </QueryClientProvider>

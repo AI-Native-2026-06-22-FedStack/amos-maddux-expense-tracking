@@ -177,6 +177,66 @@ describe("ExpenseReportRepository integration", () => {
     expect(logger.queryCount).toBe(1);
   });
 
+  it("lists only actionable Case Queue reports for one tenant in deterministic order", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const urgentReview = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000414"
+    });
+    const highReview = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000415"
+    });
+    const drafted = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000416"
+    });
+    const paid = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000417"
+    });
+    const otherTenantReview = await repository.createDraftReport({
+      tenantId: tenantB,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000418"
+    });
+
+    await db
+      .update(expenseReport)
+      .set({
+        currentStage: "Manager Approval",
+        dueDate: "2026-07-25",
+        priority: "High"
+      })
+      .where(eq(expenseReport.id, highReview.id));
+    await db
+      .update(expenseReport)
+      .set({
+        currentStage: "Submitted",
+        dueDate: "2026-07-25",
+        priority: "Urgent"
+      })
+      .where(eq(expenseReport.id, urgentReview.id));
+    await db
+      .update(expenseReport)
+      .set({
+        currentStage: "AP Review",
+        dueDate: "2026-07-24",
+        priority: "Low"
+      })
+      .where(eq(expenseReport.id, otherTenantReview.id));
+    await db
+      .update(expenseReport)
+      .set({ currentStage: "Paid", dueDate: "2026-07-23", priority: "Urgent" })
+      .where(eq(expenseReport.id, paid.id));
+
+    const queue = await repository.listCaseQueue(tenantA);
+
+    expect(queue.map((report) => report.id)).toEqual([urgentReview.id, highReview.id]);
+    expect(queue.every((report) => report.id !== drafted.id && report.id !== paid.id)).toBe(true);
+    expect(queue.some((report) => report.id === otherTenantReview.id)).toBe(false);
+  });
+
   it("finds submit data only for the requested tenant", async () => {
     const db = drizzle(client, { schema });
     const repository = createExpenseReportRepository(db);

@@ -11,7 +11,9 @@ export function useApiClient(): ApiClient {
         getAccessToken: authSession.getCurrentAccessToken,
         onRefreshFailed: authSession.logout,
         refreshSession: async () => {
-          await authSession.refreshCurrentSession();
+          const refreshedSession = await authSession.refreshCurrentSession();
+
+          return refreshedSession.accessToken;
         }
       }),
     [authSession.getCurrentAccessToken, authSession.logout, authSession.refreshCurrentSession]

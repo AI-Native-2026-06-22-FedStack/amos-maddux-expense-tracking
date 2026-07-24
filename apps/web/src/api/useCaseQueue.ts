@@ -116,18 +116,16 @@ function optimisticAdvance(queue: CaseQueueResponse, id: string): CaseQueueRespo
 
 function nextStage(stage: ExpenseReportStage): ExpenseReportStage {
   switch (stage) {
-    case "Drafted":
-      return "Submitted";
     case "Submitted":
       return "Manager Approval";
     case "Manager Approval":
       return "AP Review";
     case "AP Review":
       return "Paid";
+    case "Drafted":
     case "Paid":
-      return "Reconciled";
     case "Reconciled":
-      return "Reconciled";
+      return stage;
     default:
       return stage;
   }

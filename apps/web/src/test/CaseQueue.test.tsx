@@ -97,4 +97,32 @@ describe("CaseQueue", () => {
 
     expect(await screen.findByText("AP Review")).toBeInTheDocument();
   });
+
+  it("renders date-only due dates without shifting calendar days", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(createFetchResponse({ cases: [queueCase] }))
+    );
+    const { wrapper } = createQueryAuthWrapper();
+
+    render(<CaseQueue />, { wrapper });
+
+    expect(await screen.findByText("Jul 28, 2026")).toBeInTheDocument();
+  });
+
+  it("disables advance for non-actionable stages", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        createFetchResponse({
+          cases: [{ ...queueCase, currentStage: "Paid" }]
+        })
+      )
+    );
+    const { wrapper } = createQueryAuthWrapper();
+
+    render(<CaseQueue />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: "Advance" })).toBeDisabled();
+  });
 });

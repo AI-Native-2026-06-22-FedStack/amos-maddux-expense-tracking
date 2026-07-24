@@ -97,6 +97,7 @@ export type RefreshSession = (session: AuthSession, signal: AbortSignal) => Prom
 export interface AuthSessionProviderProps {
   authClient?: AuthClient;
   children: ReactNode;
+  onSessionCleared?: () => void;
   refreshSession?: RefreshSession;
   storage?: AuthSessionStorage;
 }
@@ -125,6 +126,7 @@ function createInitialState(storage: AuthSessionStorage): AuthState {
 export function AuthSessionProvider({
   authClient = defaultAuthClient,
   children,
+  onSessionCleared,
   refreshSession,
   storage
 }: AuthSessionProviderProps) {
@@ -209,7 +211,8 @@ export function AuthSessionProvider({
     }
 
     sessionStorageAdapter.clear();
-  }, [state.session, sessionStorageAdapter]);
+    onSessionCleared?.();
+  }, [onSessionCleared, state.session, sessionStorageAdapter]);
 
   useEffect(() => abortActiveAuthRequest, [abortActiveAuthRequest]);
 

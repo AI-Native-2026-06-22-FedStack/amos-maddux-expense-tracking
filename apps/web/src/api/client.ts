@@ -20,18 +20,20 @@ export interface ApiClientOptions {
   fetchImpl?: typeof fetch;
   getAccessToken?: () => string | null;
   onRefreshFailed?: () => void;
-  refreshSession?: () => Promise<void>;
+  refreshSession?: () => Promise<string | null>;
 }
 
 interface RequestAttemptOptions extends ApiRequestOptions {
+  correlationId: string;
+  refreshedAccessToken?: string | null;
   retriedAfterRefresh: boolean;
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   const baseUrl = options.baseUrl ?? defaultBaseUrl;
-  let refreshInFlight: Promise<void> | undefined;
+  let refreshInFlight: Promise<string | null> | undefined;
 
-  const refreshOnce = async (): Promise<void> => {
+  const refreshOnce = async (): Promise<string | null> => {
     if (options.refreshSession === undefined) {
       throw new Error("No refresh session handler is configured.");
     }
@@ -51,6 +53,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   ): Promise<TResponse> =>
     requestJsonAttempt<TResponse>(path, {
       ...requestOptions,
+      correlationId: options.createCorrelationId?.() ?? createDefaultCorrelationId(),
       retriedAfterRefresh: false
     });
 
@@ -58,11 +61,11 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     path: string,
     requestOptions: RequestAttemptOptions
   ): Promise<TResponse> => {
-    const correlationId = options.createCorrelationId?.() ?? createDefaultCorrelationId();
     const fetchImpl = options.fetchImpl ?? fetch;
+    const accessToken = requestOptions.refreshedAccessToken ?? options.getAccessToken?.();
     const response = await fetchImpl(resolveUrl(path, baseUrl), {
       body: requestOptions.body === undefined ? undefined : JSON.stringify(requestOptions.body),
-      headers: createHeaders(requestOptions.headers, options.getAccessToken?.(), correlationId),
+      headers: createHeaders(requestOptions.headers, accessToken, requestOptions.correlationId),
       method: requestOptions.method ?? (requestOptions.body === undefined ? "GET" : "POST"),
       signal: requestOptions.signal
     });
@@ -72,20 +75,23 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     }
 
     if (response.status === 401 && !requestOptions.retriedAfterRefresh) {
+      let refreshedAccessToken: string | null;
+
       try {
-        await refreshOnce();
+        refreshedAccessToken = await refreshOnce();
       } catch {
         options.onRefreshFailed?.();
-        throw await mapProblemResponse(response, correlationId);
+        throw await mapProblemResponse(response, requestOptions.correlationId);
       }
 
       return requestJsonAttempt<TResponse>(path, {
         ...requestOptions,
+        refreshedAccessToken,
         retriedAfterRefresh: true
       });
     }
 
-    throw await mapProblemResponse(response, correlationId);
+    throw await mapProblemResponse(response, requestOptions.correlationId);
   };
 
   return {

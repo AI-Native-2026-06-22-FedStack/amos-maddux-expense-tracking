@@ -74,16 +74,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
   }
 
   public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
-    const reports = await this.expenseReportRepository.listWithLineItems(tenantId);
-
-    return reports.map((report) => ({
-      id: report.id,
-      currentStage: report.currentStage,
-      priority: report.priority,
-      dueDate: report.dueDate,
-      onHold: report.onHold,
-      updatedAt: report.updatedAt
-    }));
+    return this.expenseReportRepository.listCaseQueue(tenantId);
   }
 
   public async submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse> {
@@ -340,7 +331,12 @@ function isCodedLineItem(value: unknown): value is CodedLineItemFromEngine {
 }
 
 function canReview(roles: string[]): boolean {
-  return roles.includes("Department Manager") || roles.includes("Finance Admin");
+  return (
+    roles.includes("Department Manager") ||
+    roles.includes("Finance Admin") ||
+    roles.includes("Platform Admin") ||
+    roles.includes("ExpenseFlow Platform Admin")
+  );
 }
 
 function hasUnclearedFlag(report: ExpenseReportForSubmit): boolean {
