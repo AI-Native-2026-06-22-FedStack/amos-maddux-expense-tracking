@@ -31,9 +31,17 @@ describe("served OpenAPI contract", () => {
     const validateRequest = createOpenApiValidator(document, requestSchema);
     const validateResponse = createOpenApiValidator(document, responseSchema);
     const requestBody = {
-      currentStage: "Drafted",
-      priority: "Normal",
-      onHold: false
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ],
+      priority: "Normal"
     };
 
     expect(openApiResponse.statusCode).toBe(200);
@@ -43,6 +51,12 @@ describe("served OpenAPI contract", () => {
       }
     ]);
     expect(validateRequest(requestBody)).toBe(true);
+    expect(
+      validateRequest({
+        ...requestBody,
+        currentStage: "Submitted"
+      })
+    ).toBe(false);
 
     const createResponse = await inject(app, {
       method: "POST",

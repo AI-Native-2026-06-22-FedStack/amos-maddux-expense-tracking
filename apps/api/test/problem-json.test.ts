@@ -30,7 +30,7 @@ describe("problemJsonErrorHandler", () => {
       type: "/problems/request-validation",
       title: "Bad Request",
       status: 400,
-      detail: expect.stringContaining("currentStage"),
+      detail: expect.stringContaining("draftType"),
       instance: "/v1/expense-reports"
     });
   });

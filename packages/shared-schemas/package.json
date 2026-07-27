@@ -4,6 +4,17 @@
   "private": true,
   "type": "module",
   "exports": {
+    ".": {
+      "types": "./expense-report-write.schema.d.ts",
+      "default": "./expense-report-write.schema.js"
+    },
+    "./expense-report-write.schema.js": {
+      "types": "./expense-report-write.schema.d.ts",
+      "default": "./expense-report-write.schema.js"
+    },
     "./gl-coding.schema.json": "./gl-coding.schema.json"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

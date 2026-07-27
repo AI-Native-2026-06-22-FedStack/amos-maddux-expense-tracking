@@ -1,0 +1,104 @@
+.formScreen {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 920px;
+}
+
+.summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.summaryText {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.form {
+  display: grid;
+  gap: 20px;
+}
+
+.fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 20px;
+}
+
+.legend {
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 8px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.input,
+.select {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font: inherit;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--primary-light);
+  outline: 2px solid rgba(99, 102, 241, 0.3);
+  outline-offset: 1px;
+}
+
+.error {
+  color: var(--danger);
+  font-size: 12px;
+  min-height: 16px;
+}
+
+.actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.status {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.failure {
+  color: var(--danger);
+}

@@ -16,7 +16,9 @@ import { Sidebar, type SidebarPage } from "../components/Sidebar";
 import type { UserRole } from "../domain";
 import { CaseQueue } from "../screens/CaseQueue";
 import { ExpenseReportsScreen } from "../screens/ExpenseReportsScreen";
+import { LogMileageScreen } from "../screens/LogMileageScreen";
 import { SignInScreen } from "../screens/SignInScreen";
+import { SubmitExpenseScreen } from "../screens/SubmitExpenseScreen";
 import styles from "../App.module.css";
 import routeStyles from "./router.module.css";
 
@@ -129,10 +131,7 @@ function routeDefinitions(
               path: "submit-expense",
               element: (
                 <RoleGate allowedRoles={employeeRoles}>
-                  <PlaceholderScreen
-                    label="Submit Expense"
-                    message="Employee Expense Report submission starts here."
-                  />
+                  <SubmitExpenseScreen />
                 </RoleGate>
               ),
               errorElement: <ShellRouteError />
@@ -141,10 +140,7 @@ function routeDefinitions(
               path: "log-mileage",
               element: (
                 <RoleGate allowedRoles={employeeRoles}>
-                  <PlaceholderScreen
-                    label="Log Mileage"
-                    message="Employee mileage entries will be captured here."
-                  />
+                  <LogMileageScreen />
                 </RoleGate>
               ),
               errorElement: <ShellRouteError />

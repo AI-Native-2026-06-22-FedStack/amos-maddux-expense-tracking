@@ -8,6 +8,7 @@ import {
   expenseReport,
   lineItem,
   mileageEntry,
+  receipt,
   stageTransition
 } from "../db/schema.js";
 import { ConflictError } from "../errors/problem-json.js";
@@ -21,6 +22,11 @@ import type {
 import type { CaseQueueItem } from "../schemas/expense-report.schema.js";
 import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
+import type {
+  CreateExpenseReportRequest,
+  CreateExpenseDraftExpenseReportRequest,
+  CreateMileageDraftExpenseReportRequest
+} from "../schemas/expense-report.schema.js";
 
 type ExpenseReportDatabase = NodePgDatabase<typeof schema>;
 
@@ -34,7 +40,7 @@ export type ExpenseReportForSubmit = ExpenseReportSelect & {
 };
 
 export interface ExpenseReportRepository {
-  createDraftReport(report: ExpenseReportInsert): Promise<ExpenseReportSelect>;
+  createDraftReport(report: CreateDraftReportInsert): Promise<ExpenseReportSelect>;
   findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null>;
   findForSubmit(id: string, tenantId: string): Promise<ExpenseReportForSubmit | null>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
@@ -44,6 +50,12 @@ export interface ExpenseReportRepository {
   transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect>;
   recordDeniedTransition(request: RecordDeniedTransitionRequest): Promise<void>;
 }
+
+export type CreateDraftReportInsert = ExpenseReportInsert & {
+  draftType?: CreateExpenseReportRequest["draftType"];
+  lineItems?: CreateExpenseDraftExpenseReportRequest["lineItems"];
+  mileageEntries?: CreateMileageDraftExpenseReportRequest["mileageEntries"];
+};
 
 export interface SubmitForApReviewRequest {
   expenseReportId: string;
@@ -88,12 +100,58 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
     private readonly now: () => Date
   ) {}
 
-  public async createDraftReport(insert: ExpenseReportInsert): Promise<ExpenseReportSelect> {
+  public async createDraftReport(insert: CreateDraftReportInsert): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
-      const [report] = await tx.insert(expenseReport).values(insert).returning();
+      const { lineItems, mileageEntries, draftType: _draftType, ...reportInsert } = insert;
+      const [report] = await tx.insert(expenseReport).values(reportInsert).returning();
 
       if (report === undefined) {
         throw new Error("Expense Report creation failed.");
+      }
+
+      if (mileageEntries !== undefined) {
+        await tx.insert(mileageEntry).values(
+          mileageEntries.map((entry) => ({
+            tenant_id: report.tenantId,
+            expense_report_id: report.id,
+            trip_date: entry.trip_date,
+            origin: entry.origin,
+            destination: entry.destination,
+            miles: entry.miles.toFixed(2),
+            business_purpose: entry.business_purpose
+          }))
+        );
+      }
+
+      if (lineItems !== undefined) {
+        for (const item of lineItems) {
+          const [createdLineItem] = await tx
+            .insert(lineItem)
+            .values({
+              tenant_id: report.tenantId,
+              expense_report_id: report.id,
+              merchant: item.merchant,
+              amount_cents: item.amount_cents,
+              currency: item.currency,
+              category: item.category
+            })
+            .returning();
+
+          if (createdLineItem === undefined) {
+            throw new Error("Expense line item creation failed.");
+          }
+
+          await tx.insert(receipt).values({
+            tenant_id: report.tenantId,
+            expense_report_id: report.id,
+            expense_line_item_id: createdLineItem.id,
+            receipt_number: item.receipt.receipt_number,
+            merchant: item.receipt.merchant,
+            receipt_date: item.receipt.receipt_date,
+            amount_cents: item.receipt.amount_cents,
+            currency: item.receipt.currency
+          });
+        }
       }
 
       await tx.insert(stageTransition).values({

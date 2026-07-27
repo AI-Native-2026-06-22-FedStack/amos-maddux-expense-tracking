@@ -32,7 +32,6 @@ describe("generateOpenApiDocument", () => {
     const readRouteSchema = expectObject(readJsonContent.schema);
 
     const createSchema = expectObject(schemas.CreateExpenseReportRequest);
-    const createProperties = expectObject(createSchema.properties);
     const responseSchema = expectObject(schemas.ExpenseReportResponse);
     const responseProperties = expectObject(responseSchema.properties);
 
@@ -59,22 +58,29 @@ describe("generateOpenApiDocument", () => {
     expect(readRouteSchema).toEqual({
       $ref: "#/components/schemas/ExpenseReportResponse"
     });
-    expect(Object.keys(createProperties).sort()).toEqual(
-      [
-        "apReviewerId",
-        "assignedOwnerId",
-        "createdAt",
-        "currentStage",
-        "dueDate",
-        "holdReason",
-        "managerApproverId",
-        "onHold",
-        "paymentId",
-        "priority",
-        "updatedAt"
-      ].sort()
+    expect(createSchema.oneOf).toEqual(expect.any(Array));
+    expect(createSchema.oneOf).toHaveLength(2);
+    const [mileageCreateSchema, expenseCreateSchema] = createSchema.oneOf as unknown[];
+    const mileageProperties = expectObject(expectObject(mileageCreateSchema).properties);
+    const expenseProperties = expectObject(expectObject(expenseCreateSchema).properties);
+    expect(mileageProperties.draftType).toEqual({ const: "mileage", type: "string" });
+    expect(Object.keys(mileageProperties).sort()).toEqual(
+      ["draftType", "dueDate", "mileageEntries", "priority"].sort()
     );
-    expect(createSchema.required).toBeUndefined();
+    expect(expectObject(mileageCreateSchema).required).toEqual([
+      "draftType",
+      "mileageEntries",
+      "priority"
+    ]);
+    expect(expenseProperties.draftType).toEqual({ const: "expense", type: "string" });
+    expect(Object.keys(expenseProperties).sort()).toEqual(
+      ["draftType", "dueDate", "lineItems", "priority"].sort()
+    );
+    expect(expectObject(expenseCreateSchema).required).toEqual([
+      "draftType",
+      "lineItems",
+      "priority"
+    ]);
     expect(Object.keys(responseProperties).sort()).toEqual(
       [
         "apReviewerId",

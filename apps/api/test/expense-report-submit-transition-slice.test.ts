@@ -66,7 +66,19 @@ describe("Expense Report submit and transition cross-service slice", () => {
     const createResponse = await request(app)
       .post("/v1/expense-reports")
       .set("Authorization", bearerToken(tenantA, employeeId, ["Employee"]))
-      .send({});
+      .send({
+        draftType: "mileage",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal"
+      });
     expect(createResponse.status).toBe(201);
     const reportId = createResponse.body.id as string;
 

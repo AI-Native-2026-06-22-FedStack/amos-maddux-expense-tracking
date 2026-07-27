@@ -9,7 +9,7 @@ import request from "supertest";
 import { createApp } from "../src/app.js";
 import { issueTokenPair, loadJwtRuntimeConfig } from "../src/auth/tokens.js";
 import * as schema from "../src/db/schema.js";
-import { auditEntry, stageTransition } from "../src/db/schema.js";
+import { auditEntry, lineItem, mileageEntry, receipt, stageTransition } from "../src/db/schema.js";
 import { readCaseQueue } from "../src/repository/case-queue.js";
 import type { CaseQueueQueryExecutor } from "../src/repository/case-queue.js";
 import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
@@ -39,8 +39,18 @@ describe("Expense Report create and read end-to-end", () => {
       .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
       .send({
-        tenantId: tenantB,
-        submitterId: clientSuppliedSubmitterId
+        draftType: "mileage",
+        dueDate: "2026-08-03",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal"
       });
 
     expect(createResponse.status).toBe(201);
@@ -81,6 +91,10 @@ describe("Expense Report create and read end-to-end", () => {
     });
 
     const db = drizzle(client, { schema });
+    const mileageRows = await db
+      .select()
+      .from(mileageEntry)
+      .where(and(eq(mileageEntry.tenant_id, tenantA), eq(mileageEntry.expense_report_id, reportId)));
     const auditRows = await db
       .select()
       .from(auditEntry)
@@ -92,6 +106,16 @@ describe("Expense Report create and read end-to-end", () => {
         and(eq(stageTransition.tenantId, tenantA), eq(stageTransition.expenseReportId, reportId))
       );
 
+    expect(mileageRows).toHaveLength(1);
+    expect(mileageRows[0]).toMatchObject({
+      tenant_id: tenantA,
+      expense_report_id: reportId,
+      trip_date: "2026-08-01",
+      origin: "Synthetic Origin Office",
+      destination: "Synthetic Destination Office",
+      miles: "18.25",
+      business_purpose: "Synthetic client support visit."
+    });
     expect(auditRows).toHaveLength(1);
     expect(auditRows[0]).toMatchObject({
       tenantId: tenantA,
@@ -127,6 +151,143 @@ describe("Expense Report create and read end-to-end", () => {
       toStage: "Drafted",
       actorId: submitterId
     });
+  });
+
+  it("rejects client-owned create fields from the shared write contract", async () => {
+    const response = await request(createApp())
+      .post("/v1/expense-reports")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
+      .send({
+        draftType: "mileage",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal",
+        submitterId: clientSuppliedSubmitterId,
+        tenantId: tenantB
+      });
+
+    expect(response.status).toBe(400);
+    const db = drizzle(client, { schema });
+    await expect(db.select().from(schema.expenseReport)).resolves.toHaveLength(0);
+  });
+
+  it("persists an expense draft with line item and receipt metadata from the shared contract", async () => {
+    const app = createApp();
+    const createResponse = await request(app)
+      .post("/v1/expense-reports")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
+      .send({
+        draftType: "expense",
+        dueDate: "2026-08-05",
+        lineItems: [
+          {
+            amount_cents: 4250,
+            category: "Meals",
+            currency: "USD",
+            merchant: "Synthetic Cafe",
+            receipt: {
+              amount_cents: 4250,
+              currency: "USD",
+              merchant: "Synthetic Cafe",
+              receipt_date: "2026-08-02",
+              receipt_number: "SYN-4250"
+            }
+          }
+        ],
+        priority: "High"
+      });
+
+    expect(createResponse.status).toBe(201);
+    expect(createResponse.body).toMatchObject({
+      tenantId: tenantA,
+      submitterId,
+      currentStage: "Drafted",
+      priority: "High",
+      dueDate: "2026-08-05"
+    });
+
+    const reportId = createResponse.body.id as string;
+    const db = drizzle(client, { schema });
+    const lineItemRows = await db
+      .select()
+      .from(lineItem)
+      .where(and(eq(lineItem.tenant_id, tenantA), eq(lineItem.expense_report_id, reportId)));
+    const receiptRows = await db
+      .select()
+      .from(receipt)
+      .where(and(eq(receipt.tenant_id, tenantA), eq(receipt.expense_report_id, reportId)));
+    const auditRows = await db
+      .select()
+      .from(auditEntry)
+      .where(and(eq(auditEntry.tenantId, tenantA), eq(auditEntry.expenseReportId, reportId)));
+    const transitionRows = await db
+      .select()
+      .from(stageTransition)
+      .where(
+        and(eq(stageTransition.tenantId, tenantA), eq(stageTransition.expenseReportId, reportId))
+      );
+
+    expect(lineItemRows).toHaveLength(1);
+    expect(lineItemRows[0]).toMatchObject({
+      tenant_id: tenantA,
+      expense_report_id: reportId,
+      merchant: "Synthetic Cafe",
+      amount_cents: 4250,
+      currency: "USD",
+      category: "Meals"
+    });
+    expect(receiptRows).toHaveLength(1);
+    expect(receiptRows[0]).toMatchObject({
+      tenant_id: tenantA,
+      expense_report_id: reportId,
+      expense_line_item_id: lineItemRows[0]?.id,
+      receipt_number: "SYN-4250",
+      merchant: "Synthetic Cafe",
+      receipt_date: "2026-08-02",
+      amount_cents: 4250,
+      currency: "USD"
+    });
+    expect(auditRows).toHaveLength(1);
+    expect(transitionRows).toHaveLength(1);
+  });
+
+  it("rejects payloads outside the shared write contract without creating rows", async () => {
+    const app = createApp();
+    const response = await request(app)
+      .post("/v1/expense-reports")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
+      .send({
+        draftType: "expense",
+        lineItems: [
+          {
+            amount_cents: 0,
+            category: "Meals",
+            currency: "usd",
+            merchant: "Synthetic Cafe",
+            receipt: {
+              amount_cents: 4250,
+              currency: "USD",
+              merchant: "Synthetic Cafe",
+              receipt_date: "2026-08-02"
+            }
+          }
+        ],
+        priority: "High"
+      });
+
+    expect(response.status).toBe(400);
+    const db = drizzle(client, { schema });
+    await expect(db.select().from(schema.expenseReport)).resolves.toHaveLength(0);
+    await expect(db.select().from(lineItem)).resolves.toHaveLength(0);
+    await expect(db.select().from(receipt)).resolves.toHaveLength(0);
+    await expect(db.select().from(mileageEntry)).resolves.toHaveLength(0);
   });
 
   it("rejects Expense Report creation without a token", async () => {
