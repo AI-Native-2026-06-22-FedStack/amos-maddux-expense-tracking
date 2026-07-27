@@ -30,6 +30,11 @@ export function createExpenseReportRouter(options: CreateExpenseReportRouterOpti
     expenseReportController.createExpenseReport
   );
   router.get(
+    "/expense-reports/case-queue",
+    requireJwtAuthentication,
+    expenseReportController.readCaseQueue
+  );
+  router.get(
     "/expense-reports/:id",
     requireJwtAuthentication,
     expenseReportController.readExpenseReport

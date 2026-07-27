@@ -28,6 +28,16 @@ describe("auth client", () => {
           accessToken: createSyntheticJwt(300_000),
           refreshToken: "synthetic-refresh-token"
         })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          status: "authenticated",
+          tenantId,
+          userId,
+          roles: ["Employee"],
+          accessToken: createSyntheticJwt(300_000),
+          refreshToken: "synthetic-refreshed-token"
+        })
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -48,6 +58,18 @@ describe("auth client", () => {
       },
       new AbortController().signal
     );
+    await authClient.refreshSession(
+      {
+        accessToken: createSyntheticJwt(300_000),
+        refreshToken: "synthetic-refresh-token",
+        tenantId,
+        userId,
+        roles: ["Employee"],
+        role: "Employee",
+        isAuthenticated: true
+      },
+      new AbortController().signal
+    );
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -58,12 +80,11 @@ describe("auth client", () => {
           email: "synthetic.employee@example.test",
           password: "synthetic-password"
         }),
-        headers: {
-          "Content-Type": "application/json"
-        },
         method: "POST"
       })
     );
+    expect(readHeaders(fetchMock, 0).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 0).get("X-Correlation-Id")).toEqual(expect.any(String));
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "http://localhost:3000/v1/auth/mfa",
@@ -73,12 +94,25 @@ describe("auth client", () => {
           userId,
           code: "123456"
         }),
-        headers: {
-          "Content-Type": "application/json"
-        },
         method: "POST"
       })
     );
+    expect(readHeaders(fetchMock, 1).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 1).get("X-Correlation-Id")).toEqual(expect.any(String));
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "http://localhost:3000/v1/auth/refresh",
+      expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          userId,
+          refreshToken: "synthetic-refresh-token"
+        }),
+        method: "POST"
+      })
+    );
+    expect(readHeaders(fetchMock, 2).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 2).get("X-Correlation-Id")).toEqual(expect.any(String));
   });
 
   it("maps platform roles without downgrading them to Employee", () => {
@@ -90,8 +124,22 @@ describe("auth client", () => {
 function createFetchResponse(body: object): Response {
   return {
     ok: true,
+    status: 200,
     json: async () => body
   } as Response;
+}
+
+function readHeaders(
+  fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
+  callIndex: number
+): Headers {
+  const [, init] = fetchMock.mock.calls[callIndex] ?? [];
+
+  if (init === undefined || !("headers" in init) || init.headers === undefined) {
+    throw new Error("Expected request headers.");
+  }
+
+  return new Headers(init.headers);
 }
 
 function createSyntheticJwt(expiresInMs: number): string {

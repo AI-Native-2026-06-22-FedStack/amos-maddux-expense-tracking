@@ -1,4 +1,4 @@
-import { and, eq, isNull, lt, or } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
 import { getDb } from "../db/client.js";
@@ -52,6 +52,10 @@ export interface CreateRefreshTokenInput {
   expiresAt: Date;
 }
 
+export interface RotateRefreshTokenInput extends CreateRefreshTokenInput {
+  previousTokenHash: string;
+}
+
 export interface CompleteMfaAuthenticationInput extends CreateRefreshTokenInput {
   acceptedTotpTimeStep: number;
 }
@@ -73,6 +77,7 @@ export interface AuthRepository {
     userId: string
   ): Promise<AuthenticatedUserRoleRecord | null>;
   createRefreshToken(input: CreateRefreshTokenInput): Promise<RefreshTokenSelect>;
+  rotateRefreshToken(input: RotateRefreshTokenInput): Promise<boolean>;
   revokeRefreshToken(tenantId: string, tokenHash: string): Promise<void>;
   acceptTotpTimeStep(tenantId: string, userId: string, timeStep: number): Promise<boolean>;
   completeMfaAuthentication(input: CompleteMfaAuthenticationInput): Promise<boolean>;
@@ -214,6 +219,37 @@ class DrizzleAuthRepository implements AuthRepository {
     }
 
     return createdRefreshToken;
+  }
+
+  public async rotateRefreshToken(input: RotateRefreshTokenInput): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const [revokedToken] = await tx
+        .update(refreshToken)
+        .set({ revokedAt: new Date() })
+        .where(
+          and(
+            eq(refreshToken.tenantId, input.tenantId),
+            eq(refreshToken.userId, input.userId),
+            eq(refreshToken.tokenHash, input.previousTokenHash),
+            isNull(refreshToken.revokedAt),
+            gt(refreshToken.expiresAt, new Date())
+          )
+        )
+        .returning({ id: refreshToken.id });
+
+      if (revokedToken === undefined) {
+        return false;
+      }
+
+      await tx.insert(refreshToken).values({
+        tenantId: input.tenantId,
+        userId: input.userId,
+        tokenHash: input.tokenHash,
+        expiresAt: input.expiresAt
+      });
+
+      return true;
+    });
   }
 
   public async revokeRefreshToken(tenantId: string, tokenHash: string): Promise<void> {

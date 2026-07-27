@@ -148,6 +148,53 @@ describe("Auth HTTP routes", () => {
     });
     expect(mfaResponse.body).not.toHaveProperty("accessToken");
   });
+
+  it("refreshes an authenticated session through HTTP and rejects token reuse", async () => {
+    const app = createApp();
+    const roleId = await createTenantRole();
+    const registerResponse = await request(app).post("/v1/auth/register").send({
+      tenantId,
+      roleId,
+      email: syntheticEmail,
+      displayName: "Synthetic HTTP Employee",
+      password: syntheticPassword
+    });
+    const code = await generateTotpCode(registerResponse.body.mfa.secret as string);
+    const mfaResponse = await request(app).post("/v1/auth/mfa").send({
+      tenantId,
+      userId: registerResponse.body.userId,
+      code
+    });
+
+    const refreshResponse = await request(app).post("/v1/auth/refresh").send({
+      tenantId,
+      userId: registerResponse.body.userId,
+      refreshToken: mfaResponse.body.refreshToken
+    });
+    const replayResponse = await request(app).post("/v1/auth/refresh").send({
+      tenantId,
+      userId: registerResponse.body.userId,
+      refreshToken: mfaResponse.body.refreshToken
+    });
+
+    expect(refreshResponse.status).toBe(200);
+    expect(refreshResponse.body).toMatchObject({
+      status: "authenticated",
+      tenantId,
+      userId: registerResponse.body.userId,
+      roles: ["Employee"],
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String)
+    });
+    expect(refreshResponse.body.refreshToken).not.toBe(mfaResponse.body.refreshToken);
+    expect(replayResponse.status).toBe(401);
+    expect(replayResponse.body).toMatchObject({
+      type: "/problems/unauthorized",
+      title: "Unauthorized",
+      status: 401,
+      detail: "Invalid refresh token."
+    });
+  });
 });
 
 async function createTenantRole(): Promise<string> {

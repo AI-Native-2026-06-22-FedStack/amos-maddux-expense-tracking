@@ -97,6 +97,7 @@ export type RefreshSession = (session: AuthSession, signal: AbortSignal) => Prom
 export interface AuthSessionProviderProps {
   authClient?: AuthClient;
   children: ReactNode;
+  onSessionCleared?: () => void;
   refreshSession?: RefreshSession;
   storage?: AuthSessionStorage;
 }
@@ -111,6 +112,7 @@ export interface UseAuthSessionResult {
   completeMfa(code: string): Promise<void>;
   logout(): void;
   getCurrentAccessToken(): string | null;
+  refreshCurrentSession(): Promise<AuthSession>;
 }
 
 const AuthSessionContext = createContext<UseAuthSessionResult | undefined>(undefined);
@@ -124,6 +126,7 @@ function createInitialState(storage: AuthSessionStorage): AuthState {
 export function AuthSessionProvider({
   authClient = defaultAuthClient,
   children,
+  onSessionCleared,
   refreshSession,
   storage
 }: AuthSessionProviderProps) {
@@ -132,7 +135,9 @@ export function AuthSessionProvider({
   const activeSession = state.session;
   const activeAuthRequestRef = useRef<{ controller: AbortController; id: number } | null>(null);
   const authRequestIdRef = useRef(0);
+  const refreshInFlightRef = useRef<Promise<AuthSession> | null>(null);
   const sessionGenerationRef = useRef(0);
+  const refreshSessionHandler = refreshSession ?? authClient.refreshSession;
 
   const abortActiveAuthRequest = useCallback(() => {
     activeAuthRequestRef.current?.controller.abort();
@@ -159,6 +164,41 @@ export function AuthSessionProvider({
     []
   );
 
+  const beginSharedRefresh = useCallback(
+    (session: AuthSession, signal: AbortSignal) => {
+      if (refreshInFlightRef.current !== null) {
+        return refreshInFlightRef.current;
+      }
+
+      const refreshGeneration = sessionGenerationRef.current;
+      const refreshPromise = refreshSessionHandler(session, signal)
+        .then((nextSession) => {
+          if (!signal.aborted && refreshGeneration === sessionGenerationRef.current) {
+            dispatch({ type: "authenticated", session: nextSession });
+          }
+
+          return nextSession;
+        })
+        .catch((error: unknown) => {
+          if (!signal.aborted && refreshGeneration === sessionGenerationRef.current) {
+            dispatch({ type: "logged_out", message: readErrorMessage(error) });
+          }
+
+          throw error;
+        })
+        .finally(() => {
+          if (refreshInFlightRef.current === refreshPromise) {
+            refreshInFlightRef.current = null;
+          }
+        });
+
+      refreshInFlightRef.current = refreshPromise;
+
+      return refreshPromise;
+    },
+    [refreshSessionHandler]
+  );
+
   useEffect(() => {
     if (state.session !== null) {
       sessionStorageAdapter.save(state.session);
@@ -166,7 +206,8 @@ export function AuthSessionProvider({
     }
 
     sessionStorageAdapter.clear();
-  }, [state.session, sessionStorageAdapter]);
+    onSessionCleared?.();
+  }, [onSessionCleared, state.session, sessionStorageAdapter]);
 
   useEffect(() => abortActiveAuthRequest, [abortActiveAuthRequest]);
 
@@ -176,40 +217,20 @@ export function AuthSessionProvider({
     }
 
     const controller = new AbortController();
-    const refreshGeneration = sessionGenerationRef.current;
     const expiresAt = readAccessTokenExpiry(activeSession.accessToken);
     const refreshDelayMs =
       expiresAt === null ? 0 : Math.max(expiresAt - Date.now() - refreshSkewMs, 0);
 
     const timerId = window.setTimeout(() => {
-      if (refreshSession === undefined) {
-        dispatch({ type: "logged_out", message: "Your session expired. Please sign in again." });
-        return;
-      }
-
       dispatch({ type: "refresh_started" });
-      void refreshSession(activeSession, controller.signal)
-        .then((nextSession) => {
-          if (controller.signal.aborted || refreshGeneration !== sessionGenerationRef.current) {
-            return;
-          }
-
-          dispatch({ type: "authenticated", session: nextSession });
-        })
-        .catch((error: unknown) => {
-          if (controller.signal.aborted) {
-            return;
-          }
-
-          dispatch({ type: "refresh_failed", message: readErrorMessage(error) });
-        });
+      void beginSharedRefresh(activeSession, controller.signal).catch(() => undefined);
     }, refreshDelayMs);
 
     return () => {
       window.clearTimeout(timerId);
       controller.abort();
     };
-  }, [activeSession, refreshSession]);
+  }, [activeSession, beginSharedRefresh]);
 
   const login = useCallback(
     async (credentials: LoginCredentials) => {
@@ -286,6 +307,7 @@ export function AuthSessionProvider({
 
   const logout = useCallback(() => {
     abortActiveAuthRequest();
+    refreshInFlightRef.current = null;
     sessionGenerationRef.current += 1;
     dispatch({ type: "logged_out" });
   }, [abortActiveAuthRequest]);
@@ -294,6 +316,18 @@ export function AuthSessionProvider({
     () => state.session?.accessToken ?? null,
     [state.session]
   );
+
+  const refreshCurrentSession = useCallback(async () => {
+    if (activeSession === null) {
+      const error = new Error("Sign in before refreshing the session.");
+      dispatch({ type: "logged_out", message: error.message });
+      throw error;
+    }
+
+    const controller = new AbortController();
+
+    return beginSharedRefresh(activeSession, controller.signal);
+  }, [activeSession, beginSharedRefresh]);
 
   const value = useMemo<UseAuthSessionResult>(
     () => ({
@@ -305,9 +339,10 @@ export function AuthSessionProvider({
       login,
       completeMfa,
       logout,
-      getCurrentAccessToken
+      getCurrentAccessToken,
+      refreshCurrentSession
     }),
-    [completeMfa, getCurrentAccessToken, login, logout, state]
+    [completeMfa, getCurrentAccessToken, login, logout, refreshCurrentSession, state]
   );
 
   return <AuthSessionContext.Provider value={value}>{children}</AuthSessionContext.Provider>;

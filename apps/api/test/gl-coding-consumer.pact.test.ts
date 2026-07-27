@@ -139,6 +139,7 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     createDraftReport: vi.fn(),
     findById: vi.fn(),
     findForSubmit: vi.fn(),
+    listCaseQueue: vi.fn(),
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
     submitForApReview: vi.fn(),

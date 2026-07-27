@@ -201,6 +201,76 @@ describe("AuthService integration", () => {
     });
   });
 
+  it("rotates a valid refresh token and rejects reuse of the old token", async () => {
+    const db = drizzle(client, { schema });
+    const { service } = createServiceContext(client);
+    const roleId = await createTenantRole(db);
+    const registered = await service.register({
+      tenantId,
+      roleId,
+      email: syntheticEmail,
+      displayName: syntheticDisplayName,
+      password: syntheticPassword
+    });
+    const code = await generateTotpCode(registered.mfa.secret);
+    const loginResult = await service.completeMfaLogin({
+      tenantId,
+      userId: registered.userId,
+      code
+    });
+
+    if (loginResult.status !== "authenticated") {
+      throw new Error("Synthetic authentication setup failed.");
+    }
+
+    const refreshResult = await service.refreshSession({
+      tenantId,
+      userId: registered.userId,
+      refreshToken: loginResult.refreshToken
+    });
+    const reusedRefreshResult = await service.refreshSession({
+      tenantId,
+      userId: registered.userId,
+      refreshToken: loginResult.refreshToken
+    });
+
+    expect(refreshResult).toMatchObject({
+      status: "authenticated",
+      tenantId,
+      userId: registered.userId,
+      roles: ["Employee"],
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String)
+    });
+    expect(reusedRefreshResult).toEqual({
+      status: "unauthorized",
+      message: "Invalid refresh token."
+    });
+
+    if (refreshResult.status !== "authenticated") {
+      throw new Error("Synthetic refresh setup failed.");
+    }
+
+    const oldStoredRefreshToken = await findRefreshToken(db, loginResult.refreshToken);
+    const newStoredRefreshToken = await findRefreshToken(db, refreshResult.refreshToken);
+    const auditEvents = await findAuthAuditEvents(db);
+
+    expect(oldStoredRefreshToken.revokedAt).toBeInstanceOf(Date);
+    expect(newStoredRefreshToken.revokedAt).toBeNull();
+    expect(auditEvents).toContainEqual({
+      eventType: "refresh_succeeded",
+      outcome: "success",
+      reason: null,
+      userId: registered.userId
+    });
+    expect(auditEvents).toContainEqual({
+      eventType: "refresh_failed",
+      outcome: "failure",
+      reason: "invalid_refresh_token",
+      userId: registered.userId
+    });
+  });
+
   it("rejects an invalid TOTP code and does not issue a token", async () => {
     const { service } = createServiceContext(client);
     const roleId = await createTenantRole(drizzle(client, { schema }));

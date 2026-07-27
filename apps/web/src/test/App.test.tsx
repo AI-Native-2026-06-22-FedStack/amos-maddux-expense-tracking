@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { App } from "../App";
 import { authSessionStorageKey } from "../auth";
@@ -8,15 +8,19 @@ const tenantId = "00000000-0000-4000-8000-000000000501";
 const userId = "00000000-0000-4000-8000-000000000601";
 
 describe("App", () => {
+  beforeEach(() => {
+    window.history.replaceState(null, "", "/");
+  });
+
   afterEach(() => {
     window.sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
-  it("renders the sign-in form when unauthenticated", () => {
+  it("renders the sign-in form when unauthenticated", async () => {
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tenant ID")).toBeInTheDocument();
     expect(screen.queryByLabelText("Expense Report workspace")).not.toBeInTheDocument();
   });
@@ -47,7 +51,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.type(screen.getByLabelText("Tenant ID"), tenantId);
+    await user.type(await screen.findByLabelText("Tenant ID"), tenantId);
     await user.type(screen.getByLabelText("Email"), "synthetic.employee@example.test");
     await user.type(screen.getByLabelText("Password"), "synthetic-password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
@@ -57,9 +61,9 @@ describe("App", () => {
     await user.type(screen.getByLabelText("MFA code"), "123456");
     await user.click(screen.getByRole("button", { name: "Complete sign in" }));
 
-    await waitFor(() =>
-      expect(screen.getByLabelText("Expense Report workspace")).toBeInTheDocument()
-    );
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Finance Dashboard" })
+    ).toBeInTheDocument();
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,
@@ -70,12 +74,11 @@ describe("App", () => {
           email: "synthetic.employee@example.test",
           password: "synthetic-password"
         }),
-        headers: {
-          "Content-Type": "application/json"
-        },
         method: "POST"
       })
     );
+    expect(readHeaders(fetchMock, 0).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 0).get("X-Correlation-Id")).toEqual(expect.any(String));
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/v1/auth/mfa",
@@ -85,22 +88,22 @@ describe("App", () => {
           userId,
           code: "123456"
         }),
-        headers: {
-          "Content-Type": "application/json"
-        },
         method: "POST"
       })
     );
+    expect(readHeaders(fetchMock, 1).get("Content-Type")).toBe("application/json");
+    expect(readHeaders(fetchMock, 1).get("X-Correlation-Id")).toEqual(expect.any(String));
     expect(screen.getByLabelText("ExpenseFlow navigation")).toBeInTheDocument();
     expect(screen.getByLabelText("Current role view")).toHaveTextContent("Finance Admin");
 
     await user.click(screen.getByRole("button", { name: "Logout" }));
 
-    expect(screen.getByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "ExpenseFlow" })).toBeInTheDocument();
     expect(window.sessionStorage.getItem(authSessionStorageKey)).toBeNull();
   });
 
   it("composes the sidebar, metrics, stage stepper, and Expense Report table when restored", () => {
+    window.history.replaceState(null, "", "/app/expense-reports");
     window.sessionStorage.setItem(
       authSessionStorageKey,
       JSON.stringify({
@@ -129,19 +132,109 @@ describe("App", () => {
 
     expect(within(table).getByText("CASE-EF-2026-04-2241")).toBeInTheDocument();
   });
+
+  it("refreshes through the default auth client when an app API request returns 401", async () => {
+    window.history.replaceState(null, "", "/app/approval-queue");
+    const originalAccessToken = createSyntheticJwt(300_000);
+    const refreshedAccessToken = createSyntheticJwt(300_000, "refreshed");
+    window.sessionStorage.setItem(
+      authSessionStorageKey,
+      JSON.stringify({
+        accessToken: originalAccessToken,
+        refreshToken: "synthetic-refresh-token",
+        tenantId,
+        userId,
+        roles: ["Finance Admin"]
+      })
+    );
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        createFetchResponse(
+          {
+            type: "/problems/unauthorized",
+            title: "Unauthorized",
+            status: 401,
+            detail: "Expired access token."
+          },
+          401
+        )
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          status: "authenticated",
+          tenantId,
+          userId,
+          roles: ["Finance Admin"],
+          accessToken: refreshedAccessToken,
+          refreshToken: "synthetic-refreshed-token"
+        })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          cases: [
+            {
+              id: "00000000-0000-4000-8000-000000000701",
+              currentStage: "Submitted",
+              priority: "High",
+              dueDate: "2026-07-28",
+              onHold: false,
+              updatedAt: "2026-07-24T12:00:00.000Z"
+            }
+          ]
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<App />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Case / Approval Queue" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/v1/auth/refresh",
+      expect.objectContaining({
+        body: JSON.stringify({
+          tenantId,
+          userId,
+          refreshToken: "synthetic-refresh-token"
+        }),
+        method: "POST"
+      })
+    );
+    expect(readHeaders(fetchMock, 0).get("Authorization")).toBe(`Bearer ${originalAccessToken}`);
+    expect(readHeaders(fetchMock, 2).get("Authorization")).toBe(`Bearer ${refreshedAccessToken}`);
+  });
 });
 
-function createFetchResponse(body: object): Response {
+function createFetchResponse(body: object, status = 200): Response {
   return {
-    ok: true,
+    ok: status >= 200 && status < 300,
+    status,
     json: async () => body
   } as Response;
 }
 
-function createSyntheticJwt(expiresInMs: number): string {
+function readHeaders(
+  fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
+  callIndex: number
+): Headers {
+  const [, init] = fetchMock.mock.calls[callIndex] ?? [];
+
+  if (init === undefined || !("headers" in init) || init.headers === undefined) {
+    throw new Error("Expected request headers.");
+  }
+
+  return new Headers(init.headers);
+}
+
+function createSyntheticJwt(expiresInMs: number, label = "initial"): string {
   const header = base64UrlEncode({ alg: "RS256", typ: "JWT" });
   const payload = base64UrlEncode({
     exp: Math.floor((Date.now() + expiresInMs) / 1000),
+    label,
     roles: ["Finance Admin"],
     sub: userId,
     tenantId

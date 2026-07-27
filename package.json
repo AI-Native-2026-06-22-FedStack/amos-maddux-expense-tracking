@@ -21,6 +21,7 @@
     "pact:publish": "sh -c 'pact-broker publish pacts --consumer-app-version=\"${PACT_CONSUMER_VERSION:-0.1.0-local}\" --broker-base-url=\"${PACT_BROKER_BASE_URL:-http://localhost:9292}\"'",
     "test:submit-slice:coverage": "cd apps/api && vitest run --config vitest.submit-slice.config.ts --coverage",
     "test": "vitest run --config vitest.config.ts && npm --workspace @expenseflow/web test && cd apps/api && vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p apps/api/tsconfig.json && npm --workspace @expenseflow/web run typecheck",
     "typecheck:web": "npm --workspace @expenseflow/web run typecheck",
     "check": "npm run build && npm run lint && npm test",
     "start": "node dist/index.js"

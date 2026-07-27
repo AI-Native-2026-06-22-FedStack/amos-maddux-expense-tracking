@@ -4,7 +4,12 @@ import { readFileSync } from "node:fs";
 import { AuthRepository, createAuthRepository } from "./auth-repository.js";
 import { hashPassword, verifyPasswordHash } from "./hashing.js";
 import { createTotpEnrollment, getCurrentTotpTimeStep, verifyTotpCode } from "./mfa.js";
-import { AuthenticatedPrincipal, IssuedTokenPair, issueTokenPair } from "./tokens.js";
+import {
+  AuthenticatedPrincipal,
+  IssuedTokenPair,
+  hashRefreshToken,
+  issueTokenPair
+} from "./tokens.js";
 
 export const genericUnauthorizedMessage = "Invalid email or password.";
 
@@ -16,6 +21,8 @@ let generatedLocalTotpKey: Buffer | undefined;
 const authAuditEvents = {
   registrationSucceeded: "registration_succeeded",
   passwordVerifiedMfaRequired: "password_verified_mfa_required",
+  refreshSucceeded: "refresh_succeeded",
+  refreshFailed: "refresh_failed",
   loginFailedUnknownUser: "login_failed_unknown_user",
   loginFailedWrongPassword: "login_failed_wrong_password",
   mfaFailedWrongTotp: "mfa_failed_wrong_totp",
@@ -90,10 +97,31 @@ export type CompleteMfaLoginResult =
       refreshToken: string;
     };
 
+export interface RefreshSessionRequest {
+  tenantId: string;
+  userId: string;
+  refreshToken: string;
+}
+
+export type RefreshSessionResult =
+  | {
+      status: "unauthorized";
+      message: "Invalid refresh token.";
+    }
+  | {
+      status: "authenticated";
+      tenantId: string;
+      userId: string;
+      roles: string[];
+      accessToken: string;
+      refreshToken: string;
+    };
+
 export interface AuthService {
   register(request: RegisterRequest): Promise<RegisterResult>;
   startLogin(request: StartLoginRequest): Promise<StartLoginResult>;
   completeMfaLogin(request: CompleteMfaLoginRequest): Promise<CompleteMfaLoginResult>;
+  refreshSession(request: RefreshSessionRequest): Promise<RefreshSessionResult>;
 }
 
 class RepositoryAuthService implements AuthService {
@@ -279,6 +307,62 @@ class RepositoryAuthService implements AuthService {
     };
   }
 
+  public async refreshSession(request: RefreshSessionRequest): Promise<RefreshSessionResult> {
+    const authenticatedUser = await this.authRepository.findAuthenticatedUserRole(
+      request.tenantId,
+      request.userId
+    );
+
+    if (authenticatedUser === null) {
+      await this.auditFailure({
+        tenantId: request.tenantId,
+        userId: request.userId,
+        eventType: authAuditEvents.refreshFailed,
+        reason: "user_lookup_failed"
+      });
+      return invalidRefreshResult();
+    }
+
+    const roles = [authenticatedUser.roleName];
+    const tokenPair = this.tokenIssuer.issue({
+      userId: authenticatedUser.user.id,
+      tenantId: authenticatedUser.user.tenantId,
+      roles
+    });
+    const rotated = await this.authRepository.rotateRefreshToken({
+      tenantId: authenticatedUser.user.tenantId,
+      userId: authenticatedUser.user.id,
+      previousTokenHash: hashRefreshToken(request.refreshToken),
+      tokenHash: tokenPair.refreshTokenHash,
+      expiresAt: tokenPair.refreshTokenExpiresAt
+    });
+
+    if (!rotated) {
+      await this.auditFailure({
+        tenantId: authenticatedUser.user.tenantId,
+        userId: authenticatedUser.user.id,
+        eventType: authAuditEvents.refreshFailed,
+        reason: "invalid_refresh_token"
+      });
+      return invalidRefreshResult();
+    }
+
+    await this.auditSuccess({
+      tenantId: authenticatedUser.user.tenantId,
+      userId: authenticatedUser.user.id,
+      eventType: authAuditEvents.refreshSucceeded
+    });
+
+    return {
+      status: "authenticated",
+      tenantId: authenticatedUser.user.tenantId,
+      userId: authenticatedUser.user.id,
+      roles,
+      accessToken: tokenPair.accessToken,
+      refreshToken: tokenPair.refreshToken
+    };
+  }
+
   private async auditSuccess(input: {
     tenantId: string;
     userId: string;
@@ -323,6 +407,13 @@ function invalidMfaResult(): CompleteMfaLoginResult {
   return {
     status: "unauthorized",
     message: "Invalid MFA code."
+  };
+}
+
+function invalidRefreshResult(): RefreshSessionResult {
+  return {
+    status: "unauthorized",
+    message: "Invalid refresh token."
   };
 }
 

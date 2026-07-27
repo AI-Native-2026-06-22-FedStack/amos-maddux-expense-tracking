@@ -9,6 +9,7 @@ export function createAuthRouter(): Router {
   router.post("/auth/register", authController.register);
   router.post("/auth/login", authController.startLogin);
   router.post("/auth/mfa", authController.completeMfaLogin);
+  router.post("/auth/refresh", authController.refreshSession);
 
   return router;
 }

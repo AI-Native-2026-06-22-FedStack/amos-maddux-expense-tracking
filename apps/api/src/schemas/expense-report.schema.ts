@@ -27,8 +27,21 @@ export const rejectExpenseReportRequestSchema = z.object({
 });
 
 export const expenseReportResponseSchema = createSelectSchema(expenseReport).strict();
+export const caseQueueItemSchema = expenseReportResponseSchema.pick({
+  id: true,
+  currentStage: true,
+  priority: true,
+  dueDate: true,
+  onHold: true,
+  updatedAt: true
+});
+export const caseQueueResponseSchema = z.object({
+  cases: z.array(caseQueueItemSchema)
+});
 
 export type CreateExpenseReportRequest = z.infer<typeof createExpenseReportRequestSchema>;
+export type CaseQueueItem = z.infer<typeof caseQueueItemSchema>;
+export type CaseQueueResponse = z.infer<typeof caseQueueResponseSchema>;
 export type ExpenseReportIdParam = z.infer<typeof expenseReportIdParamSchema>;
 export type ExpenseReportResponse = z.infer<typeof expenseReportResponseSchema>;
 export type ExpenseReportStage = z.infer<typeof expenseReportStageSchema>;
