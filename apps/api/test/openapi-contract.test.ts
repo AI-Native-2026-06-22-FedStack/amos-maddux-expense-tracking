@@ -24,12 +24,17 @@ describe("served OpenAPI contract", () => {
     });
     const document = expectObject(openApiResponse.json());
     const operation = getPostExpenseReportsOperation(document);
+    const rollupOperation = getCaseQueueRollupOperation(document);
     const requestSchema = getJsonContentSchema(expectObject(operation.requestBody));
     const responseSchema = getJsonContentSchema(
       expectObject(expectObject(operation.responses)["201"])
     );
+    const rollupResponseSchema = getJsonContentSchema(
+      expectObject(expectObject(rollupOperation.responses)["200"])
+    );
     const validateRequest = createOpenApiValidator(document, requestSchema);
     const validateResponse = createOpenApiValidator(document, responseSchema);
+    const validateRollupResponse = createOpenApiValidator(document, rollupResponseSchema);
     const requestBody = {
       draftType: "mileage",
       mileageEntries: [
@@ -82,6 +87,19 @@ describe("served OpenAPI contract", () => {
     };
 
     expect(validateResponse(responseWithUnexpectedField)).toBe(false);
+    expect(
+      validateRollupResponse({
+        summaries: [
+          { stage: "Drafted", reportCount: 2, overdueCount: 1 },
+          { stage: "Submitted", reportCount: 0, overdueCount: 0 }
+        ]
+      })
+    ).toBe(true);
+    expect(
+      validateRollupResponse({
+        summaries: [{ stage: "Archived", reportCount: 1, overdueCount: 0 }]
+      })
+    ).toBe(false);
   });
 });
 
@@ -90,6 +108,13 @@ function getPostExpenseReportsOperation(document: JsonObject): JsonObject {
   const expenseReportsPath = expectObject(paths["/expense-reports"]);
 
   return expectObject(expenseReportsPath.post);
+}
+
+function getCaseQueueRollupOperation(document: JsonObject): JsonObject {
+  const paths = expectObject(document.paths);
+  const rollupPath = expectObject(paths["/expense-reports/case-queue/rollup"]);
+
+  return expectObject(rollupPath.get);
 }
 
 function getJsonContentSchema(container: JsonObject): JsonObject {

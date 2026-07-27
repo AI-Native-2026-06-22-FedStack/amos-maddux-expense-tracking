@@ -24,15 +24,23 @@ describe("generateOpenApiDocument", () => {
 
     const expenseReportByIdPath = expectObject(paths["/expense-reports/{id}"]);
     const readOperation = expectObject(expenseReportByIdPath.get);
+    const rollupPath = expectObject(paths["/expense-reports/case-queue/rollup"]);
+    const rollupOperation = expectObject(rollupPath.get);
     const createResponses = expectObject(createOperation.responses);
     const readResponses = expectObject(readOperation.responses);
+    const rollupResponses = expectObject(rollupOperation.responses);
     const readSuccess = expectObject(readResponses["200"]);
     const readSuccessContent = expectObject(readSuccess.content);
     const readJsonContent = expectObject(readSuccessContent["application/json"]);
     const readRouteSchema = expectObject(readJsonContent.schema);
+    const rollupSuccess = expectObject(rollupResponses["200"]);
+    const rollupSuccessContent = expectObject(rollupSuccess.content);
+    const rollupJsonContent = expectObject(rollupSuccessContent["application/json"]);
+    const rollupRouteSchema = expectObject(rollupJsonContent.schema);
 
     const createSchema = expectObject(schemas.CreateExpenseReportRequest);
     const responseSchema = expectObject(schemas.ExpenseReportResponse);
+    const rollupSchema = expectObject(schemas.CaseQueueRollupResponse);
     const responseProperties = expectObject(responseSchema.properties);
 
     expect(document.openapi).toBe("3.1.0");
@@ -52,11 +60,15 @@ describe("generateOpenApiDocument", () => {
     });
     expect(createOperation.security).toEqual([{ bearerAuth: [] }]);
     expect(readOperation.security).toEqual([{ bearerAuth: [] }]);
+    expect(rollupOperation.security).toEqual([{ bearerAuth: [] }]);
     expect(createRouteSchema).toEqual({
       $ref: "#/components/schemas/CreateExpenseReportRequest"
     });
     expect(readRouteSchema).toEqual({
       $ref: "#/components/schemas/ExpenseReportResponse"
+    });
+    expect(rollupRouteSchema).toEqual({
+      $ref: "#/components/schemas/CaseQueueRollupResponse"
     });
     expect(createSchema.oneOf).toEqual(expect.any(Array));
     expect(createSchema.oneOf).toHaveLength(2);
@@ -115,13 +127,19 @@ describe("generateOpenApiDocument", () => {
       "createdAt",
       "updatedAt"
     ]);
+    expect(Object.keys(expectObject(rollupSchema.properties))).toEqual(["summaries"]);
+    expect(rollupSchema.required).toEqual(["summaries"]);
 
     expectProblemJsonResponse(createResponses["401"]);
     expectProblemJsonResponse(readResponses["401"]);
+    expectProblemJsonResponse(rollupResponses["401"]);
+    expectProblemJsonResponse(rollupResponses["403"]);
     expectProblemJsonResponse(createResponses["429"]);
     expectAiAssistUsageHeader(createResponses["201"]);
     expectAiAssistUsageHeader(readResponses["200"]);
+    expectAiAssistUsageHeader(rollupResponses["200"]);
     expect(readResponses["429"]).toBeUndefined();
+    expect(rollupResponses["429"]).toBeUndefined();
     expectRateLimitHeaders(createResponses["429"]);
   });
 

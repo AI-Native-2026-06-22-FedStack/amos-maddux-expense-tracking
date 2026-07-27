@@ -54,6 +54,14 @@ export const caseQueueItemSchema = expenseReportResponseSchema.pick({
 export const caseQueueResponseSchema = z.object({
   cases: z.array(caseQueueItemSchema)
 });
+export const caseQueueStageSummarySchema = z.object({
+  stage: expenseReportStageSchema,
+  reportCount: z.number().int().nonnegative(),
+  overdueCount: z.number().int().nonnegative()
+});
+export const caseQueueRollupResponseSchema = z.object({
+  summaries: z.array(caseQueueStageSummarySchema)
+});
 export const approvalQueueLineItemSchema = z.object({
   reportId: z.uuid(),
   reportStage: expenseReportStageSchema,
@@ -80,6 +88,8 @@ export type { CreateExpenseReportRequest };
 export type { CreateExpenseDraftExpenseReportRequest, CreateMileageDraftExpenseReportRequest };
 export type CaseQueueItem = z.infer<typeof caseQueueItemSchema>;
 export type CaseQueueResponse = z.infer<typeof caseQueueResponseSchema>;
+export type CaseQueueStageSummary = z.infer<typeof caseQueueStageSummarySchema>;
+export type CaseQueueRollupResponse = z.infer<typeof caseQueueRollupResponseSchema>;
 export type ApprovalQueueLineItem = z.infer<typeof approvalQueueLineItemSchema>;
 export type ApprovalQueueResponse = z.infer<typeof approvalQueueResponseSchema>;
 export type ExpenseReportIdParam = z.infer<typeof expenseReportIdParamSchema>;

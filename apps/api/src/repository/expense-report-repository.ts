@@ -6,6 +6,7 @@ import * as schema from "../db/schema.js";
 import {
   auditEntry,
   expenseReport,
+  expenseReportStages,
   lineItem,
   mileageEntry,
   receipt,
@@ -19,7 +20,11 @@ import type {
   LineItemSelect,
   MileageEntrySelect
 } from "../db/schema.js";
-import type { ApprovalQueueLineItem, CaseQueueItem } from "../schemas/expense-report.schema.js";
+import type {
+  ApprovalQueueLineItem,
+  CaseQueueItem,
+  CaseQueueStageSummary
+} from "../schemas/expense-report.schema.js";
 import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
 import type {
@@ -45,6 +50,7 @@ export interface ExpenseReportRepository {
   findForSubmit(id: string, tenantId: string): Promise<ExpenseReportForSubmit | null>;
   listApprovalQueueLineItems(tenantId: string): Promise<ApprovalQueueLineItem[]>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
+  listCaseQueueRollup(tenantId: string): Promise<CaseQueueStageSummary[]>;
   listAuditEntries(expenseReportId: string, tenantId: string): Promise<AuditEntrySelect[]>;
   listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]>;
   approveLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
@@ -271,6 +277,33 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
         asc(expenseReport.updatedAt),
         asc(expenseReport.id)
       );
+  }
+
+  public async listCaseQueueRollup(tenantId: string): Promise<CaseQueueStageSummary[]> {
+    const rows = await this.db
+      .select({
+        stage: expenseReport.currentStage,
+        reportCount: sql<number>`count(*)::integer`,
+        overdueCount: sql<number>`count(*) filter (where ${expenseReport.dueDate} < now())::integer`
+      })
+      .from(expenseReport)
+      .where(eq(expenseReport.tenantId, tenantId))
+      .groupBy(expenseReport.currentStage);
+    const countsByStage = new Map(
+      rows.map((row) => [
+        row.stage,
+        {
+          reportCount: Number(row.reportCount),
+          overdueCount: Number(row.overdueCount)
+        }
+      ])
+    );
+
+    return expenseReportStages.map((stage) => ({
+      stage,
+      reportCount: countsByStage.get(stage)?.reportCount ?? 0,
+      overdueCount: countsByStage.get(stage)?.overdueCount ?? 0
+    }));
   }
 
   public async listApprovalQueueLineItems(tenantId: string): Promise<ApprovalQueueLineItem[]> {

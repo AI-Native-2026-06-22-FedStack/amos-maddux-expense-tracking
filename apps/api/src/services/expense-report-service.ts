@@ -13,6 +13,7 @@ import {
 import {
   ApprovalQueueLineItem,
   CaseQueueItem,
+  CaseQueueStageSummary,
   CreateExpenseReportRequest,
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
@@ -27,6 +28,7 @@ export interface ExpenseReportService {
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
   listApprovalQueueLineItems(request: ApprovalQueueReadRequest): Promise<ApprovalQueueLineItem[]>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
+  listCaseQueueRollup(request: ApprovalQueueReadRequest): Promise<CaseQueueStageSummary[]>;
   approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
   rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
   clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
@@ -98,6 +100,16 @@ class RepositoryExpenseReportService implements ExpenseReportService {
 
   public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
     return this.expenseReportRepository.listCaseQueue(tenantId);
+  }
+
+  public async listCaseQueueRollup(
+    request: ApprovalQueueReadRequest
+  ): Promise<CaseQueueStageSummary[]> {
+    if (!canReview(request.roles)) {
+      throw new ForbiddenError("Employee cannot read the Finance Dashboard rollup.");
+    }
+
+    return this.expenseReportRepository.listCaseQueueRollup(request.tenantId);
   }
 
   public async listApprovalQueueLineItems(

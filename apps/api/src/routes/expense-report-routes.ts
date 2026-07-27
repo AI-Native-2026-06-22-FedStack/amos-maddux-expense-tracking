@@ -35,6 +35,11 @@ export function createExpenseReportRouter(options: CreateExpenseReportRouterOpti
     expenseReportController.readCaseQueue
   );
   router.get(
+    "/expense-reports/case-queue/rollup",
+    requireJwtAuthentication,
+    expenseReportController.readCaseQueueRollup
+  );
+  router.get(
     "/expense-reports/approval-line-items",
     requireJwtAuthentication,
     expenseReportController.readApprovalQueueLineItems

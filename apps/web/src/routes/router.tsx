@@ -16,6 +16,7 @@ import { Sidebar, type SidebarPage } from "../components/Sidebar";
 import type { UserRole } from "../domain";
 import { CaseQueue } from "../screens/CaseQueue";
 import { ExpenseReportsScreen } from "../screens/ExpenseReportsScreen";
+import { FinanceDashboardScreen } from "../screens/FinanceDashboardScreen";
 import { LogMileageScreen } from "../screens/LogMileageScreen";
 import { SignInScreen } from "../screens/SignInScreen";
 import { SubmitExpenseScreen } from "../screens/SubmitExpenseScreen";
@@ -89,10 +90,7 @@ function routeDefinitions(
               path: "dashboard",
               element: (
                 <RoleGate allowedRoles={internalRoles}>
-                  <PlaceholderScreen
-                    label="Finance Dashboard"
-                    message="Tenant Expense Report metrics and review trends will appear here."
-                  />
+                  <FinanceDashboardScreen />
                 </RoleGate>
               ),
               errorElement: <ShellRouteError />

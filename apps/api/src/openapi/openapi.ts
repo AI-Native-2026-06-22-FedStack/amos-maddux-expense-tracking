@@ -8,9 +8,8 @@ import { z } from "zod";
 
 extendZodWithOpenApi(z);
 
-const { expenseReportIdParamSchema, expenseReportResponseSchema } = await import(
-  "../schemas/expense-report.schema.js"
-);
+const { caseQueueRollupResponseSchema, expenseReportIdParamSchema, expenseReportResponseSchema } =
+  await import("../schemas/expense-report.schema.js");
 
 const registry = new OpenAPIRegistry();
 
@@ -91,6 +90,10 @@ const expenseReportIdParamOpenApiSchema = registry.register(
 const expenseReportResponseOpenApiSchema = registry.register(
   "ExpenseReportResponse",
   expenseReportResponseSchema
+);
+const caseQueueRollupResponseOpenApiSchema = registry.register(
+  "CaseQueueRollupResponse",
+  caseQueueRollupResponseSchema
 );
 const problemJsonOpenApiSchema = registry.register(
   "ProblemJson",
@@ -188,6 +191,40 @@ registry.registerPath({
     429: {
       description: "Expense Report write rate limit exceeded.",
       headers: rateLimitResponseHeaders,
+      content: {
+        ...problemJsonContent
+      }
+    }
+  }
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/expense-reports/case-queue/rollup",
+  summary: "Read Finance Dashboard rollup",
+  description:
+    "Read tenant-scoped Expense Report stage counts and overdue counts for internal dashboard roles.",
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: {
+      description: "Expense Report rollup found.",
+      headers: aiAssistUsageResponseHeader,
+      content: {
+        "application/json": {
+          schema: caseQueueRollupResponseOpenApiSchema
+        }
+      }
+    },
+    401: {
+      description: "Missing or invalid bearer token.",
+      headers: aiAssistUsageResponseHeader,
+      content: {
+        ...problemJsonContent
+      }
+    },
+    403: {
+      description: "Authenticated role cannot read internal dashboard rollups.",
+      headers: aiAssistUsageResponseHeader,
       content: {
         ...problemJsonContent
       }

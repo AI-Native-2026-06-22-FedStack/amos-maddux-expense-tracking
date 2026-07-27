@@ -46,6 +46,11 @@ describe("App", () => {
           accessToken: createSyntheticJwt(300_000),
           refreshToken: "synthetic-refresh-token"
         })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          summaries: emptyRollupSummaries()
+        })
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -222,6 +227,14 @@ function createFetchResponse(body: object, status = 200): Response {
     status,
     json: async () => body
   } as Response;
+}
+
+function emptyRollupSummaries() {
+  return expenseReportStages.map((stage) => ({
+    stage,
+    reportCount: 0,
+    overdueCount: 0
+  }));
 }
 
 function readHeaders(

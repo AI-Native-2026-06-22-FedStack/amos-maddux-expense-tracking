@@ -179,6 +179,73 @@ describe("Expense Report create and read end-to-end", () => {
     await expect(db.select().from(schema.expenseReport)).resolves.toHaveLength(0);
   });
 
+  it("serves Finance Dashboard rollup from real tenant-scoped Expense Report rows", async () => {
+    const db = drizzle(client, { schema });
+    await db.insert(schema.expenseReport).values([
+      {
+        id: "00000000-0000-4000-8000-000000000681",
+        tenantId: tenantA,
+        submitterId,
+        currentStage: "Drafted",
+        priority: "Normal",
+        dueDate: "2026-07-01"
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000682",
+        tenantId: tenantA,
+        submitterId,
+        currentStage: "Drafted",
+        priority: "Normal",
+        dueDate: "2026-08-15"
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000683",
+        tenantId: tenantA,
+        submitterId,
+        currentStage: "Manager Approval",
+        priority: "High",
+        dueDate: "2026-07-02"
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000684",
+        tenantId: tenantA,
+        submitterId,
+        currentStage: "AP Review",
+        priority: "Normal",
+        dueDate: null
+      },
+      {
+        id: "00000000-0000-4000-8000-000000000685",
+        tenantId: tenantB,
+        submitterId,
+        currentStage: "Paid",
+        priority: "Urgent",
+        dueDate: "2026-07-01"
+      }
+    ]);
+    const app = createApp();
+
+    const financeResponse = await request(app)
+      .get("/v1/expense-reports/case-queue/rollup")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Finance Admin"] }));
+    const employeeResponse = await request(app)
+      .get("/v1/expense-reports/case-queue/rollup")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Employee"] }));
+
+    expect(financeResponse.status).toBe(200);
+    expect(financeResponse.body).toEqual({
+      summaries: [
+        { stage: "Drafted", reportCount: 2, overdueCount: 1 },
+        { stage: "Submitted", reportCount: 0, overdueCount: 0 },
+        { stage: "Manager Approval", reportCount: 1, overdueCount: 1 },
+        { stage: "AP Review", reportCount: 1, overdueCount: 0 },
+        { stage: "Paid", reportCount: 0, overdueCount: 0 },
+        { stage: "Reconciled", reportCount: 0, overdueCount: 0 }
+      ]
+    });
+    expect(employeeResponse.status).toBe(403);
+  });
+
   it("persists an expense draft with line item and receipt metadata from the shared contract", async () => {
     const app = createApp();
     const createResponse = await request(app)

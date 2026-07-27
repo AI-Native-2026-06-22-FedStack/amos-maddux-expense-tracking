@@ -37,7 +37,7 @@ describe("ExpenseFlow router", () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
-      vi.fn<typeof fetch>().mockResolvedValue(createFetchResponse({ cases: [] }))
+      vi.fn<typeof fetch>().mockResolvedValue(createFetchResponse({ lineItems: [] }))
     );
     renderRouter({ initialEntries: [routePaths.expenseReports] });
 
@@ -54,6 +54,22 @@ describe("ExpenseFlow router", () => {
   });
 
   it("redirects authenticated users from login to the role default dashboard", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        createFetchResponse({
+          summaries: [
+            { stage: "Drafted", reportCount: 0, overdueCount: 0 },
+            { stage: "Submitted", reportCount: 0, overdueCount: 0 },
+            { stage: "Manager Approval", reportCount: 0, overdueCount: 0 },
+            { stage: "AP Review", reportCount: 0, overdueCount: 0 },
+            { stage: "Paid", reportCount: 0, overdueCount: 0 },
+            { stage: "Reconciled", reportCount: 0, overdueCount: 0 }
+          ]
+        })
+      )
+    );
+
     renderRouter({ initialEntries: [routePaths.login] });
 
     expect(

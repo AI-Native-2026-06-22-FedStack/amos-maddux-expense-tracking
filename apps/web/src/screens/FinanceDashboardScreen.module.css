@@ -1,0 +1,120 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+}
+
+.summaryTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.summaryText {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.kpiGrid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.kpiCard {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+}
+
+.kpiLabel {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.kpiValue {
+  color: var(--text-primary);
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0;
+}
+
+.kpiMeta {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+
+.chartSection {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: grid;
+  gap: 18px;
+  padding: 20px 24px;
+}
+
+.chartHeader {
+  display: grid;
+  gap: 6px;
+}
+
+.chartTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.chartSummary {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.chartCanvas {
+  min-height: 280px;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.dataTable {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.dataTable caption {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.dataTable th,
+.dataTable td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.dataTable th {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+}

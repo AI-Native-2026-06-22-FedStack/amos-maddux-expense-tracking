@@ -5,6 +5,7 @@ import { ForbiddenError, NotFoundError, UnauthorizedError } from "../errors/prob
 import {
   approvalQueueLineItemSchema,
   approvalQueueResponseSchema,
+  caseQueueRollupResponseSchema,
   caseQueueResponseSchema,
   createExpenseReportRequestSchema,
   deductibleRequestSchema,
@@ -79,6 +80,20 @@ export class ExpenseReportController {
 
     const cases = await this.expenseReportService.listCaseQueue(authContext.tenantId);
     const parsedResponse = caseQueueResponseSchema.parse({ cases });
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public readCaseQueueRollup = async (
+    request: Pick<RequestWithAuthContext, "authContext">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const authContext = requireAuthenticatedContext(request);
+    const summaries = await this.expenseReportService.listCaseQueueRollup({
+      tenantId: authContext.tenantId,
+      roles: authContext.roles
+    });
+    const parsedResponse = caseQueueRollupResponseSchema.parse({ summaries });
 
     response.status(200).json(parsedResponse);
   };
