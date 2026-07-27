@@ -11,6 +11,7 @@ import {
   createExpenseReportRepository
 } from "../repository/expense-report-repository.js";
 import {
+  ApprovalQueueLineItem,
   CaseQueueItem,
   CreateExpenseReportRequest,
   ExpenseReportResponse
@@ -24,7 +25,12 @@ export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
 export interface ExpenseReportService {
   createDraftReport(request: CreateDraftExpenseReportRequest): Promise<ExpenseReportResponse>;
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
+  listApprovalQueueLineItems(request: ApprovalQueueReadRequest): Promise<ApprovalQueueLineItem[]>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
+  approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  updateLineItemDeductible(request: UpdateLineItemDeductibleServiceRequest): Promise<ApprovalQueueLineItem>;
   submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   submitForApReview(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse>;
@@ -48,6 +54,23 @@ export interface TransitionExpenseReportRequest {
 
 export type RejectExpenseReportRequest = TransitionExpenseReportRequest & {
   reason: string;
+};
+
+export interface ApprovalQueueReadRequest {
+  tenantId: string;
+  roles: string[];
+}
+
+export interface LineItemReviewRequest {
+  expenseReportId: string;
+  lineItemId: string;
+  tenantId: string;
+  actorId: string;
+  roles: string[];
+}
+
+export type UpdateLineItemDeductibleServiceRequest = LineItemReviewRequest & {
+  deductible: boolean;
 };
 
 class RepositoryExpenseReportService implements ExpenseReportService {
@@ -75,6 +98,42 @@ class RepositoryExpenseReportService implements ExpenseReportService {
 
   public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
     return this.expenseReportRepository.listCaseQueue(tenantId);
+  }
+
+  public async listApprovalQueueLineItems(
+    request: ApprovalQueueReadRequest
+  ): Promise<ApprovalQueueLineItem[]> {
+    if (!canReview(request.roles)) {
+      throw new ForbiddenError("Employee cannot read the Approval Queue.");
+    }
+
+    return this.expenseReportRepository.listApprovalQueueLineItems(request.tenantId);
+  }
+
+  public async approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.approveLineItem(request);
+  }
+
+  public async rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.rejectLineItem(request);
+  }
+
+  public async clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.clearLineItemFlag(request);
+  }
+
+  public async updateLineItemDeductible(
+    request: UpdateLineItemDeductibleServiceRequest
+  ): Promise<ApprovalQueueLineItem> {
+    assertCanReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.updateLineItemDeductible(request);
   }
 
   public async submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse> {
@@ -337,6 +396,12 @@ function canReview(roles: string[]): boolean {
     roles.includes("Platform Admin") ||
     roles.includes("ExpenseFlow Platform Admin")
   );
+}
+
+function assertCanReviewLineItems(roles: string[]): void {
+  if (!canReview(roles)) {
+    throw new ForbiddenError("Employee cannot review Expense Report line items.");
+  }
 }
 
 function hasUnclearedFlag(report: ExpenseReportForSubmit): boolean {

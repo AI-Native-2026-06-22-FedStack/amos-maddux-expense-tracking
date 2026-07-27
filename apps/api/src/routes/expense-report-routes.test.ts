@@ -348,7 +348,12 @@ function makeExpenseReportService(
   return {
     createDraftReport: vi.fn(),
     findReport: vi.fn(),
+    listApprovalQueueLineItems: vi.fn(),
     listCaseQueue: vi.fn(),
+    approveLineItem: vi.fn(),
+    rejectLineItem: vi.fn(),
+    clearLineItemFlag: vi.fn(),
+    updateLineItemDeductible: vi.fn(),
     submit: vi.fn(),
     submitForApReview: vi.fn(),
     advance: vi.fn(),

@@ -291,9 +291,14 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     createDraftReport: vi.fn(),
     findById: vi.fn(),
     findForSubmit: vi.fn(),
+    listApprovalQueueLineItems: vi.fn(),
     listCaseQueue: vi.fn(),
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
+    approveLineItem: vi.fn(),
+    rejectLineItem: vi.fn(),
+    clearLineItemFlag: vi.fn(),
+    updateLineItemDeductible: vi.fn(),
     submitForApReview: vi.fn(),
     transitionStage: vi.fn(),
     recordDeniedTransition: vi.fn(),
@@ -319,6 +324,7 @@ function makeLineItem(overrides: Record<string, unknown> = {}) {
     gl_normal_balance: null,
     gl_unmapped_marker: null,
     deductible: false,
+    manager_review_status: "pending" as const,
     created_at: new Date(),
     ...overrides
   };

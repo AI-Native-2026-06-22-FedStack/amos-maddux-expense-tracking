@@ -25,6 +25,8 @@ export const expenseReportStages = [
 
 export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as const;
 export const auditEntryResults = ["success", "failure"] as const;
+export const glCodingStatuses = ["mapped", "unmapped"] as const;
+export const managerReviewStatuses = ["pending", "approved", "rejected"] as const;
 
 export const role = pgTable(
   "role",
@@ -198,13 +200,18 @@ export const lineItem = pgTable(
     category: text("category").notNull(),
     flagged: boolean("flagged").notNull().default(false),
     flag_cleared: boolean("flag_cleared").notNull().default(false),
-    gl_coding_status: text("gl_coding_status"),
+    gl_coding_status: text("gl_coding_status", { enum: glCodingStatuses }),
     gl_code_id: uuid("gl_code_id"),
     gl_account_code: text("gl_account_code"),
     gl_account_name: text("gl_account_name"),
     gl_normal_balance: text("gl_normal_balance"),
     gl_unmapped_marker: text("gl_unmapped_marker"),
     deductible: boolean("deductible").notNull().default(false),
+    manager_review_status: text("manager_review_status", {
+      enum: managerReviewStatuses
+    })
+      .notNull()
+      .default("pending"),
     created_at: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
@@ -232,6 +239,10 @@ export const lineItem = pgTable(
     check(
       "expense_line_item_gl_normal_balance_check",
       sql`${table.gl_normal_balance} is null or ${table.gl_normal_balance} in ('debit', 'credit')`
+    ),
+    check(
+      "expense_line_item_manager_review_status_check",
+      sql`${table.manager_review_status} in ('pending', 'approved', 'rejected')`
     )
   ]
 );

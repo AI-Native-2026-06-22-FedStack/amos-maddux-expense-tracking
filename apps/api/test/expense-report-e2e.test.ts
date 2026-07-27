@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { eq, and } from "drizzle-orm";
+import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { drizzle } from "drizzle-orm/node-postgres";
 import jwt from "jsonwebtoken";
 import pg from "pg";
@@ -290,6 +291,220 @@ describe("Expense Report create and read end-to-end", () => {
     await expect(db.select().from(mileageEntry)).resolves.toHaveLength(0);
   });
 
+  it("reads tenant-scoped Approval Queue line items and excludes other tenants and stages", async () => {
+    const db = drizzle(client, { schema });
+    const managerApprovalReportId = "00000000-0000-4000-8000-000000000701";
+    const apReviewReportId = "00000000-0000-4000-8000-000000000702";
+
+    await seedReportWithLineItem(db, {
+      amountCents: 55001,
+      currentStage: "Manager Approval",
+      flagged: true,
+      glAccountCode: "6100",
+      glAccountName: "Synthetic Meals Expense",
+      lineItemId: "00000000-0000-4000-8000-000000000711",
+      merchant: "Synthetic Flagged Cafe",
+      reportId: managerApprovalReportId,
+      tenantId: tenantA
+    });
+    await seedReportWithLineItem(db, {
+      currentStage: "AP Review",
+      lineItemId: "00000000-0000-4000-8000-000000000712",
+      merchant: "Synthetic AP Supplies",
+      reportId: apReviewReportId,
+      tenantId: tenantA
+    });
+    await seedReportWithLineItem(db, {
+      currentStage: "Manager Approval",
+      lineItemId: "00000000-0000-4000-8000-000000000713",
+      merchant: "Synthetic Other Tenant",
+      reportId: "00000000-0000-4000-8000-000000000703",
+      tenantId: tenantB
+    });
+    await seedReportWithLineItem(db, {
+      currentStage: "Drafted",
+      lineItemId: "00000000-0000-4000-8000-000000000714",
+      merchant: "Synthetic Draft Merchant",
+      reportId: "00000000-0000-4000-8000-000000000704",
+      tenantId: tenantA
+    });
+
+    const response = await request(createApp())
+      .get("/v1/expense-reports/approval-line-items")
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Department Manager"] }));
+
+    expect(response.status).toBe(200);
+    expect(response.body.lineItems).toEqual([
+      expect.objectContaining({
+        reportId: managerApprovalReportId,
+        lineItemId: "00000000-0000-4000-8000-000000000711",
+        merchant: "Synthetic Flagged Cafe",
+        amountCents: 55001,
+        currency: "USD",
+        flagged: true,
+        flagCleared: false,
+        glAccountCode: "6100",
+        glAccountName: "Synthetic Meals Expense",
+        managerReviewStatus: "pending"
+      }),
+      expect.objectContaining({
+        reportId: apReviewReportId,
+        lineItemId: "00000000-0000-4000-8000-000000000712",
+        merchant: "Synthetic AP Supplies",
+        reportStage: "AP Review"
+      })
+    ]);
+  });
+
+  it("persists Approval Queue row actions and audit entries", async () => {
+    const db = drizzle(client, { schema });
+    const reportId = "00000000-0000-4000-8000-000000000721";
+    const lineItemId = "00000000-0000-4000-8000-000000000731";
+
+    await seedReportWithLineItem(db, {
+      amountCents: 72500,
+      currentStage: "Manager Approval",
+      flagged: true,
+      lineItemId,
+      merchant: "Synthetic Review Cafe",
+      reportId,
+      tenantId: tenantA
+    });
+
+    const app = createApp();
+    const auth = createBearerToken({
+      tenantId: tenantA,
+      userId: submitterId,
+      roles: ["Department Manager"]
+    });
+    const approveResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
+      .set("Authorization", auth)
+      .send();
+
+    expect(approveResponse.status).toBe(200);
+    expect(approveResponse.body).toMatchObject({
+      reportId,
+      lineItemId,
+      managerReviewStatus: "approved",
+      flagCleared: false
+    });
+
+    const clearResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/clear-flag`)
+      .set("Authorization", auth)
+      .send();
+
+    expect(clearResponse.status).toBe(200);
+    expect(clearResponse.body).toMatchObject({
+      reportId,
+      lineItemId,
+      flagCleared: true
+    });
+
+    const [persistedLineItem] = await db
+      .select()
+      .from(lineItem)
+      .where(and(eq(lineItem.tenant_id, tenantA), eq(lineItem.id, lineItemId)));
+    const auditRows = await db
+      .select()
+      .from(auditEntry)
+      .where(and(eq(auditEntry.tenantId, tenantA), eq(auditEntry.expenseReportId, reportId)));
+
+    expect(persistedLineItem).toMatchObject({
+      manager_review_status: "approved",
+      flag_cleared: true
+    });
+    expect(auditRows.map((row) => row.action)).toEqual([
+      "Expense Line Item Approved",
+      "Expense Line Item Flag Cleared"
+    ]);
+  });
+
+  it("persists AP Review deductible changes and rejects wrong-stage changes without partial updates", async () => {
+    const db = drizzle(client, { schema });
+    const apReportId = "00000000-0000-4000-8000-000000000741";
+    const apLineItemId = "00000000-0000-4000-8000-000000000751";
+    const managerReportId = "00000000-0000-4000-8000-000000000742";
+    const managerLineItemId = "00000000-0000-4000-8000-000000000752";
+
+    await seedReportWithLineItem(db, {
+      currentStage: "AP Review",
+      lineItemId: apLineItemId,
+      merchant: "Synthetic AP Review Merchant",
+      reportId: apReportId,
+      tenantId: tenantA
+    });
+    await seedReportWithLineItem(db, {
+      currentStage: "Manager Approval",
+      lineItemId: managerLineItemId,
+      merchant: "Synthetic Manager Merchant",
+      reportId: managerReportId,
+      tenantId: tenantA
+    });
+
+    const app = createApp();
+    const financeAuth = createBearerToken({ tenantId: tenantA, roles: ["Finance Admin"] });
+    const successResponse = await request(app)
+      .patch(`/v1/expense-reports/${apReportId}/line-items/${apLineItemId}/deductible`)
+      .set("Authorization", financeAuth)
+      .send({ deductible: true });
+
+    expect(successResponse.status).toBe(200);
+    expect(successResponse.body).toMatchObject({
+      deductible: true,
+      reportStage: "AP Review"
+    });
+
+    const failureResponse = await request(app)
+      .patch(`/v1/expense-reports/${managerReportId}/line-items/${managerLineItemId}/deductible`)
+      .set("Authorization", financeAuth)
+      .send({ deductible: true });
+
+    expect(failureResponse.status).toBe(409);
+
+    const rows = await db
+      .select()
+      .from(lineItem)
+      .where(and(eq(lineItem.tenant_id, tenantA), eq(lineItem.id, managerLineItemId)));
+
+    expect(rows[0]?.deductible).toBe(false);
+  });
+
+  it("rejects Approval Queue writes for the wrong tenant and wrong role", async () => {
+    const db = drizzle(client, { schema });
+    const reportId = "00000000-0000-4000-8000-000000000761";
+    const lineItemId = "00000000-0000-4000-8000-000000000771";
+
+    await seedReportWithLineItem(db, {
+      currentStage: "Manager Approval",
+      lineItemId,
+      merchant: "Synthetic Tenant Guard Merchant",
+      reportId,
+      tenantId: tenantA
+    });
+
+    const app = createApp();
+    const wrongTenantResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
+      .set("Authorization", createBearerToken({ tenantId: tenantB, roles: ["Department Manager"] }))
+      .send();
+    const employeeResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Employee"] }))
+      .send();
+
+    expect(wrongTenantResponse.status).toBe(409);
+    expect(employeeResponse.status).toBe(403);
+
+    const rows = await db
+      .select()
+      .from(lineItem)
+      .where(and(eq(lineItem.tenant_id, tenantA), eq(lineItem.id, lineItemId)));
+
+    expect(rows[0]?.manager_review_status).toBe("pending");
+  });
+
   it("rejects Expense Report creation without a token", async () => {
     const response = await request(createApp()).post("/v1/expense-reports").send({});
 
@@ -424,4 +639,43 @@ function createExpiredBearerToken(): string {
   );
 
   return `Bearer ${accessToken}`;
+}
+
+async function seedReportWithLineItem(
+  db: NodePgDatabase<typeof schema>,
+  options: {
+    amountCents?: number;
+    currentStage: schema.ExpenseReportSelect["currentStage"];
+    flagged?: boolean;
+    glAccountCode?: string | null;
+    glAccountName?: string | null;
+    lineItemId: string;
+    merchant: string;
+    reportId: string;
+    tenantId: string;
+  }
+): Promise<void> {
+  await db.insert(schema.expenseReport).values({
+    id: options.reportId,
+    tenantId: options.tenantId,
+    submitterId,
+    currentStage: options.currentStage,
+    priority: "Normal"
+  });
+  await db.insert(lineItem).values({
+    id: options.lineItemId,
+    tenant_id: options.tenantId,
+    expense_report_id: options.reportId,
+    merchant: options.merchant,
+    amount_cents: options.amountCents ?? 4250,
+    currency: "USD",
+    category: "Meals",
+    flagged: options.flagged ?? false,
+    gl_coding_status: options.glAccountCode === undefined ? null : "mapped",
+    gl_code_id:
+      options.glAccountCode === undefined ? null : "00000000-0000-4000-8000-000000000799",
+    gl_account_code: options.glAccountCode ?? null,
+    gl_account_name: options.glAccountName ?? null,
+    gl_normal_balance: options.glAccountCode === undefined ? null : "debit"
+  });
 }
