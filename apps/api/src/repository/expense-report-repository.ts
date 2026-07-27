@@ -284,7 +284,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
       .select({
         stage: expenseReport.currentStage,
         reportCount: sql<number>`count(*)::integer`,
-        overdueCount: sql<number>`count(*) filter (where ${expenseReport.dueDate} < now())::integer`
+        overdueCount: sql<number>`count(*) filter (where ${expenseReport.dueDate} < current_date)::integer`
       })
       .from(expenseReport)
       .where(eq(expenseReport.tenantId, tenantId))
@@ -438,13 +438,14 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
             eq(lineItem.tenant_id, request.tenantId),
             eq(lineItem.expense_report_id, request.expenseReportId),
             eq(lineItem.id, request.lineItemId),
-            eq(lineItem.flagged, true)
+            eq(lineItem.flagged, true),
+            eq(lineItem.flag_cleared, false)
           )
         )
         .returning();
 
       if (updatedLineItem === undefined) {
-        throw new ConflictError("Only flagged line items can be cleared.");
+        throw new ConflictError("Only uncleared flagged line items can be cleared.");
       }
 
       await this.insertLineItemAudit(tx, {
@@ -569,13 +570,14 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           and(
             eq(lineItem.tenant_id, request.tenantId),
             eq(lineItem.expense_report_id, request.expenseReportId),
-            eq(lineItem.id, request.lineItemId)
+            eq(lineItem.id, request.lineItemId),
+            eq(lineItem.manager_review_status, "pending")
           )
         )
         .returning();
 
       if (updatedLineItem === undefined) {
-        throw new ConflictError("Expense line item could not be updated.");
+        throw new ConflictError("Only pending Expense line items can be reviewed.");
       }
 
       await this.insertLineItemAudit(tx, {

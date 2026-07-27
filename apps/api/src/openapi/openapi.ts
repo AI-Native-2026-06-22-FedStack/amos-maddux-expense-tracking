@@ -38,7 +38,7 @@ registry.registerComponent("schemas", "CreateExpenseReportRequest", {
         },
         priority: { enum: ["Low", "Normal", "High", "Urgent"], type: "string" }
       },
-      required: ["draftType", "mileageEntries", "priority"],
+      required: ["draftType", "mileageEntries"],
       type: "object"
     },
     {
@@ -75,7 +75,7 @@ registry.registerComponent("schemas", "CreateExpenseReportRequest", {
         },
         priority: { enum: ["Low", "Normal", "High", "Urgent"], type: "string" }
       },
-      required: ["draftType", "lineItems", "priority"],
+      required: ["draftType", "lineItems"],
       type: "object"
     }
   ]

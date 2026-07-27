@@ -181,6 +181,13 @@ describe("Expense Report create and read end-to-end", () => {
 
   it("serves Finance Dashboard rollup from real tenant-scoped Expense Report rows", async () => {
     const db = drizzle(client, { schema });
+    const todayResult = await client.query<{ today: string }>("select current_date::text as today");
+    const today = todayResult.rows[0]?.today;
+
+    if (today === undefined) {
+      throw new Error("Could not read the database current date.");
+    }
+
     await db.insert(schema.expenseReport).values([
       {
         id: "00000000-0000-4000-8000-000000000681",
@@ -215,6 +222,14 @@ describe("Expense Report create and read end-to-end", () => {
         dueDate: null
       },
       {
+        id: "00000000-0000-4000-8000-000000000686",
+        tenantId: tenantA,
+        submitterId,
+        currentStage: "Submitted",
+        priority: "Normal",
+        dueDate: today
+      },
+      {
         id: "00000000-0000-4000-8000-000000000685",
         tenantId: tenantB,
         submitterId,
@@ -236,7 +251,7 @@ describe("Expense Report create and read end-to-end", () => {
     expect(financeResponse.body).toEqual({
       summaries: [
         { stage: "Drafted", reportCount: 2, overdueCount: 1 },
-        { stage: "Submitted", reportCount: 0, overdueCount: 0 },
+        { stage: "Submitted", reportCount: 1, overdueCount: 0 },
         { stage: "Manager Approval", reportCount: 1, overdueCount: 1 },
         { stage: "AP Review", reportCount: 1, overdueCount: 0 },
         { stage: "Paid", reportCount: 0, overdueCount: 0 },
@@ -486,6 +501,26 @@ describe("Expense Report create and read end-to-end", () => {
       "Expense Line Item Approved",
       "Expense Line Item Flag Cleared"
     ]);
+
+    const repeatedApproveResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
+      .set("Authorization", auth)
+      .send();
+    const repeatedClearResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/clear-flag`)
+      .set("Authorization", auth)
+      .send();
+    const auditRowsAfterRepeatedActions = await db
+      .select()
+      .from(auditEntry)
+      .where(and(eq(auditEntry.tenantId, tenantA), eq(auditEntry.expenseReportId, reportId)));
+
+    expect(repeatedApproveResponse.status).toBe(409);
+    expect(repeatedClearResponse.status).toBe(409);
+    expect(auditRowsAfterRepeatedActions.map((row) => row.action)).toEqual([
+      "Expense Line Item Approved",
+      "Expense Line Item Flag Cleared"
+    ]);
   });
 
   it("persists AP Review deductible changes and rejects wrong-stage changes without partial updates", async () => {
@@ -527,8 +562,13 @@ describe("Expense Report create and read end-to-end", () => {
       .patch(`/v1/expense-reports/${managerReportId}/line-items/${managerLineItemId}/deductible`)
       .set("Authorization", financeAuth)
       .send({ deductible: true });
+    const managerRoleResponse = await request(app)
+      .patch(`/v1/expense-reports/${apReportId}/line-items/${apLineItemId}/deductible`)
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Department Manager"] }))
+      .send({ deductible: false });
 
     expect(failureResponse.status).toBe(409);
+    expect(managerRoleResponse.status).toBe(403);
 
     const rows = await db
       .select()
@@ -538,7 +578,7 @@ describe("Expense Report create and read end-to-end", () => {
     expect(rows[0]?.deductible).toBe(false);
   });
 
-  it("rejects Approval Queue writes for the wrong tenant and wrong role", async () => {
+  it("rejects Approval Queue writes for the wrong tenant and unauthorized roles", async () => {
     const db = drizzle(client, { schema });
     const reportId = "00000000-0000-4000-8000-000000000761";
     const lineItemId = "00000000-0000-4000-8000-000000000771";
@@ -560,9 +600,14 @@ describe("Expense Report create and read end-to-end", () => {
       .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
       .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Employee"] }))
       .send();
+    const financeResponse = await request(app)
+      .post(`/v1/expense-reports/${reportId}/line-items/${lineItemId}/approve`)
+      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Finance Admin"] }))
+      .send();
 
     expect(wrongTenantResponse.status).toBe(409);
     expect(employeeResponse.status).toBe(403);
+    expect(financeResponse.status).toBe(403);
 
     const rows = await db
       .select()

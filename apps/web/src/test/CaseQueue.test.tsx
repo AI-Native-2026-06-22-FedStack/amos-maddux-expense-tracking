@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { CaseQueue } from "../screens/CaseQueue";
 import { approvalQueueQueryKey, type ApprovalQueueResponse } from "../api/useApprovalQueue";
 import {
+  createSession,
   createFetchResponse,
   createQueryAuthWrapper,
   tenantId
@@ -67,7 +68,7 @@ describe("CaseQueue Approval Queue table", () => {
     render(<CaseQueue />, { wrapper });
 
     const table = await screen.findByRole("table", {
-      name: "Department Manager approval line items"
+      name: "Approval Queue line items"
     });
 
     expect(table.tagName).toBe("TABLE");
@@ -148,7 +149,10 @@ describe("CaseQueue Approval Queue table", () => {
         })
       );
     vi.stubGlobal("fetch", fetchMock);
-    const { queryClient, wrapper } = createQueryAuthWrapper();
+    const { queryClient, wrapper } = createQueryAuthWrapper(
+      undefined,
+      createSession("Department Manager")
+    );
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
     render(<CaseQueue />, { wrapper });
@@ -159,7 +163,7 @@ describe("CaseQueue Approval Queue table", () => {
     expect(await screen.findByText("Approved")).toBeInTheDocument();
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({
-        queryKey: approvalQueueQueryKey(tenantId, "Finance Admin")
+        queryKey: approvalQueueQueryKey(tenantId, "Department Manager")
       })
     );
 
@@ -186,7 +190,7 @@ describe("CaseQueue Approval Queue table", () => {
       )
       .mockResolvedValueOnce(createFetchResponse({ lineItems: [managerLineItem] }));
     vi.stubGlobal("fetch", fetchMock);
-    const { wrapper } = createQueryAuthWrapper();
+    const { wrapper } = createQueryAuthWrapper(undefined, createSession("Department Manager"));
 
     render(<CaseQueue />, { wrapper });
 
@@ -214,7 +218,7 @@ describe("CaseQueue Approval Queue table", () => {
 
     expect(await screen.findByText("Synthetic Alpha Supplies")).toBeInTheDocument();
 
-    const managerCheckbox = screen.getByLabelText("Deductible, read-only outside AP Review");
+    const managerCheckbox = screen.getAllByLabelText("Deductible, read-only")[0];
     const apCheckbox = screen.getByLabelText("Deductible");
 
     expect(managerCheckbox).toBeDisabled();
@@ -236,7 +240,7 @@ describe("CaseQueue Approval Queue table", () => {
       .mockResolvedValueOnce(createFetchResponse({ currentStage: "Drafted" }))
       .mockResolvedValueOnce(createFetchResponse({ lineItems: [] }));
     vi.stubGlobal("fetch", fetchMock);
-    const { wrapper } = createQueryAuthWrapper();
+    const { wrapper } = createQueryAuthWrapper(undefined, createSession("Platform Admin"));
 
     render(<CaseQueue />, { wrapper });
 
@@ -297,7 +301,7 @@ describe("CaseQueue Approval Queue table", () => {
 });
 
 function firstBodyRowText(): string {
-  const table = screen.getByRole("table", { name: "Department Manager approval line items" });
+  const table = screen.getByRole("table", { name: "Approval Queue line items" });
   const rows = within(table).getAllByRole("row");
 
   return rows[1]?.textContent ?? "";

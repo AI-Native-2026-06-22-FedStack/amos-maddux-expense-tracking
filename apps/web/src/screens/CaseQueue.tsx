@@ -18,9 +18,15 @@ import {
   type ApprovalQueueLineItem,
   type SendBackInput
 } from "../api/useApprovalQueue";
+import { useAuthSession } from "../auth";
 import styles from "./CaseQueue.module.css";
 
 export function CaseQueue() {
+  const authSession = useAuthSession();
+  const currentRole = authSession.session?.role ?? "Employee";
+  const canManagerReview = currentRole === "Department Manager" || currentRole === "Platform Admin";
+  const canApReview = currentRole === "Finance Admin" || currentRole === "Platform Admin";
+  const canSendBack = currentRole === "Platform Admin";
   const {
     approveLineItem,
     clearLineItemFlag,
@@ -80,7 +86,7 @@ export function CaseQueue() {
         cell: (info) => {
           const row = info.row.original;
           const checkboxId = `deductible-${row.lineItemId}`;
-          const canEdit = row.reportStage === "AP Review";
+          const canEdit = canApReview && row.reportStage === "AP Review";
 
           return (
             <div className={styles.checkboxCell}>
@@ -98,7 +104,7 @@ export function CaseQueue() {
                 type="checkbox"
               />
               <label htmlFor={checkboxId}>
-                {canEdit ? "Deductible" : "Deductible, read-only outside AP Review"}
+                {canEdit ? "Deductible" : "Deductible, read-only"}
               </label>
             </div>
           );
@@ -110,13 +116,14 @@ export function CaseQueue() {
         cell: (info) => {
           const row = info.row.original;
           const actionInput = { lineItemId: row.lineItemId, reportId: row.reportId };
+          const canReviewRow = canManagerReview && row.reportStage === "Manager Approval";
           const rowBusy =
             approveLineItem.isPending || rejectLineItem.isPending || clearLineItemFlag.isPending;
 
           return (
             <div className={styles.rowActions}>
               <Button
-                disabled={rowBusy || row.reportStage !== "Manager Approval"}
+                disabled={rowBusy || !canReviewRow}
                 onClick={() => approveLineItem.mutate(actionInput)}
                 type="button"
                 variant="secondary"
@@ -124,7 +131,7 @@ export function CaseQueue() {
                 Approve {row.merchant}
               </Button>
               <Button
-                disabled={rowBusy || row.reportStage !== "Manager Approval"}
+                disabled={rowBusy || !canReviewRow}
                 onClick={() => rejectLineItem.mutate(actionInput)}
                 type="button"
                 variant="secondary"
@@ -132,24 +139,26 @@ export function CaseQueue() {
                 Reject {row.merchant}
               </Button>
               <Button
-                disabled={rowBusy || row.reportStage !== "Manager Approval" || !row.flagged || row.flagCleared}
+                disabled={rowBusy || !canReviewRow || !row.flagged || row.flagCleared}
                 onClick={() => clearLineItemFlag.mutate(actionInput)}
                 type="button"
                 variant="secondary"
               >
                 Clear flag for {row.merchant}
               </Button>
-              <Button
-                disabled={sendBackReport.isPending}
-                onClick={() => {
-                  setSendBackDraft({ reason: "", reportId: row.reportId });
-                  setSendBackReasonError("");
-                }}
-                type="button"
-                variant="secondary"
-              >
-                Send report {shortId(row.reportId)} back
-              </Button>
+              {canSendBack ? (
+                <Button
+                  disabled={sendBackReport.isPending}
+                  onClick={() => {
+                    setSendBackDraft({ reason: "", reportId: row.reportId });
+                    setSendBackReasonError("");
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  Send report {shortId(row.reportId)} back
+                </Button>
+              ) : null}
             </div>
           );
         },
@@ -160,6 +169,9 @@ export function CaseQueue() {
     ],
     [
       approveLineItem,
+      canApReview,
+      canManagerReview,
+      canSendBack,
       clearLineItemFlag,
       rejectLineItem,
       sendBackReport.isPending,
@@ -311,7 +323,7 @@ export function CaseQueue() {
 
         <table className={styles.table}>
           <caption className={styles.tableCaption}>
-            Department Manager approval line items
+            Approval Queue line items
           </caption>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (

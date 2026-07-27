@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
 import { issueTokenPair } from "../src/auth/tokens.js";
+import { createExpenseReportRequestSchema } from "../src/schemas/expense-report.schema.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -62,6 +63,7 @@ describe("served OpenAPI contract", () => {
         currentStage: "Submitted"
       })
     ).toBe(false);
+    expectOpenApiAndSharedCreateRequestToAgree(validateRequest);
 
     const createResponse = await inject(app, {
       method: "POST",
@@ -102,6 +104,82 @@ describe("served OpenAPI contract", () => {
     ).toBe(false);
   });
 });
+
+function expectOpenApiAndSharedCreateRequestToAgree(
+  validateRequest: ReturnType<typeof createOpenApiValidator>
+): void {
+  const cases: readonly unknown[] = [
+    {
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ]
+    },
+    {
+      draftType: "expense",
+      lineItems: [
+        {
+          amount_cents: 4250,
+          category: "Meals",
+          currency: "USD",
+          merchant: "Synthetic Cafe",
+          receipt: {
+            amount_cents: 4250,
+            currency: "USD",
+            merchant: "Synthetic Cafe",
+            receipt_date: "2026-08-02"
+          }
+        }
+      ],
+      priority: "High"
+    },
+    {
+      draftType: "mileage",
+      mileageEntries: [],
+      priority: "Normal"
+    },
+    {
+      draftType: "expense",
+      lineItems: [
+        {
+          amount_cents: 4250,
+          category: "Meals",
+          currency: "usd",
+          merchant: "Synthetic Cafe",
+          receipt: {
+            amount_cents: 4250,
+            currency: "USD",
+            merchant: "Synthetic Cafe",
+            receipt_date: "2026-08-02"
+          }
+        }
+      ]
+    },
+    {
+      currentStage: "Submitted",
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ]
+    }
+  ];
+
+  for (const body of cases) {
+    expect(validateRequest(body)).toBe(createExpenseReportRequestSchema.safeParse(body).success);
+  }
+}
 
 function getPostExpenseReportsOperation(document: JsonObject): JsonObject {
   const paths = expectObject(document.paths);

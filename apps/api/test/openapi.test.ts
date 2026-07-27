@@ -79,20 +79,12 @@ describe("generateOpenApiDocument", () => {
     expect(Object.keys(mileageProperties).sort()).toEqual(
       ["draftType", "dueDate", "mileageEntries", "priority"].sort()
     );
-    expect(expectObject(mileageCreateSchema).required).toEqual([
-      "draftType",
-      "mileageEntries",
-      "priority"
-    ]);
+    expect(expectObject(mileageCreateSchema).required).toEqual(["draftType", "mileageEntries"]);
     expect(expenseProperties.draftType).toEqual({ const: "expense", type: "string" });
     expect(Object.keys(expenseProperties).sort()).toEqual(
       ["draftType", "dueDate", "lineItems", "priority"].sort()
     );
-    expect(expectObject(expenseCreateSchema).required).toEqual([
-      "draftType",
-      "lineItems",
-      "priority"
-    ]);
+    expect(expectObject(expenseCreateSchema).required).toEqual(["draftType", "lineItems"]);
     expect(Object.keys(responseProperties).sort()).toEqual(
       [
         "apReviewerId",
