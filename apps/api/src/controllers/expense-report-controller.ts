@@ -3,10 +3,15 @@ import { NextFunction } from "express";
 import { RequestWithAuthContext, requireAuthenticatedContext } from "../auth/verifier.js";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "../errors/problem-json.js";
 import {
+  approvalQueueLineItemSchema,
+  approvalQueueResponseSchema,
+  caseQueueRollupResponseSchema,
   caseQueueResponseSchema,
   createExpenseReportRequestSchema,
+  deductibleRequestSchema,
   expenseReportIdParamSchema,
   expenseReportResponseSchema,
+  lineItemIdParamSchema,
   rejectExpenseReportRequestSchema,
   transitionRequestSchema
 } from "../schemas/expense-report.schema.js";
@@ -75,6 +80,108 @@ export class ExpenseReportController {
 
     const cases = await this.expenseReportService.listCaseQueue(authContext.tenantId);
     const parsedResponse = caseQueueResponseSchema.parse({ cases });
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public readCaseQueueRollup = async (
+    request: Pick<RequestWithAuthContext, "authContext">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const authContext = requireAuthenticatedContext(request);
+    const summaries = await this.expenseReportService.listCaseQueueRollup({
+      tenantId: authContext.tenantId,
+      roles: authContext.roles
+    });
+    const parsedResponse = caseQueueRollupResponseSchema.parse({ summaries });
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public readApprovalQueueLineItems = async (
+    request: Pick<RequestWithAuthContext, "authContext">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const authContext = requireAuthenticatedContext(request);
+    const lineItems = await this.expenseReportService.listApprovalQueueLineItems({
+      tenantId: authContext.tenantId,
+      roles: authContext.roles
+    });
+    const parsedResponse = approvalQueueResponseSchema.parse({ lineItems });
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public approveLineItem = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = lineItemIdParamSchema.parse(request.params);
+    const authContext = requireAuthenticatedContext(request);
+    const lineItem = await this.expenseReportService.approveLineItem({
+      expenseReportId: parsedParams.id,
+      lineItemId: parsedParams.lineItemId,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles
+    });
+    const parsedResponse = approvalQueueLineItemSchema.parse(lineItem);
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public rejectLineItem = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = lineItemIdParamSchema.parse(request.params);
+    const authContext = requireAuthenticatedContext(request);
+    const lineItem = await this.expenseReportService.rejectLineItem({
+      expenseReportId: parsedParams.id,
+      lineItemId: parsedParams.lineItemId,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles
+    });
+    const parsedResponse = approvalQueueLineItemSchema.parse(lineItem);
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public clearLineItemFlag = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = lineItemIdParamSchema.parse(request.params);
+    const authContext = requireAuthenticatedContext(request);
+    const lineItem = await this.expenseReportService.clearLineItemFlag({
+      expenseReportId: parsedParams.id,
+      lineItemId: parsedParams.lineItemId,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles
+    });
+    const parsedResponse = approvalQueueLineItemSchema.parse(lineItem);
+
+    response.status(200).json(parsedResponse);
+  };
+
+  public updateLineItemDeductible = async (
+    request: Pick<RequestWithAuthContext, "authContext" | "body" | "params">,
+    response: JsonResponse
+  ): Promise<void> => {
+    const parsedParams = lineItemIdParamSchema.parse(request.params);
+    const parsedBody = deductibleRequestSchema.parse(request.body);
+    const authContext = requireAuthenticatedContext(request);
+    const lineItem = await this.expenseReportService.updateLineItemDeductible({
+      expenseReportId: parsedParams.id,
+      lineItemId: parsedParams.lineItemId,
+      tenantId: authContext.tenantId,
+      actorId: authContext.userId,
+      roles: authContext.roles,
+      deductible: parsedBody.deductible
+    });
+    const parsedResponse = approvalQueueLineItemSchema.parse(lineItem);
 
     response.status(200).json(parsedResponse);
   };

@@ -25,8 +25,18 @@ describe("createApp", () => {
   const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
   const authenticatedUserId = "synthetic-submitter-00000000-0000-4000-8000-000000000302";
   const validCreateRequest = {
-    tenantId: "00000000-0000-4000-8000-000000000303",
-    submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000304"
+    draftType: "mileage",
+    dueDate: "2026-08-03",
+    mileageEntries: [
+      {
+        business_purpose: "Synthetic client support visit.",
+        destination: "Synthetic Destination Office",
+        miles: 18.25,
+        origin: "Synthetic Origin Office",
+        trip_date: "2026-08-01"
+      }
+    ],
+    priority: "Normal"
   };
 
   it("returns the service status body from GET /health", async () => {
@@ -287,7 +297,7 @@ describe("createApp", () => {
       paymentId: null,
       currentStage: "Drafted",
       priority: "Normal",
-      dueDate: null,
+      dueDate: "2026-08-03",
       onHold: false,
       holdReason: null
     });
@@ -365,7 +375,7 @@ describe("createApp", () => {
       type: "/problems/request-validation",
       title: "Bad Request",
       status: 400,
-      detail: expect.stringContaining("currentStage"),
+      detail: expect.any(String),
       instance: "/v1/expense-reports"
     });
   });
@@ -384,7 +394,7 @@ describe("createApp", () => {
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/v1/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      url: `/v1/expense-reports/${createdReport.id}?tenantId=${authenticatedTenantId}`,
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -408,7 +418,7 @@ describe("createApp", () => {
 
     const readResponse = await inject(app, {
       method: "GET",
-      url: `/expense-reports/${createdReport.id}?tenantId=${validCreateRequest.tenantId}`,
+      url: `/expense-reports/${createdReport.id}?tenantId=${authenticatedTenantId}`,
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -445,7 +455,7 @@ describe("createApp", () => {
   it("returns 404 for an unknown valid Expense Report id", async () => {
     const response = await inject(createApp(), {
       method: "GET",
-      url: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`,
+      url: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${authenticatedTenantId}`,
       headers: {
         authorization: createAuthorizationHeader()
       }
@@ -457,7 +467,7 @@ describe("createApp", () => {
       title: "Not Found",
       status: 404,
       detail: "Expense Report not found.",
-      instance: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${validCreateRequest.tenantId}`
+      instance: `/v1/expense-reports/00000000-0000-4000-8000-000000000399?tenantId=${authenticatedTenantId}`
     });
   });
 

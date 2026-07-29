@@ -51,6 +51,7 @@ describe("Core Case Service GL-coding consumer pact", () => {
             gl_normal_balance: null,
             gl_unmapped_marker: null,
             deductible: false,
+            manager_review_status: "pending" as const,
             created_at: new Date("2026-07-17T12:00:00.000Z")
           }
         ],

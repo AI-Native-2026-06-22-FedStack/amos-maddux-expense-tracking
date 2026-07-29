@@ -6,8 +6,10 @@ import * as schema from "../db/schema.js";
 import {
   auditEntry,
   expenseReport,
+  expenseReportStages,
   lineItem,
   mileageEntry,
+  receipt,
   stageTransition
 } from "../db/schema.js";
 import { ConflictError } from "../errors/problem-json.js";
@@ -18,9 +20,18 @@ import type {
   LineItemSelect,
   MileageEntrySelect
 } from "../db/schema.js";
-import type { CaseQueueItem } from "../schemas/expense-report.schema.js";
+import type {
+  ApprovalQueueLineItem,
+  CaseQueueItem,
+  CaseQueueStageSummary
+} from "../schemas/expense-report.schema.js";
 import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import { auditEntryWriteSchema } from "../schemas/audit-entry.schema.js";
+import type {
+  CreateExpenseReportRequest,
+  CreateExpenseDraftExpenseReportRequest,
+  CreateMileageDraftExpenseReportRequest
+} from "../schemas/expense-report.schema.js";
 
 type ExpenseReportDatabase = NodePgDatabase<typeof schema>;
 
@@ -34,16 +45,28 @@ export type ExpenseReportForSubmit = ExpenseReportSelect & {
 };
 
 export interface ExpenseReportRepository {
-  createDraftReport(report: ExpenseReportInsert): Promise<ExpenseReportSelect>;
+  createDraftReport(report: CreateDraftReportInsert): Promise<ExpenseReportSelect>;
   findById(id: string, tenantId: string): Promise<ExpenseReportSelect | null>;
   findForSubmit(id: string, tenantId: string): Promise<ExpenseReportForSubmit | null>;
+  listApprovalQueueLineItems(tenantId: string): Promise<ApprovalQueueLineItem[]>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
+  listCaseQueueRollup(tenantId: string): Promise<CaseQueueStageSummary[]>;
   listAuditEntries(expenseReportId: string, tenantId: string): Promise<AuditEntrySelect[]>;
   listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]>;
+  approveLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
+  rejectLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
+  clearLineItemFlag(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
+  updateLineItemDeductible(request: UpdateLineItemDeductibleRequest): Promise<ApprovalQueueLineItem>;
   submitForApReview(request: SubmitForApReviewRequest): Promise<ExpenseReportSelect>;
   transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect>;
   recordDeniedTransition(request: RecordDeniedTransitionRequest): Promise<void>;
 }
+
+export type CreateDraftReportInsert = ExpenseReportInsert & {
+  draftType?: CreateExpenseReportRequest["draftType"];
+  lineItems?: CreateExpenseDraftExpenseReportRequest["lineItems"];
+  mileageEntries?: CreateMileageDraftExpenseReportRequest["mileageEntries"];
+};
 
 export interface SubmitForApReviewRequest {
   expenseReportId: string;
@@ -82,18 +105,75 @@ export interface RecordDeniedTransitionRequest {
   reason: string;
 }
 
+export interface LineItemActionRequest {
+  expenseReportId: string;
+  lineItemId: string;
+  tenantId: string;
+  actorId: string;
+}
+
+export type UpdateLineItemDeductibleRequest = LineItemActionRequest & {
+  deductible: boolean;
+};
+
 class DrizzleExpenseReportRepository implements ExpenseReportRepository {
   public constructor(
     private readonly db: ExpenseReportDatabase,
     private readonly now: () => Date
   ) {}
 
-  public async createDraftReport(insert: ExpenseReportInsert): Promise<ExpenseReportSelect> {
+  public async createDraftReport(insert: CreateDraftReportInsert): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
-      const [report] = await tx.insert(expenseReport).values(insert).returning();
+      const { lineItems, mileageEntries, draftType: _draftType, ...reportInsert } = insert;
+      const [report] = await tx.insert(expenseReport).values(reportInsert).returning();
 
       if (report === undefined) {
         throw new Error("Expense Report creation failed.");
+      }
+
+      if (mileageEntries !== undefined) {
+        await tx.insert(mileageEntry).values(
+          mileageEntries.map((entry) => ({
+            tenant_id: report.tenantId,
+            expense_report_id: report.id,
+            trip_date: entry.trip_date,
+            origin: entry.origin,
+            destination: entry.destination,
+            miles: entry.miles.toFixed(2),
+            business_purpose: entry.business_purpose
+          }))
+        );
+      }
+
+      if (lineItems !== undefined) {
+        for (const item of lineItems) {
+          const [createdLineItem] = await tx
+            .insert(lineItem)
+            .values({
+              tenant_id: report.tenantId,
+              expense_report_id: report.id,
+              merchant: item.merchant,
+              amount_cents: item.amount_cents,
+              currency: item.currency,
+              category: item.category
+            })
+            .returning();
+
+          if (createdLineItem === undefined) {
+            throw new Error("Expense line item creation failed.");
+          }
+
+          await tx.insert(receipt).values({
+            tenant_id: report.tenantId,
+            expense_report_id: report.id,
+            expense_line_item_id: createdLineItem.id,
+            receipt_number: item.receipt.receipt_number,
+            merchant: item.receipt.merchant,
+            receipt_date: item.receipt.receipt_date,
+            amount_cents: item.receipt.amount_cents,
+            currency: item.receipt.currency
+          });
+        }
       }
 
       await tx.insert(stageTransition).values({
@@ -199,6 +279,45 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
       );
   }
 
+  public async listCaseQueueRollup(tenantId: string): Promise<CaseQueueStageSummary[]> {
+    const rows = await this.db
+      .select({
+        stage: expenseReport.currentStage,
+        reportCount: sql<number>`count(*)::integer`,
+        overdueCount: sql<number>`count(*) filter (where ${expenseReport.dueDate} < current_date)::integer`
+      })
+      .from(expenseReport)
+      .where(eq(expenseReport.tenantId, tenantId))
+      .groupBy(expenseReport.currentStage);
+    const countsByStage = new Map(
+      rows.map((row) => [
+        row.stage,
+        {
+          reportCount: Number(row.reportCount),
+          overdueCount: Number(row.overdueCount)
+        }
+      ])
+    );
+
+    return expenseReportStages.map((stage) => ({
+      stage,
+      reportCount: countsByStage.get(stage)?.reportCount ?? 0,
+      overdueCount: countsByStage.get(stage)?.overdueCount ?? 0
+    }));
+  }
+
+  public async listApprovalQueueLineItems(tenantId: string): Promise<ApprovalQueueLineItem[]> {
+    return this.selectApprovalQueueLineItems()
+      .where(
+        and(
+          eq(expenseReport.tenantId, tenantId),
+          eq(lineItem.tenant_id, tenantId),
+          inArray(expenseReport.currentStage, ["Manager Approval", "AP Review"])
+        )
+      )
+      .orderBy(asc(expenseReport.dueDate), asc(lineItem.created_at), asc(lineItem.id));
+  }
+
   public async listWithLineItems(tenantId: string): Promise<ExpenseReportWithLineItems[]> {
     // Future cache-aside read check belongs here before querying PostgreSQL.
     const rows = await this.db
@@ -296,6 +415,84 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
     });
   }
 
+  public async approveLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem> {
+    return this.updateManagerReviewStatus(request, "approved", "Expense Line Item Approved");
+  }
+
+  public async rejectLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem> {
+    return this.updateManagerReviewStatus(request, "rejected", "Expense Line Item Rejected");
+  }
+
+  public async clearLineItemFlag(request: LineItemActionRequest): Promise<ApprovalQueueLineItem> {
+    return this.db.transaction(async (tx) => {
+      const report = await readReportForLineItemAction(tx, request);
+      assertReportStage(report, "Manager Approval");
+
+      const [updatedLineItem] = await tx
+        .update(lineItem)
+        .set({
+          flag_cleared: true
+        })
+        .where(
+          and(
+            eq(lineItem.tenant_id, request.tenantId),
+            eq(lineItem.expense_report_id, request.expenseReportId),
+            eq(lineItem.id, request.lineItemId),
+            eq(lineItem.flagged, true),
+            eq(lineItem.flag_cleared, false)
+          )
+        )
+        .returning();
+
+      if (updatedLineItem === undefined) {
+        throw new ConflictError("Only uncleared flagged line items can be cleared.");
+      }
+
+      await this.insertLineItemAudit(tx, {
+        ...request,
+        action: "Expense Line Item Flag Cleared",
+        reason: "Over-500 line item flag cleared by reviewer."
+      });
+
+      return readApprovalQueueLineItem(tx, request);
+    });
+  }
+
+  public async updateLineItemDeductible(
+    request: UpdateLineItemDeductibleRequest
+  ): Promise<ApprovalQueueLineItem> {
+    return this.db.transaction(async (tx) => {
+      const report = await readReportForLineItemAction(tx, request);
+      assertReportStage(report, "AP Review");
+
+      const [updatedLineItem] = await tx
+        .update(lineItem)
+        .set({
+          deductible: request.deductible
+        })
+        .where(
+          and(
+            eq(lineItem.tenant_id, request.tenantId),
+            eq(lineItem.expense_report_id, request.expenseReportId),
+            eq(lineItem.id, request.lineItemId)
+          )
+        )
+        .returning();
+
+      if (updatedLineItem === undefined) {
+        throw new ConflictError("Expense line item could not be updated.");
+      }
+
+      await this.insertLineItemAudit(tx, {
+        ...request,
+        action: "Expense Line Item Deductibility Updated",
+        reason: `Expense line item marked ${request.deductible ? "deductible" : "non-deductible"}.`
+      });
+
+      return readApprovalQueueLineItem(tx, request);
+    });
+  }
+
   public async transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
       const [updatedReport] = await tx
@@ -354,6 +551,74 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
       })
     );
   }
+
+  private async updateManagerReviewStatus(
+    request: LineItemActionRequest,
+    managerReviewStatus: "approved" | "rejected",
+    action: string
+  ): Promise<ApprovalQueueLineItem> {
+    return this.db.transaction(async (tx) => {
+      const report = await readReportForLineItemAction(tx, request);
+      assertReportStage(report, "Manager Approval");
+
+      const [updatedLineItem] = await tx
+        .update(lineItem)
+        .set({
+          manager_review_status: managerReviewStatus
+        })
+        .where(
+          and(
+            eq(lineItem.tenant_id, request.tenantId),
+            eq(lineItem.expense_report_id, request.expenseReportId),
+            eq(lineItem.id, request.lineItemId),
+            eq(lineItem.manager_review_status, "pending")
+          )
+        )
+        .returning();
+
+      if (updatedLineItem === undefined) {
+        throw new ConflictError("Only pending Expense line items can be reviewed.");
+      }
+
+      await this.insertLineItemAudit(tx, {
+        ...request,
+        action,
+        reason: `Expense line item ${managerReviewStatus} by reviewer.`
+      });
+
+      return readApprovalQueueLineItem(tx, request);
+    });
+  }
+
+  private async insertLineItemAudit(
+    tx: ExpenseReportDatabase,
+    request: LineItemActionRequest & { action: string; reason: string }
+  ): Promise<void> {
+    await tx.insert(auditEntry).values(
+      auditEntryWriteSchema.parse({
+        tenantId: request.tenantId,
+        expenseReportId: request.expenseReportId,
+        actorId: request.actorId,
+        action: request.action,
+        reason: request.reason,
+        result: "success",
+        occurredAt: this.now()
+      })
+    );
+  }
+
+  private selectApprovalQueueLineItems() {
+    return this.db
+      .select(approvalQueueSelection)
+      .from(lineItem)
+      .innerJoin(
+        expenseReport,
+        and(
+          eq(expenseReport.tenantId, lineItem.tenant_id),
+          eq(expenseReport.id, lineItem.expense_report_id)
+        )
+      );
+  }
 }
 
 export function createExpenseReportRepository(
@@ -361,4 +626,89 @@ export function createExpenseReportRepository(
   now: () => Date = () => new Date()
 ): ExpenseReportRepository {
   return new DrizzleExpenseReportRepository(db, now);
+}
+
+const approvalQueueSelection = {
+  reportId: expenseReport.id,
+  reportStage: expenseReport.currentStage,
+  lineItemId: lineItem.id,
+  merchant: lineItem.merchant,
+  amountCents: lineItem.amount_cents,
+  currency: lineItem.currency,
+  category: lineItem.category,
+  flagged: lineItem.flagged,
+  flagCleared: lineItem.flag_cleared,
+  glCodingStatus: lineItem.gl_coding_status,
+  glCodeId: lineItem.gl_code_id,
+  glAccountCode: lineItem.gl_account_code,
+  glAccountName: lineItem.gl_account_name,
+  deductible: lineItem.deductible,
+  managerReviewStatus: lineItem.manager_review_status,
+  createdAt: lineItem.created_at
+};
+
+async function readReportForLineItemAction(
+  db: ExpenseReportDatabase,
+  request: LineItemActionRequest
+): Promise<ExpenseReportSelect> {
+  const [report] = await db
+    .select()
+    .from(expenseReport)
+    .innerJoin(
+      lineItem,
+      and(
+        eq(lineItem.tenant_id, expenseReport.tenantId),
+        eq(lineItem.expense_report_id, expenseReport.id)
+      )
+    )
+    .where(
+      and(
+        eq(expenseReport.id, request.expenseReportId),
+        eq(expenseReport.tenantId, request.tenantId),
+        eq(lineItem.id, request.lineItemId)
+      )
+    )
+    .limit(1);
+
+  if (report === undefined) {
+    throw new ConflictError("Expense line item could not be updated.");
+  }
+
+  return report.expense_report;
+}
+
+async function readApprovalQueueLineItem(
+  db: ExpenseReportDatabase,
+  request: LineItemActionRequest
+): Promise<ApprovalQueueLineItem> {
+  const [row] = await db
+    .select(approvalQueueSelection)
+    .from(lineItem)
+    .innerJoin(
+      expenseReport,
+      and(
+        eq(expenseReport.tenantId, lineItem.tenant_id),
+        eq(expenseReport.id, lineItem.expense_report_id)
+      )
+    )
+    .where(
+      and(
+        eq(expenseReport.id, request.expenseReportId),
+        eq(expenseReport.tenantId, request.tenantId),
+        eq(lineItem.id, request.lineItemId)
+      )
+    )
+    .limit(1);
+
+  if (row === undefined) {
+    throw new ConflictError("Expense line item could not be read after update.");
+  }
+
+  return row;
+}
+
+function assertReportStage(report: ExpenseReportSelect, expectedStage: ExpenseReportStage): void {
+  if (report.currentStage !== expectedStage) {
+    throw new ConflictError(`Expense Report must be ${expectedStage} for this line item action.`);
+  }
 }

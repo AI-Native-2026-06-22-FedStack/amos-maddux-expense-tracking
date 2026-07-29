@@ -46,6 +46,11 @@ describe("App", () => {
           accessToken: createSyntheticJwt(300_000),
           refreshToken: "synthetic-refresh-token"
         })
+      )
+      .mockResolvedValueOnce(
+        createFetchResponse({
+          summaries: emptyRollupSummaries()
+        })
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -172,14 +177,24 @@ describe("App", () => {
       )
       .mockResolvedValueOnce(
         createFetchResponse({
-          cases: [
+          lineItems: [
             {
-              id: "00000000-0000-4000-8000-000000000701",
-              currentStage: "Submitted",
-              priority: "High",
-              dueDate: "2026-07-28",
-              onHold: false,
-              updatedAt: "2026-07-24T12:00:00.000Z"
+              reportId: "00000000-0000-4000-8000-000000000701",
+              reportStage: "Manager Approval",
+              lineItemId: "00000000-0000-4000-8000-000000000711",
+              merchant: "Synthetic Refresh Cafe",
+              amountCents: 72500,
+              currency: "USD",
+              category: "Meals",
+              flagged: true,
+              flagCleared: false,
+              glCodingStatus: "mapped",
+              glCodeId: "00000000-0000-4000-8000-000000000721",
+              glAccountCode: "6100",
+              glAccountName: "Synthetic Meals Expense",
+              deductible: false,
+              managerReviewStatus: "pending",
+              createdAt: "2026-07-24T12:00:00.000Z"
             }
           ]
         })
@@ -188,10 +203,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole("heading", { name: "Case / Approval Queue" })
-    ).toBeInTheDocument();
-    expect(screen.getByText("Submitted")).toBeInTheDocument();
+    expect(await screen.findByText("Synthetic Refresh Cafe")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       "/v1/auth/refresh",
@@ -215,6 +227,14 @@ function createFetchResponse(body: object, status = 200): Response {
     status,
     json: async () => body
   } as Response;
+}
+
+function emptyRollupSummaries() {
+  return expenseReportStages.map((stage) => ({
+    stage,
+    reportCount: 0,
+    overdueCount: 0
+  }));
 }
 
 function readHeaders(

@@ -283,6 +283,48 @@ describe("Expense Report route rate-limit wiring", () => {
     expect(service.listCaseQueue).not.toHaveBeenCalledWith(tenantId);
   });
 
+  it("routes Case Queue rollup reads through the Finance Dashboard service path", async () => {
+    const service = makeExpenseReportService({
+      findReport: vi.fn(),
+      listCaseQueueRollup: vi.fn(async () => [
+        { stage: "Drafted" as const, reportCount: 2, overdueCount: 1 },
+        { stage: "Submitted" as const, reportCount: 1, overdueCount: 0 },
+        { stage: "Manager Approval" as const, reportCount: 0, overdueCount: 0 },
+        { stage: "AP Review" as const, reportCount: 0, overdueCount: 0 },
+        { stage: "Paid" as const, reportCount: 0, overdueCount: 0 },
+        { stage: "Reconciled" as const, reportCount: 0, overdueCount: 0 }
+      ])
+    });
+    const app = createApp({
+      expenseReportController: new ExpenseReportController(service)
+    });
+
+    const response = await inject(app, {
+      method: "GET",
+      url: "/v1/expense-reports/case-queue/rollup",
+      headers: {
+        authorization: createAuthorizationHeader({ tenantId, roles: ["Finance Admin"] })
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(service.findReport).not.toHaveBeenCalled();
+    expect(service.listCaseQueueRollup).toHaveBeenCalledWith({
+      tenantId,
+      roles: ["Finance Admin"]
+    });
+    expect(response.json()).toEqual({
+      summaries: [
+        { stage: "Drafted", reportCount: 2, overdueCount: 1 },
+        { stage: "Submitted", reportCount: 1, overdueCount: 0 },
+        { stage: "Manager Approval", reportCount: 0, overdueCount: 0 },
+        { stage: "AP Review", reportCount: 0, overdueCount: 0 },
+        { stage: "Paid", reportCount: 0, overdueCount: 0 },
+        { stage: "Reconciled", reportCount: 0, overdueCount: 0 }
+      ]
+    });
+  });
+
   it("rejects Employee access to the internal Case Queue route", async () => {
     const service = makeExpenseReportService({
       listCaseQueue: vi.fn(async () => [])
@@ -348,7 +390,13 @@ function makeExpenseReportService(
   return {
     createDraftReport: vi.fn(),
     findReport: vi.fn(),
+    listApprovalQueueLineItems: vi.fn(),
     listCaseQueue: vi.fn(),
+    listCaseQueueRollup: vi.fn(),
+    approveLineItem: vi.fn(),
+    rejectLineItem: vi.fn(),
+    clearLineItemFlag: vi.fn(),
+    updateLineItemDeductible: vi.fn(),
     submit: vi.fn(),
     submitForApReview: vi.fn(),
     advance: vi.fn(),

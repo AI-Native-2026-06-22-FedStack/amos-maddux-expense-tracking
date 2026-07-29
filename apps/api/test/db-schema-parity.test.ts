@@ -73,6 +73,11 @@ const tableShapes = [
       gl_normal_balance: { dataType: "text", nullable: true },
       gl_unmapped_marker: { dataType: "text", nullable: true },
       deductible: { dataType: "boolean", nullable: false, defaultExpression: "false" },
+      manager_review_status: {
+        dataType: "text",
+        nullable: false,
+        defaultExpression: "'pending'::text"
+      },
       created_at: {
         dataType: "timestamp with time zone",
         nullable: false,
@@ -85,6 +90,7 @@ const tableShapes = [
       "expense_line_item_flag_state_check",
       "expense_line_item_gl_coding_status_check",
       "expense_line_item_gl_normal_balance_check",
+      "expense_line_item_manager_review_status_check",
       "expense_line_item_pkey",
       "expense_line_item_report_fk",
       "expense_line_item_tenant_id_id_unique",

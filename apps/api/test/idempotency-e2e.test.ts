@@ -179,7 +179,19 @@ function submitExpenseReport(
     .post("/v1/expense-reports")
     .set("Authorization", createBearerToken(tenantId))
     .set("Idempotency-Key", idempotencyKey)
-    .send({});
+    .send({
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ],
+      priority: "Normal"
+    });
 }
 
 function createBearerToken(tenantId: string): string {

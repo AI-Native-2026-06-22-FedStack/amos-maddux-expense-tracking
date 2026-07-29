@@ -35,9 +35,47 @@ export function createExpenseReportRouter(options: CreateExpenseReportRouterOpti
     expenseReportController.readCaseQueue
   );
   router.get(
+    "/expense-reports/case-queue/rollup",
+    requireJwtAuthentication,
+    expenseReportController.readCaseQueueRollup
+  );
+  router.get(
+    "/expense-reports/approval-line-items",
+    requireJwtAuthentication,
+    expenseReportController.readApprovalQueueLineItems
+  );
+  router.get(
     "/expense-reports/:id",
     requireJwtAuthentication,
     expenseReportController.readExpenseReport
+  );
+  router.post(
+    "/expense-reports/:id/line-items/:lineItemId/approve",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.approveLineItem
+  );
+  router.post(
+    "/expense-reports/:id/line-items/:lineItemId/reject",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.rejectLineItem
+  );
+  router.post(
+    "/expense-reports/:id/line-items/:lineItemId/clear-flag",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.clearLineItemFlag
+  );
+  router.patch(
+    "/expense-reports/:id/line-items/:lineItemId/deductible",
+    requireJwtAuthentication,
+    ...expenseWriteRateLimiters,
+    ...expenseReportIdempotencyMiddlewares,
+    expenseReportController.updateLineItemDeductible
   );
   router.post(
     "/expense-reports/:id/submit",

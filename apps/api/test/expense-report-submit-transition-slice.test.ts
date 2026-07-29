@@ -23,6 +23,7 @@ const tenantB = "00000000-0000-4000-8000-000000000702";
 const employeeId = "synthetic-employee-00000000-0000-4000-8000-000000000703";
 const managerId = "synthetic-manager-00000000-0000-4000-8000-000000000704";
 const financeAdminId = "synthetic-finance-00000000-0000-4000-8000-000000000705";
+const platformAdminId = "synthetic-platform-00000000-0000-4000-8000-000000000706";
 
 describe("Expense Report submit and transition cross-service slice", () => {
   let client: pg.Client;
@@ -66,7 +67,19 @@ describe("Expense Report submit and transition cross-service slice", () => {
     const createResponse = await request(app)
       .post("/v1/expense-reports")
       .set("Authorization", bearerToken(tenantA, employeeId, ["Employee"]))
-      .send({});
+      .send({
+        draftType: "mileage",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal"
+      });
     expect(createResponse.status).toBe(201);
     const reportId = createResponse.body.id as string;
 
@@ -150,10 +163,17 @@ describe("Expense Report submit and transition cross-service slice", () => {
     expect(apReview.status).toBe(200);
     expect(apReview.body.currentStage).toBe("AP Review");
 
-    const sentBack = await request(app)
+    const financeSendBack = await request(app)
       .post(`/v1/expense-reports/${reportId}/reject`)
       .set("Authorization", bearerToken(tenantA, financeAdminId, ["Finance Admin"]))
       .set("Idempotency-Key", "synthetic-finance-send-back")
+      .send({ reason: "Synthetic receipt needs more detail." });
+    expect(financeSendBack.status).toBe(403);
+
+    const sentBack = await request(app)
+      .post(`/v1/expense-reports/${reportId}/reject`)
+      .set("Authorization", bearerToken(tenantA, platformAdminId, ["Platform Admin"]))
+      .set("Idempotency-Key", "synthetic-platform-send-back")
       .send({ reason: "Synthetic receipt needs more detail." });
     expect(sentBack.status).toBe(200);
     expect(sentBack.body.currentStage).toBe("Drafted");
@@ -198,6 +218,7 @@ describe("Expense Report submit and transition cross-service slice", () => {
       ["Expense Report Advanced", "success"],
       ["Expense Report Transition Denied", "failure"],
       ["Expense Report Advanced", "success"],
+      ["Expense Report Send Back Denied", "failure"],
       ["Expense Report Sent Back", "success"]
     ]);
   });

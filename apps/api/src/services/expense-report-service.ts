@@ -11,7 +11,9 @@ import {
   createExpenseReportRepository
 } from "../repository/expense-report-repository.js";
 import {
+  ApprovalQueueLineItem,
   CaseQueueItem,
+  CaseQueueStageSummary,
   CreateExpenseReportRequest,
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
@@ -24,7 +26,13 @@ export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
 export interface ExpenseReportService {
   createDraftReport(request: CreateDraftExpenseReportRequest): Promise<ExpenseReportResponse>;
   findReport(id: string, tenantId: string): Promise<ExpenseReportResponse | null>;
+  listApprovalQueueLineItems(request: ApprovalQueueReadRequest): Promise<ApprovalQueueLineItem[]>;
   listCaseQueue(tenantId: string): Promise<CaseQueueItem[]>;
+  listCaseQueueRollup(request: ApprovalQueueReadRequest): Promise<CaseQueueStageSummary[]>;
+  approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
+  updateLineItemDeductible(request: UpdateLineItemDeductibleServiceRequest): Promise<ApprovalQueueLineItem>;
   submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   submitForApReview(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse>;
@@ -48,6 +56,23 @@ export interface TransitionExpenseReportRequest {
 
 export type RejectExpenseReportRequest = TransitionExpenseReportRequest & {
   reason: string;
+};
+
+export interface ApprovalQueueReadRequest {
+  tenantId: string;
+  roles: string[];
+}
+
+export interface LineItemReviewRequest {
+  expenseReportId: string;
+  lineItemId: string;
+  tenantId: string;
+  actorId: string;
+  roles: string[];
+}
+
+export type UpdateLineItemDeductibleServiceRequest = LineItemReviewRequest & {
+  deductible: boolean;
 };
 
 class RepositoryExpenseReportService implements ExpenseReportService {
@@ -75,6 +100,52 @@ class RepositoryExpenseReportService implements ExpenseReportService {
 
   public async listCaseQueue(tenantId: string): Promise<CaseQueueItem[]> {
     return this.expenseReportRepository.listCaseQueue(tenantId);
+  }
+
+  public async listCaseQueueRollup(
+    request: ApprovalQueueReadRequest
+  ): Promise<CaseQueueStageSummary[]> {
+    if (!canReview(request.roles)) {
+      throw new ForbiddenError("Employee cannot read the Finance Dashboard rollup.");
+    }
+
+    return this.expenseReportRepository.listCaseQueueRollup(request.tenantId);
+  }
+
+  public async listApprovalQueueLineItems(
+    request: ApprovalQueueReadRequest
+  ): Promise<ApprovalQueueLineItem[]> {
+    if (!canReview(request.roles)) {
+      throw new ForbiddenError("Employee cannot read the Approval Queue.");
+    }
+
+    return this.expenseReportRepository.listApprovalQueueLineItems(request.tenantId);
+  }
+
+  public async approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanManagerReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.approveLineItem(request);
+  }
+
+  public async rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanManagerReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.rejectLineItem(request);
+  }
+
+  public async clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem> {
+    assertCanManagerReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.clearLineItemFlag(request);
+  }
+
+  public async updateLineItemDeductible(
+    request: UpdateLineItemDeductibleServiceRequest
+  ): Promise<ApprovalQueueLineItem> {
+    assertCanApReviewLineItems(request.roles);
+
+    return this.expenseReportRepository.updateLineItemDeductible(request);
   }
 
   public async submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse> {
@@ -125,7 +196,9 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new NotFoundError("Expense Report not found.");
     }
 
-    if (!canReview(request.roles)) {
+    const toStage = nextStage(report.currentStage);
+
+    if (!canAdvanceExpenseReport(request.roles, report.currentStage, toStage)) {
       await this.expenseReportRepository.recordDeniedTransition({
         expenseReportId: request.expenseReportId,
         tenantId: request.tenantId,
@@ -133,7 +206,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
         action: "Expense Report Transition Denied",
         reason: "Actor is not permitted to transition Expense Reports."
       });
-      throw new ForbiddenError("Employee cannot transition Expense Reports.");
+      throw new ForbiddenError("Actor cannot transition Expense Reports for this stage.");
     }
 
     if (report.currentStage === "Manager Approval" && hasUnclearedFlag(report)) {
@@ -147,7 +220,6 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new ConflictError("Over-500 line items must be cleared before AP Review.");
     }
 
-    const toStage = nextStage(report.currentStage);
     return this.expenseReportRepository.transitionStage({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
@@ -168,7 +240,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new NotFoundError("Expense Report not found.");
     }
 
-    if (!canReview(request.roles)) {
+    if (!canSendBackExpenseReport(request.roles)) {
       await this.expenseReportRepository.recordDeniedTransition({
         expenseReportId: request.expenseReportId,
         tenantId: request.tenantId,
@@ -176,7 +248,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
         action: "Expense Report Send Back Denied",
         reason: "Actor is not permitted to send back Expense Reports."
       });
-      throw new ForbiddenError("Employee cannot transition Expense Reports.");
+      throw new ForbiddenError("Actor cannot send Expense Reports back to Drafted.");
     }
 
     if (report.currentStage !== "Manager Approval" && report.currentStage !== "AP Review") {
@@ -252,11 +324,12 @@ function readCodedLineItems(
   unmappedMarker: string | null;
 }[] {
   if (!isRecord(response) || !Array.isArray(response.coded_line_items)) {
-    return [];
+    throw new BoundaryContractError("GL coding response did not include coded line items.");
   }
 
   const requestLineItemIds = new Set(request.line_items.map((item) => item.line_item_id));
-  return response.coded_line_items.map((item) => {
+  const seenLineItemIds = new Set<string>();
+  const codedLineItems = response.coded_line_items.map((item) => {
     if (!isCodedLineItem(item)) {
       throw new BoundaryContractError("GL coding response included an invalid line item.");
     }
@@ -264,6 +337,12 @@ function readCodedLineItems(
     if (!requestLineItemIds.has(item.line_item_id)) {
       throw new BoundaryContractError("GL coding response included an unknown line item ID.");
     }
+
+    if (seenLineItemIds.has(item.line_item_id)) {
+      throw new BoundaryContractError("GL coding response included a duplicate line item ID.");
+    }
+
+    seenLineItemIds.add(item.line_item_id);
 
     if (item.status === "mapped") {
       return {
@@ -289,6 +368,12 @@ function readCodedLineItems(
       unmappedMarker: item.unmapped_marker
     };
   });
+
+  if (seenLineItemIds.size !== requestLineItemIds.size) {
+    throw new BoundaryContractError("GL coding response did not include every requested line item.");
+  }
+
+  return codedLineItems;
 }
 
 type CodedLineItemFromEngine =
@@ -337,6 +422,53 @@ function canReview(roles: string[]): boolean {
     roles.includes("Platform Admin") ||
     roles.includes("ExpenseFlow Platform Admin")
   );
+}
+
+function assertCanManagerReviewLineItems(roles: string[]): void {
+  if (!hasDepartmentManagerRole(roles) && !hasPlatformAdminRole(roles)) {
+    throw new ForbiddenError("Only Department Managers can review Manager Approval line items.");
+  }
+}
+
+function assertCanApReviewLineItems(roles: string[]): void {
+  if (!hasFinanceAdminRole(roles) && !hasPlatformAdminRole(roles)) {
+    throw new ForbiddenError("Only Finance Admins can review AP Review line items.");
+  }
+}
+
+function canAdvanceExpenseReport(
+  roles: string[],
+  fromStage: ExpenseReportResponse["currentStage"],
+  toStage: ExpenseReportResponse["currentStage"]
+): boolean {
+  if (hasPlatformAdminRole(roles)) {
+    return true;
+  }
+
+  if (hasDepartmentManagerRole(roles)) {
+    return (
+      (fromStage === "Submitted" && toStage === "Manager Approval") ||
+      (fromStage === "Manager Approval" && toStage === "AP Review")
+    );
+  }
+
+  return hasFinanceAdminRole(roles) && fromStage === "AP Review" && toStage === "Paid";
+}
+
+function canSendBackExpenseReport(roles: string[]): boolean {
+  return hasPlatformAdminRole(roles);
+}
+
+function hasDepartmentManagerRole(roles: string[]): boolean {
+  return roles.includes("Department Manager");
+}
+
+function hasFinanceAdminRole(roles: string[]): boolean {
+  return roles.includes("Finance Admin");
+}
+
+function hasPlatformAdminRole(roles: string[]): boolean {
+  return roles.includes("Platform Admin") || roles.includes("ExpenseFlow Platform Admin");
 }
 
 function hasUnclearedFlag(report: ExpenseReportForSubmit): boolean {

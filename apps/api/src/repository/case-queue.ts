@@ -38,7 +38,7 @@ stage_counts as (
     select
         current_stage as stage,
         count(*)::integer as report_count,
-        count(*) filter (where due_date < now())::integer as overdue_count
+        count(*) filter (where due_date < current_date)::integer as overdue_count
     from expense_report
     where tenant_id = $1
     group by current_stage

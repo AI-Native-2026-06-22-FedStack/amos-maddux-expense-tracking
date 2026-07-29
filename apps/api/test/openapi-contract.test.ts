@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../src/app.js";
 import { issueTokenPair } from "../src/auth/tokens.js";
+import { createExpenseReportRequestSchema } from "../src/schemas/expense-report.schema.js";
 
 type JsonObject = Record<string, unknown>;
 
@@ -24,16 +25,29 @@ describe("served OpenAPI contract", () => {
     });
     const document = expectObject(openApiResponse.json());
     const operation = getPostExpenseReportsOperation(document);
+    const rollupOperation = getCaseQueueRollupOperation(document);
     const requestSchema = getJsonContentSchema(expectObject(operation.requestBody));
     const responseSchema = getJsonContentSchema(
       expectObject(expectObject(operation.responses)["201"])
     );
+    const rollupResponseSchema = getJsonContentSchema(
+      expectObject(expectObject(rollupOperation.responses)["200"])
+    );
     const validateRequest = createOpenApiValidator(document, requestSchema);
     const validateResponse = createOpenApiValidator(document, responseSchema);
+    const validateRollupResponse = createOpenApiValidator(document, rollupResponseSchema);
     const requestBody = {
-      currentStage: "Drafted",
-      priority: "Normal",
-      onHold: false
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ],
+      priority: "Normal"
     };
 
     expect(openApiResponse.statusCode).toBe(200);
@@ -43,6 +57,13 @@ describe("served OpenAPI contract", () => {
       }
     ]);
     expect(validateRequest(requestBody)).toBe(true);
+    expect(
+      validateRequest({
+        ...requestBody,
+        currentStage: "Submitted"
+      })
+    ).toBe(false);
+    expectOpenApiAndSharedCreateRequestToAgree(validateRequest);
 
     const createResponse = await inject(app, {
       method: "POST",
@@ -68,14 +89,110 @@ describe("served OpenAPI contract", () => {
     };
 
     expect(validateResponse(responseWithUnexpectedField)).toBe(false);
+    expect(
+      validateRollupResponse({
+        summaries: [
+          { stage: "Drafted", reportCount: 2, overdueCount: 1 },
+          { stage: "Submitted", reportCount: 0, overdueCount: 0 }
+        ]
+      })
+    ).toBe(true);
+    expect(
+      validateRollupResponse({
+        summaries: [{ stage: "Archived", reportCount: 1, overdueCount: 0 }]
+      })
+    ).toBe(false);
   });
 });
+
+function expectOpenApiAndSharedCreateRequestToAgree(
+  validateRequest: ReturnType<typeof createOpenApiValidator>
+): void {
+  const cases: readonly unknown[] = [
+    {
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ]
+    },
+    {
+      draftType: "expense",
+      lineItems: [
+        {
+          amount_cents: 4250,
+          category: "Meals",
+          currency: "USD",
+          merchant: "Synthetic Cafe",
+          receipt: {
+            amount_cents: 4250,
+            currency: "USD",
+            merchant: "Synthetic Cafe",
+            receipt_date: "2026-08-02"
+          }
+        }
+      ],
+      priority: "High"
+    },
+    {
+      draftType: "mileage",
+      mileageEntries: [],
+      priority: "Normal"
+    },
+    {
+      draftType: "expense",
+      lineItems: [
+        {
+          amount_cents: 4250,
+          category: "Meals",
+          currency: "usd",
+          merchant: "Synthetic Cafe",
+          receipt: {
+            amount_cents: 4250,
+            currency: "USD",
+            merchant: "Synthetic Cafe",
+            receipt_date: "2026-08-02"
+          }
+        }
+      ]
+    },
+    {
+      currentStage: "Submitted",
+      draftType: "mileage",
+      mileageEntries: [
+        {
+          business_purpose: "Synthetic client support visit.",
+          destination: "Synthetic Destination Office",
+          miles: 18.25,
+          origin: "Synthetic Origin Office",
+          trip_date: "2026-08-01"
+        }
+      ]
+    }
+  ];
+
+  for (const body of cases) {
+    expect(validateRequest(body)).toBe(createExpenseReportRequestSchema.safeParse(body).success);
+  }
+}
 
 function getPostExpenseReportsOperation(document: JsonObject): JsonObject {
   const paths = expectObject(document.paths);
   const expenseReportsPath = expectObject(paths["/expense-reports"]);
 
   return expectObject(expenseReportsPath.post);
+}
+
+function getCaseQueueRollupOperation(document: JsonObject): JsonObject {
+  const paths = expectObject(document.paths);
+  const rollupPath = expectObject(paths["/expense-reports/case-queue/rollup"]);
+
+  return expectObject(rollupPath.get);
 }
 
 function getJsonContentSchema(container: JsonObject): JsonObject {

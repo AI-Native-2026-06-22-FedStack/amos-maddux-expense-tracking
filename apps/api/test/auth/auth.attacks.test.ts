@@ -44,8 +44,17 @@ describe("authentication attack regression suite", () => {
       .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId }))
       .send({
-        tenantId: tenantB,
-        submitterId: clientSuppliedUserId
+        draftType: "mileage",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal"
       });
 
     expect(response.status).toBe(201);
@@ -123,17 +132,28 @@ describe("authentication attack regression suite", () => {
     await expectExpenseReportCount(elevatedTenant, 0);
   });
 
-  it("preserves tenant isolation by ignoring client-supplied tenant identifiers after authentication", async () => {
+  it("preserves tenant isolation by rejecting client-supplied tenant identifiers after authentication", async () => {
     const response = await request(createApp())
       .post("/v1/expense-reports")
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId }))
       .send({
+        draftType: "mileage",
+        mileageEntries: [
+          {
+            business_purpose: "Synthetic client support visit.",
+            destination: "Synthetic Destination Office",
+            miles: 18.25,
+            origin: "Synthetic Origin Office",
+            trip_date: "2026-08-01"
+          }
+        ],
+        priority: "Normal",
         tenantId: tenantB,
         submitterId: clientSuppliedUserId
       });
 
-    expect(response.status).toBe(201);
-    await expectExpenseReportCount(tenantA, 1);
+    expect(response.status).toBe(400);
+    await expectExpenseReportCount(tenantA, 0);
     await expectExpenseReportCount(tenantB, 0);
   });
 
