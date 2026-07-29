@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "dev:stage-events": "tsx src/workers/stage-transition-worker.ts",
     "test": "vitest run",
     "db:migrate": "drizzle-kit migrate",
     "dynamodb:setup-local": "tsx scripts/setup-dynamodb-local.ts"

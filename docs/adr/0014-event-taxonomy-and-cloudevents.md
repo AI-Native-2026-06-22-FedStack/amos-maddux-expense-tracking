@@ -18,14 +18,20 @@ This event uses a CloudEvents 1.0 envelope validated with Zod at the boundary. T
 
 The first schema lives in `apps/api/src/events/` because the event depends on API-owned Expense Report stage vocabulary and there is not yet a separate cross-service event-schema package contract.
 
+Stage-transition events are published to SNS and fanned out to a standard SQS queue. The producer depends only on the SNS topic name, while consumers read from their own durable SQS queue with long polling. The first consumer is a plain long-lived worker that validates each CloudEvents envelope, dedupes by event id in the existing Redis idempotency store, projects the event into a read model, and deletes the SQS message only after successful handling.
+
 ## Alternatives Considered
 
 - Command-shaped event names: Rejected names such as `expense.validate`, `notification.send`, and `expense-report.transition` because they instruct a handler or request future work instead of stating a completed fact.
 - Shared schema package: Deferred `packages/shared-schemas` because this first event is owned by the API boundary and moving it to a shared package would create a broader contract before there is more than one event consumer need.
+- EventBridge: Rejected for this flow because ExpenseFlow does not need content-based routing, central audit bus semantics, or event replay for the first stage-transition projection.
+- Kinesis: Rejected for this flow because ExpenseFlow does not need an ordered, retained, multi-consumer stream for stage-transition projection; standard SQS at-least-once delivery is sufficient with idempotent consumers.
 
 ## Consequences
 
 POSITIVE: Consumers can subscribe to a stable past-fact event without the producer knowing which teams or workflows will use it.
 POSITIVE: CloudEvents 1.0 required attributes are enforced at the boundary, so malformed envelopes fail before publication or consumption.
+POSITIVE: SNS to SQS fan-out gives consumers a durable queue buffer and lets the producer avoid naming consumer queues.
 NEGATIVE: The API owns the first event schema location, so a future multi-service event catalog may require moving or re-exporting the schema.
 NEGATIVE: The taxonomy starts with one event, so new events must continue applying the fact-not-command coupling test before they are added.
+NEGATIVE: Standard SQS is at-least-once and unordered, so consumers must dedupe by event id and tolerate stale or out-of-order facts.
