@@ -48,6 +48,7 @@ services:
       JWT_KEY_ID: local-development-key
       JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
       JWT_REFRESH_TOKEN_TTL_SECONDS: "2592000"
+      SNS_STAGE_EVENTS_TOPIC: expenseflow-stage-events
       TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
     ports:
       - "3000:3000"
@@ -119,7 +120,7 @@ services:
   localstack:
     image: localstack/localstack:3
     environment:
-      SERVICES: secretsmanager
+      SERVICES: secretsmanager,sns,sqs
       AWS_DEFAULT_REGION: us-east-1
       LOCALSTACK_HOST: localstack
     ports:
@@ -148,6 +149,10 @@ services:
       DATABASE_URI: postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow
       DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
       JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
+      SNS_STAGE_EVENTS_TOPIC: expenseflow-stage-events
+      SQS_STAGE_EVENTS_QUEUE: expenseflow-stage-projection
+      SQS_STAGE_EVENTS_DLQ: expenseflow-stage-projection-dlq
+      SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT: "3"
       COMPOSE_SECRET_DIR: /run/expenseflow-secrets
       TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
     volumes:

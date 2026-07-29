@@ -40,3 +40,35 @@ export type ExpenseReportStageTransitionedData = z.infer<
 export type ExpenseReportStageTransitionedEvent = z.infer<
   typeof expenseReportStageTransitionedEventSchema
 >;
+
+export interface BuildExpenseReportStageTransitionedEventRequest {
+  id: string;
+  time: string;
+  tenantId: string;
+  expenseReportId: string;
+  fromStage: z.infer<typeof expenseReportStageSchema>;
+  toStage: z.infer<typeof expenseReportStageSchema>;
+  correlationId: string;
+}
+
+export function buildExpenseReportStageTransitionedEvent(
+  request: BuildExpenseReportStageTransitionedEventRequest
+): ExpenseReportStageTransitionedEvent {
+  return expenseReportStageTransitionedEventSchema.parse({
+    id: request.id,
+    source: EXPENSE_REPORT_STAGE_TRANSITIONED_SOURCE,
+    specversion: "1.0",
+    type: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+    time: request.time,
+    subject: `ExpenseReport/${request.expenseReportId}`,
+    datacontenttype: "application/json",
+    data: {
+      schemaVersion: EXPENSE_REPORT_STAGE_TRANSITIONED_SCHEMA_VERSION,
+      tenantId: request.tenantId,
+      expenseReportId: request.expenseReportId,
+      fromStage: request.fromStage,
+      toStage: request.toStage,
+      correlationId: request.correlationId
+    }
+  });
+}

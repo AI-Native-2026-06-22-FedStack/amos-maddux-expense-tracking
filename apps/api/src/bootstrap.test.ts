@@ -10,6 +10,7 @@ const validEnvironment = {
   NODE_ENV: "production",
   AWS_ENDPOINT: "http://localhost:4566",
   AWS_REGION: "us-east-1",
+  SNS_STAGE_EVENTS_TOPIC: "expenseflow-stage-events",
   DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
   JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
   DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
