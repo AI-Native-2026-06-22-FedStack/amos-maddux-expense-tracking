@@ -50,6 +50,7 @@ services:
       JWT_REFRESH_TOKEN_TTL_SECONDS: "2592000"
       SNS_STAGE_EVENTS_TOPIC: expenseflow-stage-events
       SQS_STAGE_EVENTS_QUEUE: expenseflow-stage-projection
+      SQS_STAGE_EVENTS_DLQ: expenseflow-stage-projection-dlq
       TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
     ports:
       - "3000:3000"

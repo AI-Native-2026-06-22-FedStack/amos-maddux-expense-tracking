@@ -116,17 +116,11 @@ describeLocalStack("LocalStack stage-transition event fan-out", () => {
         })
       );
 
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        await receiveOneMessage(sqs, queueUrl);
+      await receiveOneMessage(sqs, queueUrl);
+      await expectNoMessage(sqs, dlqUrl);
+      const { dlqMessage, sourceReceiveCount } = await redrivePoisonToDlq(sqs, queueUrl, dlqUrl);
 
-        if (attempt < 2) {
-          await expectNoMessage(sqs, dlqUrl);
-        }
-
-        await sleep(1_100);
-      }
-
-      const dlqMessage = await pollForMessage(sqs, dlqUrl, 10);
+      expect(sourceReceiveCount).toBeGreaterThan(1);
       expect(JSON.parse(dlqMessage.Body ?? "{}")).toEqual({ synthetic: "poison" });
 
       await sqs.send(
@@ -230,6 +224,13 @@ async function pollForMessage(
 }
 
 async function expectNoMessage(client: SQSClient, queueUrl: string): Promise<void> {
+  await expect(receiveMaybeMessage(client, queueUrl)).resolves.toBeUndefined();
+}
+
+async function receiveMaybeMessage(
+  client: SQSClient,
+  queueUrl: string
+): Promise<{ Body?: string; ReceiptHandle?: string } | undefined> {
   const response = await client.send(
     new ReceiveMessageCommand({
       QueueUrl: queueUrl,
@@ -239,7 +240,31 @@ async function expectNoMessage(client: SQSClient, queueUrl: string): Promise<voi
     })
   );
 
-  expect(response.Messages ?? []).toHaveLength(0);
+  return response.Messages?.[0];
+}
+
+async function redrivePoisonToDlq(
+  client: SQSClient,
+  queueUrl: string,
+  dlqUrl: string
+): Promise<{ dlqMessage: { Body?: string; ReceiptHandle?: string }; sourceReceiveCount: number }> {
+  let sourceReceiveCount = 1;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await sleep(1_100);
+
+    const dlqMessage = await receiveMaybeMessage(client, dlqUrl);
+    if (dlqMessage !== undefined) {
+      return { dlqMessage, sourceReceiveCount };
+    }
+
+    const sourceMessage = await receiveMaybeMessage(client, queueUrl);
+    if (sourceMessage !== undefined) {
+      sourceReceiveCount += 1;
+    }
+  }
+
+  throw new Error(`Synthetic SQS queue ${dlqUrl} did not receive a message.`);
 }
 
 async function deleteMessage(

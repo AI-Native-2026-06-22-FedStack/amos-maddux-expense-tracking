@@ -80,6 +80,7 @@ describe("handleStageTransitionMessage", () => {
 
     await handleStageTransitionMessage(message, { redis, now: () => projectedAt });
     await handleStageTransitionMessage(message, { redis, now: () => projectedAt });
+    await handleStageTransitionMessage(message, { redis, now: () => projectedAt });
 
     expect(redis.projectionWrites).toBe(1);
   });
