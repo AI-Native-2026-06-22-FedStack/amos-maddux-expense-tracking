@@ -1,9 +1,5 @@
 import { GlCodingEngineClient, createGlCodingEngineClient } from "../engine/gl-client.js";
 import {
-  StageTransitionEventPublisher,
-  createLazyStageTransitionEventPublisher
-} from "../events/stage-transition-event-publisher.js";
-import {
   BoundaryContractError,
   ConflictError,
   ForbiddenError,
@@ -21,6 +17,7 @@ import {
   CreateExpenseReportRequest,
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
+import { createSettlementSaga, type SettlementSaga } from "./settlement-saga.js";
 
 export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
   tenantId: string;
@@ -87,7 +84,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(
     private readonly expenseReportRepository: ExpenseReportRepository,
     private readonly glCodingEngineClient: GlCodingEngineClient,
-    private readonly stageTransitionEventPublisher: StageTransitionEventPublisher
+    private readonly settlementSaga: SettlementSaga
   ) {}
 
   public async createDraftReport(
@@ -182,16 +179,9 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
+      correlationId: request.correlationId,
       flaggedLineItemIds: codedLineItems.filter((item) => item.flagged).map((item) => item.id),
       codedLineItems
-    });
-
-    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
-      tenantId: request.tenantId,
-      expenseReportId: request.expenseReportId,
-      fromStage: "Drafted",
-      toStage: "Submitted",
-      correlationId: request.correlationId
     });
 
     return submittedReport;
@@ -237,21 +227,24 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new ConflictError("Over-500 line items must be cleared before AP Review.");
     }
 
+    if (report.currentStage === "Paid" && toStage === "Reconciled") {
+      return this.settlementSaga.settle({
+        expenseReportId: request.expenseReportId,
+        tenantId: request.tenantId,
+        actorId: request.actorId,
+        correlationId: request.correlationId,
+        reason: request.reason
+      });
+    }
+
     const advancedReport = await this.expenseReportRepository.transitionStage({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
       fromStage: report.currentStage,
       toStage,
+      correlationId: request.correlationId,
       reason: request.reason ?? `Expense Report advanced to ${toStage}.`
-    });
-
-    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
-      tenantId: request.tenantId,
-      expenseReportId: request.expenseReportId,
-      fromStage: report.currentStage,
-      toStage,
-      correlationId: request.correlationId
     });
 
     return advancedReport;
@@ -290,16 +283,9 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       actorId: request.actorId,
       fromStage: report.currentStage,
       toStage: "Drafted",
+      correlationId: request.correlationId,
       reason: request.reason,
       action: "Expense Report Sent Back"
-    });
-
-    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
-      tenantId: request.tenantId,
-      expenseReportId: request.expenseReportId,
-      fromStage: report.currentStage,
-      toStage: "Drafted",
-      correlationId: request.correlationId
     });
 
     return rejectedReport;
@@ -309,12 +295,12 @@ class RepositoryExpenseReportService implements ExpenseReportService {
 export function createExpenseReportService(
   expenseReportRepository: ExpenseReportRepository = createExpenseReportRepository(),
   glCodingEngineClient: GlCodingEngineClient = createGlCodingEngineClient(),
-  stageTransitionEventPublisher: StageTransitionEventPublisher = createLazyStageTransitionEventPublisher()
+  settlementSaga: SettlementSaga = createSettlementSaga(expenseReportRepository)
 ): ExpenseReportService {
   return new RepositoryExpenseReportService(
     expenseReportRepository,
     glCodingEngineClient,
-    stageTransitionEventPublisher
+    settlementSaga
   );
 }
 
@@ -496,7 +482,11 @@ function canAdvanceExpenseReport(
     );
   }
 
-  return hasFinanceAdminRole(roles) && fromStage === "AP Review" && toStage === "Paid";
+  return (
+    hasFinanceAdminRole(roles) &&
+    ((fromStage === "AP Review" && toStage === "Paid") ||
+      (fromStage === "Paid" && toStage === "Reconciled"))
+  );
 }
 
 function canSendBackExpenseReport(roles: string[]): boolean {
@@ -532,6 +522,10 @@ function nextStage(
 
   if (stage === "AP Review") {
     return "Paid";
+  }
+
+  if (stage === "Paid") {
+    return "Reconciled";
   }
 
   throw new ConflictError(`Expense Report cannot advance from ${stage}.`);

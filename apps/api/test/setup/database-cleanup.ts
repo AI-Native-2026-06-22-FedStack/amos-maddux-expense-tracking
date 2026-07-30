@@ -30,6 +30,7 @@ TRUNCATE
     "user",
     "role",
     audit_entry,
+    event_outbox,
     stage_transition,
     expense_report,
     expense_line_item,

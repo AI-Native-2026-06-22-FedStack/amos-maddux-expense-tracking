@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 import {
   CreateTopicCommand,
   PublishCommand,
@@ -8,24 +6,13 @@ import {
 } from "@aws-sdk/client-sns";
 
 import { getApiRuntimeConfig } from "../config/runtime-config.js";
-import type { ExpenseReportStage } from "../schemas/expense-report.schema.js";
 import {
-  buildExpenseReportStageTransitionedEvent,
+  type ExpenseReportStageTransitionedEvent,
   expenseReportStageTransitionedEventSchema
 } from "./expense-report-stage-transitioned.event.js";
 
-export interface PublishExpenseReportStageTransitionedRequest {
-  tenantId: string;
-  expenseReportId: string;
-  fromStage: ExpenseReportStage;
-  toStage: ExpenseReportStage;
-  correlationId: string;
-}
-
 export interface StageTransitionEventPublisher {
-  publishExpenseReportStageTransitioned(
-    request: PublishExpenseReportStageTransitionedRequest
-  ): Promise<void>;
+  publish(event: ExpenseReportStageTransitionedEvent): Promise<void>;
 }
 
 export interface StageTransitionSnsPublishClient {
@@ -38,19 +25,10 @@ export class SnsStageTransitionEventPublisher implements StageTransitionEventPub
 
   public constructor(
     private readonly client: StageTransitionSnsPublishClient,
-    private readonly topicName: string,
-    private readonly createId: () => string = randomUUID,
-    private readonly now: () => Date = () => new Date()
+    private readonly topicName: string
   ) {}
 
-  public async publishExpenseReportStageTransitioned(
-    request: PublishExpenseReportStageTransitionedRequest
-  ): Promise<void> {
-    const event = buildExpenseReportStageTransitionedEvent({
-      id: this.createId(),
-      time: this.now().toISOString(),
-      ...request
-    });
+  public async publish(event: ExpenseReportStageTransitionedEvent): Promise<void> {
     const validatedEvent = expenseReportStageTransitionedEventSchema.parse(event);
 
     await this.client.send(
@@ -105,9 +83,9 @@ export function createLazyStageTransitionEventPublisher(): StageTransitionEventP
   let publisher: StageTransitionEventPublisher | undefined;
 
   return {
-    async publishExpenseReportStageTransitioned(request) {
+    async publish(event) {
       publisher ??= createStageTransitionEventPublisher();
-      await publisher.publishExpenseReportStageTransitioned(request);
+      await publisher.publish(event);
     }
   };
 }

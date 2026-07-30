@@ -59,20 +59,19 @@ describe("SnsStageTransitionEventPublisher", () => {
         return {};
       })
     };
-    const publisher = new SnsStageTransitionEventPublisher(
-      client,
-      topicName,
-      () => eventId,
-      () => eventTime
-    );
+    const publisher = new SnsStageTransitionEventPublisher(client, topicName);
 
-    await publisher.publishExpenseReportStageTransitioned({
-      tenantId,
-      expenseReportId,
-      fromStage: "AP Review",
-      toStage: "Paid",
-      correlationId
-    });
+    await publisher.publish(
+      buildExpenseReportStageTransitionedEvent({
+        id: eventId,
+        time: eventTime.toISOString(),
+        tenantId,
+        expenseReportId,
+        fromStage: "AP Review",
+        toStage: "Paid",
+        correlationId
+      })
+    );
 
     expect(client.send).toHaveBeenCalledTimes(2);
     expect(client.send.mock.calls[0]?.[0]).toBeInstanceOf(CreateTopicCommand);

@@ -7,11 +7,16 @@ import pg from "pg";
 import * as schema from "../src/db/schema.js";
 import {
   auditEntry,
+  eventOutbox,
   expenseReport,
   lineItem,
   mileageEntry,
   stageTransition
 } from "../src/db/schema.js";
+import {
+  EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+  expenseReportStageTransitionedEventSchema
+} from "../src/events/expense-report-stage-transitioned.event.js";
 import { ConflictError } from "../src/errors/problem-json.js";
 import { createExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
@@ -20,6 +25,7 @@ const { Client } = pg;
 
 const tenantA = "00000000-0000-4000-8000-000000000401";
 const tenantB = "00000000-0000-4000-8000-000000000402";
+const correlationId = "synthetic-repository-correlation-id";
 
 describe("ExpenseReportRepository integration", () => {
   let client: pg.Client;
@@ -337,6 +343,7 @@ describe("ExpenseReportRepository integration", () => {
       expenseReportId: tenantAReport.id,
       tenantId: tenantA,
       actorId: "synthetic-actor-00000000-0000-4000-8000-000000000433",
+      correlationId,
       flaggedLineItemIds: [tenantALineItem.id, tenantBLineItem.id],
       codedLineItems: [
         {
@@ -362,6 +369,23 @@ describe("ExpenseReportRepository integration", () => {
     expect(tenantBLineItems[0]?.flagged).toBe(false);
     await expect(repository.listAuditEntries(tenantAReport.id, tenantA)).resolves.toHaveLength(2);
     await expect(repository.listAuditEntries(tenantBReport.id, tenantB)).resolves.toHaveLength(1);
+
+    const outboxRows = await db
+      .select()
+      .from(eventOutbox)
+      .where(eq(eventOutbox.eventType, EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE));
+    expect(outboxRows).toHaveLength(1);
+    const event = expenseReportStageTransitionedEventSchema.parse(outboxRows[0]?.payload);
+    expect(event).toMatchObject({
+      type: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+      data: {
+        tenantId: tenantA,
+        expenseReportId: tenantAReport.id,
+        fromStage: "Drafted",
+        toStage: "Submitted",
+        correlationId
+      }
+    });
   });
 
   it("returns a conflict when the report is no longer Drafted at submit write time", async () => {
@@ -382,10 +406,44 @@ describe("ExpenseReportRepository integration", () => {
         expenseReportId: report.id,
         tenantId: tenantA,
         actorId: "synthetic-actor-00000000-0000-4000-8000-000000000442",
+        correlationId,
         flaggedLineItemIds: [],
         codedLineItems: []
       })
     ).rejects.toThrow(ConflictError);
+  });
+
+  it("rolls back the stage change and outbox event when a submit transaction fails", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db, () => new Date(Number.NaN));
+    const report = await createExpenseReportRepository(db).createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000443"
+    });
+
+    await expect(
+      repository.submitForApReview({
+        expenseReportId: report.id,
+        tenantId: tenantA,
+        actorId: "synthetic-actor-00000000-0000-4000-8000-000000000444",
+        correlationId,
+        flaggedLineItemIds: [],
+        codedLineItems: []
+      })
+    ).rejects.toThrow();
+
+    await expect(repository.findById(report.id, tenantA)).resolves.toMatchObject({
+      currentStage: "Drafted"
+    });
+    await expect(
+      db.select().from(stageTransition).where(eq(stageTransition.expenseReportId, report.id))
+    ).resolves.toHaveLength(1);
+    await expect(
+      db
+        .select()
+        .from(eventOutbox)
+        .where(eq(eventOutbox.eventType, EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE))
+    ).resolves.toHaveLength(0);
   });
 
   it("advances and sends back reports with ordered transition and audit rows", async () => {
@@ -400,6 +458,7 @@ describe("ExpenseReportRepository integration", () => {
       expenseReportId: report.id,
       tenantId: tenantA,
       actorId: "synthetic-submitter-00000000-0000-4000-8000-000000000451",
+      correlationId: "synthetic-submit-correlation-id",
       flaggedLineItemIds: [],
       codedLineItems: []
     });
@@ -409,6 +468,7 @@ describe("ExpenseReportRepository integration", () => {
       actorId: "synthetic-manager-00000000-0000-4000-8000-000000000452",
       fromStage: "Submitted",
       toStage: "Manager Approval",
+      correlationId: "synthetic-advance-correlation-id",
       reason: "Synthetic manager review."
     });
     const drafted = await repository.transitionStage({
@@ -417,6 +477,7 @@ describe("ExpenseReportRepository integration", () => {
       actorId: "synthetic-manager-00000000-0000-4000-8000-000000000452",
       fromStage: "Manager Approval",
       toStage: "Drafted",
+      correlationId: "synthetic-send-back-correlation-id",
       reason: "Synthetic receipt needs detail.",
       action: "Expense Report Sent Back"
     });
@@ -442,6 +503,67 @@ describe("ExpenseReportRepository integration", () => {
       "Expense Report Submitted",
       "Expense Report Advanced",
       "Expense Report Sent Back"
+    ]);
+
+    const outboxRows = await db
+      .select()
+      .from(eventOutbox)
+      .where(eq(eventOutbox.eventType, EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE));
+    expect(outboxRows).toHaveLength(3);
+    expect(
+      outboxRows.map(
+        (row) => expenseReportStageTransitionedEventSchema.parse(row.payload).data.correlationId
+      )
+    ).toEqual([
+      "synthetic-submit-correlation-id",
+      "synthetic-advance-correlation-id",
+      "synthetic-send-back-correlation-id"
+    ]);
+  });
+
+  it("issues and idempotently voids a settlement payment", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000461"
+    });
+    await db
+      .update(expenseReport)
+      .set({ currentStage: "Paid" })
+      .where(eq(expenseReport.id, report.id));
+    const paymentId = "synthetic-payment-00000000-0000-4000-8000-000000000462";
+
+    const paidWithPayment = await repository.issuePayment({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-finance-admin-00000000-0000-4000-8000-000000000463",
+      paymentId
+    });
+    await repository.voidIssuedPayment({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-finance-admin-00000000-0000-4000-8000-000000000463",
+      paymentId,
+      reason: "Synthetic compensation voided the issued payment."
+    });
+    await repository.voidIssuedPayment({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-finance-admin-00000000-0000-4000-8000-000000000463",
+      paymentId,
+      reason: "Synthetic retry should not double-void payment."
+    });
+
+    const settledReport = await repository.findById(report.id, tenantA);
+    const auditRows = await repository.listAuditEntries(report.id, tenantA);
+
+    expect(paidWithPayment).toMatchObject({ currentStage: "Paid", paymentId });
+    expect(settledReport).toMatchObject({ currentStage: "Paid", paymentId: null });
+    expect(auditRows.map((row) => row.action)).toEqual([
+      "Expense Report Created",
+      "Expense Report Payment Issued",
+      "Expense Report Payment Voided"
     ]);
   });
 });
