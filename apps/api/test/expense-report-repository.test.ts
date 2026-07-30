@@ -566,6 +566,36 @@ describe("ExpenseReportRepository integration", () => {
       "Expense Report Payment Voided"
     ]);
   });
+
+  it("does not void a matching payment unless the Expense Report is Paid", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000471"
+    });
+    const paymentId = "synthetic-payment-00000000-0000-4000-8000-000000000472";
+    await db
+      .update(expenseReport)
+      .set({ currentStage: "Reconciled", paymentId })
+      .where(eq(expenseReport.id, report.id));
+
+    await repository.voidIssuedPayment({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-finance-admin-00000000-0000-4000-8000-000000000473",
+      paymentId,
+      reason: "Synthetic stale compensation should not void."
+    });
+
+    await expect(repository.findById(report.id, tenantA)).resolves.toMatchObject({
+      currentStage: "Reconciled",
+      paymentId
+    });
+    expect(
+      (await repository.listAuditEntries(report.id, tenantA)).map((row) => row.action)
+    ).toEqual(["Expense Report Created"]);
+  });
 });
 
 class QueryCountingLogger {

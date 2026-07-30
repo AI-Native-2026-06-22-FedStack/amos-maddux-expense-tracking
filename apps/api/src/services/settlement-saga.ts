@@ -26,6 +26,7 @@ export interface PaymentStub {
 export interface IssuePaymentStubRequest {
   expenseReportId: string;
   tenantId: string;
+  idempotencyKey: string;
 }
 
 export interface VoidPaymentStubRequest {
@@ -53,7 +54,25 @@ class OrchestratedSettlementSaga implements SettlementSaga {
     try {
       const issuedPayment = await this.paymentStub.issuePayment({
         expenseReportId: request.expenseReportId,
-        tenantId: request.tenantId
+        tenantId: request.tenantId,
+        idempotencyKey: request.correlationId
+      });
+      let paymentRecorded = false;
+      completedSteps.push({
+        name: "issue-payment",
+        compensate: async () => {
+          await this.paymentStub.voidPayment({ paymentId: issuedPayment.id });
+
+          if (paymentRecorded) {
+            await this.repository.voidIssuedPayment({
+              expenseReportId: request.expenseReportId,
+              tenantId: request.tenantId,
+              actorId: request.actorId,
+              paymentId: issuedPayment.id,
+              reason: "Settlement saga compensation voided the issued payment."
+            });
+          }
+        }
       });
 
       await this.repository.issuePayment({
@@ -62,19 +81,7 @@ class OrchestratedSettlementSaga implements SettlementSaga {
         actorId: request.actorId,
         paymentId: issuedPayment.id
       });
-      completedSteps.push({
-        name: "issue-payment",
-        compensate: async () => {
-          await this.paymentStub.voidPayment({ paymentId: issuedPayment.id });
-          await this.repository.voidIssuedPayment({
-            expenseReportId: request.expenseReportId,
-            tenantId: request.tenantId,
-            actorId: request.actorId,
-            paymentId: issuedPayment.id,
-            reason: "Settlement saga compensation voided the issued payment."
-          });
-        }
-      });
+      paymentRecorded = true;
 
       const reconciledReport = await this.repository.transitionStage(
         toReconcileTransitionRequest(request)
@@ -100,13 +107,22 @@ class OrchestratedSettlementSaga implements SettlementSaga {
 }
 
 class SyntheticPaymentStub implements PaymentStub {
+  private readonly issuedPaymentIdsByKey = new Map<string, string>();
   private readonly voidedPaymentIds = new Set<string>();
 
   public constructor(private readonly createId: () => string = randomUUID) {}
 
-  public async issuePayment(): Promise<IssuedPayment> {
+  public async issuePayment(request: IssuePaymentStubRequest): Promise<IssuedPayment> {
+    const existingPaymentId = this.issuedPaymentIdsByKey.get(request.idempotencyKey);
+    if (existingPaymentId !== undefined) {
+      return { id: existingPaymentId };
+    }
+
+    const id = `synthetic-payment-${this.createId()}`;
+    this.issuedPaymentIdsByKey.set(request.idempotencyKey, id);
+
     return {
-      id: `synthetic-payment-${this.createId()}`
+      id
     };
   }
 

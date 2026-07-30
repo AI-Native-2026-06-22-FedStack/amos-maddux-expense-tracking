@@ -224,6 +224,7 @@ const tableShapes = [
       locked_by: { dataType: "text", nullable: true },
       locked_at: { dataType: "timestamp with time zone", nullable: true },
       sent_at: { dataType: "timestamp with time zone", nullable: true },
+      last_error: { dataType: "text", nullable: true },
       created_at: {
         dataType: "timestamp with time zone",
         nullable: false,

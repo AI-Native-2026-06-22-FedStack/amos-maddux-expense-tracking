@@ -28,7 +28,7 @@ export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as co
 export const auditEntryResults = ["success", "failure"] as const;
 export const glCodingStatuses = ["mapped", "unmapped"] as const;
 export const managerReviewStatuses = ["pending", "approved", "rejected"] as const;
-export const eventOutboxStatuses = ["pending", "in_progress", "sent"] as const;
+export const eventOutboxStatuses = ["pending", "in_progress", "sent", "dead_lettered"] as const;
 
 export const role = pgTable(
   "role",
@@ -419,11 +419,15 @@ export const eventOutbox = pgTable(
     lockedBy: text("locked_by"),
     lockedAt: timestamp("locked_at", { withTimezone: true }),
     sentAt: timestamp("sent_at", { withTimezone: true }),
+    lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
-    check("event_outbox_status_check", sql`${table.status} in ('pending', 'in_progress', 'sent')`),
+    check(
+      "event_outbox_status_check",
+      sql`${table.status} in ('pending', 'in_progress', 'sent', 'dead_lettered')`
+    ),
     check(
       "event_outbox_sent_status_check",
       sql`(${table.status} = 'sent' and ${table.sentAt} is not null) or (${table.status} <> 'sent' and ${table.sentAt} is null)`

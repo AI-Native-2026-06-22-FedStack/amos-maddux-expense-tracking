@@ -14,6 +14,7 @@ import {
   backoffForAttempt,
   createOutboxRelayRepository,
   OUTBOX_RELAY_CLAIM_SQL_GUARD,
+  OUTBOX_RELAY_MAX_ATTEMPTS,
   runOutboxRelayOnce,
   type OutboxRelayRepository
 } from "./outbox-relay.js";
@@ -72,9 +73,10 @@ describe("Outbox relay", () => {
     publishConfirmation.resolve(undefined);
     await runPromise;
 
-    expect(repository.markSent).toHaveBeenCalledExactlyOnceWith(
-      "00000000-0000-4000-8000-000000000904"
-    );
+    expect(repository.markSent).toHaveBeenCalledExactlyOnceWith({
+      id: "00000000-0000-4000-8000-000000000904",
+      relayId: "synthetic-relay"
+    });
   });
 
   it("leaves failed publishes unsent and schedules retry backoff", async () => {
@@ -104,7 +106,40 @@ describe("Outbox relay", () => {
     expect(repository.markSent).not.toHaveBeenCalled();
     expect(repository.markFailed).toHaveBeenCalledExactlyOnceWith({
       id: "00000000-0000-4000-8000-000000000905",
-      nextAttemptAt: new Date(new Date(eventTime).getTime() + backoffForAttempt(2))
+      relayId: "synthetic-relay",
+      errorMessage: "Synthetic SNS outage.",
+      nextAttemptAt: new Date(new Date(eventTime).getTime() + backoffForAttempt(2)),
+      deadLetter: false
+    });
+  });
+
+  it("dead-letters poison outbox rows after the last retry", async () => {
+    const repository = makeRelayRepository({
+      claimBatch: vi.fn(async () => [
+        {
+          id: "00000000-0000-4000-8000-000000000906",
+          eventType: "synthetic.unsupported",
+          payload: makeEvent(),
+          attemptCount: OUTBOX_RELAY_MAX_ATTEMPTS - 1
+        }
+      ])
+    });
+
+    await runOutboxRelayOnce({
+      relayId: "synthetic-relay",
+      repository,
+      publisher: { publish: vi.fn() },
+      now: () => new Date(eventTime)
+    });
+
+    expect(repository.markFailed).toHaveBeenCalledExactlyOnceWith({
+      id: "00000000-0000-4000-8000-000000000906",
+      relayId: "synthetic-relay",
+      errorMessage: "Unsupported outbox event type: synthetic.unsupported.",
+      nextAttemptAt: new Date(
+        new Date(eventTime).getTime() + backoffForAttempt(OUTBOX_RELAY_MAX_ATTEMPTS)
+      ),
+      deadLetter: true
     });
   });
 
@@ -181,6 +216,33 @@ describe("Outbox relay", () => {
     });
     expect(failedRow?.nextAttemptAt.getTime()).toBeGreaterThan(new Date(eventTime).getTime());
   });
+
+  it("does not let a stale relay mark a row owned by another relay", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createOutboxRelayRepository(db);
+    const [row] = await db
+      .insert(eventOutbox)
+      .values({
+        eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+        payload: makeEvent(),
+        status: "in_progress",
+        lockedBy: "synthetic-relay-b",
+        lockedAt: new Date(eventTime)
+      })
+      .returning();
+
+    await expect(repository.markSent({ id: row.id, relayId: "synthetic-relay-a" })).rejects.toThrow(
+      "is not locked by relay"
+    );
+    await repository.markSent({ id: row.id, relayId: "synthetic-relay-b" });
+
+    const [sentRow] = await db.select().from(eventOutbox).where(eq(eventOutbox.id, row.id));
+    expect(sentRow).toMatchObject({
+      status: "sent",
+      lockedBy: null,
+      lockedAt: null
+    });
+  });
 });
 
 function makeRelayRepository(
@@ -188,8 +250,8 @@ function makeRelayRepository(
 ): OutboxRelayRepository {
   return {
     claimBatch: vi.fn(async () => []),
-    markSent: vi.fn(),
-    markFailed: vi.fn(),
+    markSent: vi.fn(async () => undefined),
+    markFailed: vi.fn(async () => undefined),
     ...overrides
   };
 }

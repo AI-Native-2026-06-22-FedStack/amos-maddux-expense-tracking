@@ -22,6 +22,7 @@ export const OUTBOX_RELAY_STALE_LOCK_MS = 5 * 60_000;
 export const OUTBOX_RELAY_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000] as const;
 export const OUTBOX_RELAY_MAX_BACKOFF_MS = 60_000;
 export const OUTBOX_RELAY_CLAIM_SQL_GUARD = "FOR UPDATE SKIP LOCKED";
+export const OUTBOX_RELAY_MAX_ATTEMPTS = 10;
 
 export interface OutboxRelayMessage {
   id: string;
@@ -39,7 +40,7 @@ interface ClaimedOutboxRow {
 
 export interface OutboxRelayRepository {
   claimBatch(request: ClaimOutboxBatchRequest): Promise<OutboxRelayMessage[]>;
-  markSent(id: string): Promise<void>;
+  markSent(request: MarkOutboxSentRequest): Promise<void>;
   markFailed(request: MarkOutboxFailedRequest): Promise<void>;
 }
 
@@ -51,7 +52,15 @@ export interface ClaimOutboxBatchRequest {
 
 export interface MarkOutboxFailedRequest {
   id: string;
+  relayId: string;
+  errorMessage: string;
   nextAttemptAt: Date;
+  deadLetter?: boolean;
+}
+
+export interface MarkOutboxSentRequest {
+  id: string;
+  relayId: string;
 }
 
 export interface OutboxRelayOptions {
@@ -111,31 +120,52 @@ class DrizzleOutboxRelayRepository implements OutboxRelayRepository {
     }));
   }
 
-  public async markSent(id: string): Promise<void> {
-    await this.db
+  public async markSent(request: MarkOutboxSentRequest): Promise<void> {
+    const updatedRows = await this.db
       .update(eventOutbox)
       .set({
         status: "sent",
         sentAt: new Date(),
         lockedBy: null,
         lockedAt: null,
+        lastError: null,
         updatedAt: new Date()
       })
-      .where(sql`${eventOutbox.id} = ${id} and ${eventOutbox.status} = 'in_progress'`);
+      .where(
+        sql`
+        ${eventOutbox.id} = ${request.id}
+        and ${eventOutbox.status} = 'in_progress'
+        and ${eventOutbox.lockedBy} = ${request.relayId}
+      `
+      )
+      .returning({ id: eventOutbox.id });
+
+    if (updatedRows.length === 0) {
+      throw new Error(`Outbox row ${request.id} is not locked by relay ${request.relayId}.`);
+    }
   }
 
   public async markFailed(request: MarkOutboxFailedRequest): Promise<void> {
-    await this.db.execute(sql`
+    const failedStatus = request.deadLetter === true ? "dead_lettered" : "pending";
+    const nextAttemptAt = request.deadLetter === true ? new Date() : request.nextAttemptAt;
+    const result = await this.db.execute(sql`
       update ${eventOutbox}
-      set status = 'pending',
+      set status = ${failedStatus},
           attempt_count = attempt_count + 1,
-          next_attempt_at = ${request.nextAttemptAt},
+          next_attempt_at = ${nextAttemptAt},
           locked_by = null,
           locked_at = null,
+          last_error = ${request.errorMessage},
           updated_at = now()
       where ${eventOutbox.id} = ${request.id}
         and ${eventOutbox.sentAt} is null
+        and ${eventOutbox.status} = 'in_progress'
+        and ${eventOutbox.lockedBy} = ${request.relayId}
     `);
+
+    if (result.rowCount === 0) {
+      throw new Error(`Outbox row ${request.id} is not locked by relay ${request.relayId}.`);
+    }
   }
 }
 
@@ -166,16 +196,32 @@ export async function runOutboxRelayOnce(options: OutboxRelayOptions): Promise<n
   for (const message of messages) {
     try {
       await publishOutboxMessage(publisher, message);
-      await repository.markSent(message.id);
-    } catch {
-      await repository.markFailed({
-        id: message.id,
-        nextAttemptAt: new Date(now().getTime() + backoffForAttempt(message.attemptCount + 1))
-      });
+      await repository
+        .markSent({ id: message.id, relayId: options.relayId })
+        .catch(() => undefined);
+    } catch (error) {
+      const attemptCount = message.attemptCount + 1;
+      await repository
+        .markFailed({
+          id: message.id,
+          relayId: options.relayId,
+          errorMessage: errorToMessage(error),
+          nextAttemptAt: new Date(now().getTime() + backoffForAttempt(attemptCount)),
+          deadLetter: attemptCount >= OUTBOX_RELAY_MAX_ATTEMPTS
+        })
+        .catch(() => undefined);
     }
   }
 
   return messages.length;
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message.slice(0, 1_000);
+  }
+
+  return String(error).slice(0, 1_000);
 }
 
 export function backoffForAttempt(attemptCount: number): number {

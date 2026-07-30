@@ -69,13 +69,14 @@ describe("Settlement saga", () => {
     expect(compensationOrder).toEqual(["void-payment-stub", "record-payment-voided"]);
   });
 
-  it("does not compensate any step that never committed", async () => {
+  it("voids the external payment when recording the issued payment fails", async () => {
     const repository = makeRepository({
       issuePayment: vi.fn(async () => {
         throw new ConflictError("Synthetic payment failure.");
       })
     });
-    const saga = createSettlementSaga(repository, makePaymentStub());
+    const paymentStub = makePaymentStub();
+    const saga = createSettlementSaga(repository, paymentStub);
 
     await expect(
       saga.settle({
@@ -86,9 +87,33 @@ describe("Settlement saga", () => {
       })
     ).rejects.toThrow("Synthetic payment failure.");
 
+    expect(paymentStub.voidPayment).toHaveBeenCalledExactlyOnceWith({ paymentId });
     expect(repository.transitionStage).not.toHaveBeenCalled();
     expect(repository.unreconcileSettlement).not.toHaveBeenCalled();
     expect(repository.voidIssuedPayment).not.toHaveBeenCalled();
+  });
+
+  it("does not compensate when issuing the external payment fails", async () => {
+    const paymentStub = makePaymentStub({
+      issuePayment: vi.fn(async () => {
+        throw new ConflictError("Synthetic external payment failure.");
+      })
+    });
+    const repository = makeRepository();
+    const saga = createSettlementSaga(repository, paymentStub);
+
+    await expect(
+      saga.settle({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        correlationId
+      })
+    ).rejects.toThrow("Synthetic external payment failure.");
+
+    expect(paymentStub.voidPayment).not.toHaveBeenCalled();
+    expect(repository.issuePayment).not.toHaveBeenCalled();
+    expect(repository.transitionStage).not.toHaveBeenCalled();
   });
 });
 

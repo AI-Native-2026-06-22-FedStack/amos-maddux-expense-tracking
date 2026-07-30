@@ -8,9 +8,10 @@ CREATE TABLE "event_outbox" (
 	"locked_by" text,
 	"locked_at" timestamp with time zone,
 	"sent_at" timestamp with time zone,
+	"last_error" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "event_outbox_status_check" CHECK ("event_outbox"."status" in ('pending', 'in_progress', 'sent')),
+	CONSTRAINT "event_outbox_status_check" CHECK ("event_outbox"."status" in ('pending', 'in_progress', 'sent', 'dead_lettered')),
 	CONSTRAINT "event_outbox_sent_status_check" CHECK (("event_outbox"."status" = 'sent' and "event_outbox"."sent_at" is not null) or ("event_outbox"."status" <> 'sent' and "event_outbox"."sent_at" is null))
 );
 --> statement-breakpoint

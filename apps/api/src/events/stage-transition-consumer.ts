@@ -36,6 +36,17 @@ if redis.call("SET", KEYS[2], ARGV[1], "PX", ARGV[2], "NX") then
 end
 return "locked"
 `;
+const projectStageTransitionScript = `
+local existing = redis.call("GET", KEYS[1])
+if existing then
+  local ok, projection = pcall(cjson.decode, existing)
+  if ok and projection["transitionedAt"] and ARGV[2] ~= "" and projection["transitionedAt"] > ARGV[2] then
+    return "stale"
+  end
+end
+redis.call("SET", KEYS[1], ARGV[1])
+return "projected"
+`;
 
 export interface StageTransitionConsumerRedisClient {
   connect?(): Promise<unknown>;
@@ -76,6 +87,7 @@ export interface PollStageTransitionQueueDependencies extends HandleStageTransit
   queueUrl: string;
   waitTimeSeconds?: number;
   maxNumberOfMessages?: number;
+  alert?: (message: string) => void;
 }
 
 export interface RunStageTransitionConsumerDependencies extends HandleStageTransitionMessageDependencies {
@@ -147,15 +159,26 @@ export async function pollStageTransitionQueue(
     new ReceiveMessageCommand({
       QueueUrl: dependencies.queueUrl,
       MaxNumberOfMessages: dependencies.maxNumberOfMessages ?? 10,
+      MessageAttributeNames: ["All"],
       WaitTimeSeconds: dependencies.waitTimeSeconds ?? 20
     })
   );
 
   for (const message of response.Messages ?? []) {
-    await handleStageTransitionMessage(message, dependencies);
+    try {
+      await handleStageTransitionMessage(message, dependencies);
+    } catch (error) {
+      (dependencies.alert ?? console.error)(
+        `[alert] stage-transition message handling failed: ${errorToMessage(error)}`
+      );
+      continue;
+    }
 
     if (message.ReceiptHandle === undefined) {
-      throw new Error("Handled SQS stage-transition message did not include a receipt handle.");
+      (dependencies.alert ?? console.error)(
+        "[alert] handled SQS stage-transition message did not include a receipt handle."
+      );
+      continue;
     }
 
     await dependencies.sqs.send(
@@ -210,6 +233,7 @@ export async function redriveStageTransitionDlq(
     new ReceiveMessageCommand({
       QueueUrl: dependencies.dlqUrl,
       MaxNumberOfMessages: Math.min(dependencies.maxMessages ?? 10, 10),
+      MessageAttributeNames: ["All"],
       WaitTimeSeconds: 1
     })
   );
@@ -299,7 +323,7 @@ export function createStageTransitionProjectionKey(
 }
 
 async function projectStageTransitionEvent(
-  redis: Pick<StageTransitionConsumerRedisClient, "set">,
+  redis: Pick<StageTransitionConsumerRedisClient, "eval">,
   event: ExpenseReportStageTransitionedEvent,
   now: () => Date
 ): Promise<void> {
@@ -314,8 +338,19 @@ async function projectStageTransitionEvent(
     projectedAt: now().toISOString()
   };
 
-  await redis.set(
+  await redis.eval(
+    projectStageTransitionScript,
+    1,
     createStageTransitionProjectionKey(event.data.tenantId, event.data.expenseReportId),
-    JSON.stringify(projection)
+    JSON.stringify(projection),
+    event.time ?? ""
   );
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

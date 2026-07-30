@@ -600,6 +600,7 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           and(
             eq(expenseReport.id, request.expenseReportId),
             eq(expenseReport.tenantId, request.tenantId),
+            eq(expenseReport.currentStage, "Paid"),
             eq(expenseReport.paymentId, request.paymentId)
           )
         )
