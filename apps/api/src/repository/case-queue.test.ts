@@ -62,7 +62,7 @@ describe("readCaseQueue", () => {
   });
 
   it("derives overdue counts at read time and filters by tenant", () => {
-    expect(caseQueueSql).toContain("count(*) filter (where due_date < now())::integer");
+    expect(caseQueueSql).toContain("count(*) filter (where due_date < current_date)::integer");
     expect(caseQueueSql).toContain("from expense_report");
     expect(caseQueueSql).toContain("where tenant_id = $1");
     expect(caseQueueSql).toContain("group by current_stage");

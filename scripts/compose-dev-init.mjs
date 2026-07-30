@@ -10,6 +10,20 @@ import {
   SecretsManagerClient
 } from "@aws-sdk/client-secrets-manager";
 import {
+  CreateTopicCommand,
+  ListSubscriptionsByTopicCommand,
+  SNSClient,
+  SubscribeCommand
+} from "@aws-sdk/client-sns";
+import {
+  CreateQueueCommand,
+  GetQueueAttributesCommand,
+  GetQueueUrlCommand,
+  QueueAttributeName,
+  SQSClient,
+  SetQueueAttributesCommand
+} from "@aws-sdk/client-sqs";
+import {
   BillingMode,
   CreateTableCommand,
   DynamoDBClient,
@@ -34,6 +48,10 @@ const databaseUri =
 const awsEndpoint = process.env.AWS_ENDPOINT ?? "http://localstack:4566";
 const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT ?? "http://dynamodb-local:8000";
 const awsRegion = process.env.AWS_REGION ?? "us-east-1";
+const stageEventsTopicName = process.env.SNS_STAGE_EVENTS_TOPIC ?? "expenseflow-stage-events";
+const stageEventsQueueName = process.env.SQS_STAGE_EVENTS_QUEUE ?? "expenseflow-stage-projection";
+const stageEventsDlqName = process.env.SQS_STAGE_EVENTS_DLQ ?? "expenseflow-stage-projection-dlq";
+const stageEventsMaxReceiveCount = Number(process.env.SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT ?? "3");
 const secretDirectory = process.env.COMPOSE_SECRET_DIR ?? "/run/expenseflow-secrets";
 const privateKeyPath = join(secretDirectory, "jwt-private.pem");
 const publicKeyPath = join(secretDirectory, "jwt-public.pem");
@@ -47,6 +65,16 @@ const credentials = {
 };
 
 const secretsManager = new SecretsManagerClient({
+  endpoint: awsEndpoint,
+  region: awsRegion,
+  credentials
+});
+const sns = new SNSClient({
+  endpoint: awsEndpoint,
+  region: awsRegion,
+  credentials
+});
+const sqs = new SQSClient({
   endpoint: awsEndpoint,
   region: awsRegion,
   credentials
@@ -71,6 +99,7 @@ await withPgClient(async (client) => {
   await seedLocalAuthUser(client);
 });
 await ensureCaseQueueTable();
+await ensureStageEventFanout();
 
 console.log("Compose local-dev initialization complete.");
 console.log(
@@ -426,6 +455,154 @@ async function ensureCaseQueueTable() {
     { client: dynamodb, minDelay: 1, maxWaitTime: 20 },
     { TableName: tableName }
   );
+}
+
+async function ensureStageEventFanout() {
+  if (!Number.isInteger(stageEventsMaxReceiveCount) || stageEventsMaxReceiveCount < 1) {
+    throw new Error("SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT must be a positive integer.");
+  }
+
+  const topicArn = await ensureSnsTopic(stageEventsTopicName);
+  const dlqUrl = await ensureSqsQueue(stageEventsDlqName);
+  const dlqArn = await readQueueArn(dlqUrl);
+  const queueUrl = await ensureSqsQueue(stageEventsQueueName, {
+    RedrivePolicy: JSON.stringify({
+      deadLetterTargetArn: dlqArn,
+      maxReceiveCount: String(stageEventsMaxReceiveCount)
+    })
+  });
+  const queueArn = await readQueueArn(queueUrl);
+
+  await sqs.send(
+    new SetQueueAttributesCommand({
+      QueueUrl: queueUrl,
+      Attributes: {
+        RedrivePolicy: JSON.stringify({
+          deadLetterTargetArn: dlqArn,
+          maxReceiveCount: String(stageEventsMaxReceiveCount)
+        }),
+        Policy: JSON.stringify(createSnsQueuePolicy(queueArn, topicArn))
+      }
+    })
+  );
+  await ensureSnsSubscription(topicArn, queueArn);
+}
+
+async function ensureSnsTopic(name) {
+  const response = await sns.send(
+    new CreateTopicCommand({
+      Name: name
+    })
+  );
+
+  if (typeof response.TopicArn !== "string") {
+    throw new Error(`SNS topic ${name} did not return an ARN.`);
+  }
+
+  return response.TopicArn;
+}
+
+async function ensureSqsQueue(name, attributes = {}) {
+  try {
+    const response = await sqs.send(
+      new CreateQueueCommand({
+        QueueName: name,
+        Attributes: attributes
+      })
+    );
+
+    if (typeof response.QueueUrl === "string") {
+      return response.QueueUrl;
+    }
+  } catch (error) {
+    if (error?.name !== "QueueNameExists") {
+      throw error;
+    }
+  }
+
+  const response = await sqs.send(
+    new GetQueueUrlCommand({
+      QueueName: name
+    })
+  );
+
+  if (typeof response.QueueUrl !== "string") {
+    throw new Error(`SQS queue ${name} did not return a URL.`);
+  }
+
+  if (Object.keys(attributes).length > 0) {
+    await sqs.send(
+      new SetQueueAttributesCommand({
+        QueueUrl: response.QueueUrl,
+        Attributes: attributes
+      })
+    );
+  }
+
+  return response.QueueUrl;
+}
+
+async function readQueueArn(queueUrl) {
+  const response = await sqs.send(
+    new GetQueueAttributesCommand({
+      QueueUrl: queueUrl,
+      AttributeNames: [QueueAttributeName.QueueArn]
+    })
+  );
+  const queueArn = response.Attributes?.[QueueAttributeName.QueueArn];
+
+  if (typeof queueArn !== "string") {
+    throw new Error(`SQS queue ${queueUrl} did not return an ARN.`);
+  }
+
+  return queueArn;
+}
+
+async function ensureSnsSubscription(topicArn, queueArn) {
+  const subscriptions = await sns.send(
+    new ListSubscriptionsByTopicCommand({
+      TopicArn: topicArn
+    })
+  );
+  const alreadySubscribed = subscriptions.Subscriptions?.some(
+    (subscription) => subscription.Protocol === "sqs" && subscription.Endpoint === queueArn
+  );
+
+  if (alreadySubscribed) {
+    return;
+  }
+
+  await sns.send(
+    new SubscribeCommand({
+      TopicArn: topicArn,
+      Protocol: "sqs",
+      Endpoint: queueArn,
+      Attributes: {
+        RawMessageDelivery: "true"
+      }
+    })
+  );
+}
+
+function createSnsQueuePolicy(queueArn, topicArn) {
+  return {
+    Version: "2012-10-17",
+    Statement: [
+      {
+        Effect: "Allow",
+        Principal: {
+          Service: "sns.amazonaws.com"
+        },
+        Action: "sqs:SendMessage",
+        Resource: queueArn,
+        Condition: {
+          ArnEquals: {
+            "aws:SourceArn": topicArn
+          }
+        }
+      }
+    ]
+  };
 }
 
 async function waitForLocalStack() {

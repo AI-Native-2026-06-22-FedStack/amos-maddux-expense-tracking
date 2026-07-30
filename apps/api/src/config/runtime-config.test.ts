@@ -6,6 +6,8 @@ const validEnvironment = {
   NODE_ENV: "production",
   AWS_ENDPOINT: "http://localhost:4566",
   AWS_REGION: "us-east-1",
+  SNS_STAGE_EVENTS_TOPIC: "expenseflow-stage-events",
+  SQS_STAGE_EVENTS_QUEUE: "expenseflow-stage-projection",
   DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
   JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
   DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
@@ -22,6 +24,8 @@ describe("loadApiRuntimeConfig", () => {
     expect(loadApiRuntimeConfig(validEnvironment)).toMatchObject({
       AWS_ENDPOINT: "http://localhost:4566",
       AWS_REGION: "us-east-1",
+      SNS_STAGE_EVENTS_TOPIC: "expenseflow-stage-events",
+      SQS_STAGE_EVENTS_QUEUE: "expenseflow-stage-projection",
       DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
       JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
       DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
@@ -34,6 +38,8 @@ describe("loadApiRuntimeConfig", () => {
 
   it.each([
     ["AWS_ENDPOINT", "not-a-url"],
+    ["SNS_STAGE_EVENTS_TOPIC", ""],
+    ["SQS_STAGE_EVENTS_QUEUE", ""],
     ["DATABASE_URI", "http://localhost:5432/expenseflow"],
     ["REDIS_URL", "http://localhost:6379"],
     ["PORT", "70000"],
@@ -48,17 +54,20 @@ describe("loadApiRuntimeConfig", () => {
     ).toThrow();
   });
 
-  it.each(["AWS_ENDPOINT", "DB_PASSWORD_SECRET_ID", "JWT_SIGNING_KEYS_SECRET_ID"])(
-    "fails fast when %s is missing",
-    (name) => {
-      expect(() =>
-        loadApiRuntimeConfig({
-          ...validEnvironment,
-          [name]: undefined
-        })
-      ).toThrow();
-    }
-  );
+  it.each([
+    "AWS_ENDPOINT",
+    "SNS_STAGE_EVENTS_TOPIC",
+    "SQS_STAGE_EVENTS_QUEUE",
+    "DB_PASSWORD_SECRET_ID",
+    "JWT_SIGNING_KEYS_SECRET_ID"
+  ])("fails fast when %s is missing", (name) => {
+    expect(() =>
+      loadApiRuntimeConfig({
+        ...validEnvironment,
+        [name]: undefined
+      })
+    ).toThrow();
+  });
 
   it("rejects a non-test DATABASE_URI with an embedded password", () => {
     const databaseUri = new URL(validEnvironment.DATABASE_URI);

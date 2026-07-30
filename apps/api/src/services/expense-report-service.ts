@@ -1,5 +1,9 @@
 import { GlCodingEngineClient, createGlCodingEngineClient } from "../engine/gl-client.js";
 import {
+  StageTransitionEventPublisher,
+  createLazyStageTransitionEventPublisher
+} from "../events/stage-transition-event-publisher.js";
+import {
   BoundaryContractError,
   ConflictError,
   ForbiddenError,
@@ -32,7 +36,9 @@ export interface ExpenseReportService {
   approveLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
   rejectLineItem(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
   clearLineItemFlag(request: LineItemReviewRequest): Promise<ApprovalQueueLineItem>;
-  updateLineItemDeductible(request: UpdateLineItemDeductibleServiceRequest): Promise<ApprovalQueueLineItem>;
+  updateLineItemDeductible(
+    request: UpdateLineItemDeductibleServiceRequest
+  ): Promise<ApprovalQueueLineItem>;
   submit(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   submitForApReview(request: SubmitExpenseReportRequest): Promise<ExpenseReportResponse>;
   advance(request: TransitionExpenseReportRequest): Promise<ExpenseReportResponse>;
@@ -44,6 +50,7 @@ export interface SubmitExpenseReportRequest {
   tenantId: string;
   actorId: string;
   bearerToken: string;
+  correlationId: string;
 }
 
 export interface TransitionExpenseReportRequest {
@@ -51,6 +58,7 @@ export interface TransitionExpenseReportRequest {
   tenantId: string;
   actorId: string;
   roles: string[];
+  correlationId: string;
   reason?: string;
 }
 
@@ -78,7 +86,8 @@ export type UpdateLineItemDeductibleServiceRequest = LineItemReviewRequest & {
 class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(
     private readonly expenseReportRepository: ExpenseReportRepository,
-    private readonly glCodingEngineClient: GlCodingEngineClient
+    private readonly glCodingEngineClient: GlCodingEngineClient,
+    private readonly stageTransitionEventPublisher: StageTransitionEventPublisher
   ) {}
 
   public async createDraftReport(
@@ -177,6 +186,14 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       codedLineItems
     });
 
+    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
+      tenantId: request.tenantId,
+      expenseReportId: request.expenseReportId,
+      fromStage: "Drafted",
+      toStage: "Submitted",
+      correlationId: request.correlationId
+    });
+
     return submittedReport;
   }
 
@@ -220,7 +237,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       throw new ConflictError("Over-500 line items must be cleared before AP Review.");
     }
 
-    return this.expenseReportRepository.transitionStage({
+    const advancedReport = await this.expenseReportRepository.transitionStage({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
@@ -228,6 +245,16 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       toStage,
       reason: request.reason ?? `Expense Report advanced to ${toStage}.`
     });
+
+    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
+      tenantId: request.tenantId,
+      expenseReportId: request.expenseReportId,
+      fromStage: report.currentStage,
+      toStage,
+      correlationId: request.correlationId
+    });
+
+    return advancedReport;
   }
 
   public async reject(request: RejectExpenseReportRequest): Promise<ExpenseReportResponse> {
@@ -257,7 +284,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       );
     }
 
-    return this.expenseReportRepository.transitionStage({
+    const rejectedReport = await this.expenseReportRepository.transitionStage({
       expenseReportId: request.expenseReportId,
       tenantId: request.tenantId,
       actorId: request.actorId,
@@ -266,14 +293,29 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       reason: request.reason,
       action: "Expense Report Sent Back"
     });
+
+    await this.stageTransitionEventPublisher.publishExpenseReportStageTransitioned({
+      tenantId: request.tenantId,
+      expenseReportId: request.expenseReportId,
+      fromStage: report.currentStage,
+      toStage: "Drafted",
+      correlationId: request.correlationId
+    });
+
+    return rejectedReport;
   }
 }
 
 export function createExpenseReportService(
   expenseReportRepository: ExpenseReportRepository = createExpenseReportRepository(),
-  glCodingEngineClient: GlCodingEngineClient = createGlCodingEngineClient()
+  glCodingEngineClient: GlCodingEngineClient = createGlCodingEngineClient(),
+  stageTransitionEventPublisher: StageTransitionEventPublisher = createLazyStageTransitionEventPublisher()
 ): ExpenseReportService {
-  return new RepositoryExpenseReportService(expenseReportRepository, glCodingEngineClient);
+  return new RepositoryExpenseReportService(
+    expenseReportRepository,
+    glCodingEngineClient,
+    stageTransitionEventPublisher
+  );
 }
 
 const supportedGlCodingCategories = new Set(["Meals", "Lodging", "Mileage", "Supplies", "Other"]);
@@ -370,7 +412,9 @@ function readCodedLineItems(
   });
 
   if (seenLineItemIds.size !== requestLineItemIds.size) {
-    throw new BoundaryContractError("GL coding response did not include every requested line item.");
+    throw new BoundaryContractError(
+      "GL coding response did not include every requested line item."
+    );
   }
 
   return codedLineItems;

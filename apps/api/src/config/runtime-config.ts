@@ -11,6 +11,8 @@ const runtimeConfigSchema = z
     PORT: z.coerce.number().int().min(1).max(65_535).default(defaultPort),
     AWS_ENDPOINT: z.url(),
     AWS_REGION: z.string().trim().min(1),
+    SNS_STAGE_EVENTS_TOPIC: z.string().trim().min(1),
+    SQS_STAGE_EVENTS_QUEUE: z.string().trim().min(1),
     DB_PASSWORD_SECRET_ID: z.string().trim().min(1),
     JWT_SIGNING_KEYS_SECRET_ID: z.string().trim().min(1),
     DATABASE_URI: z.url(),

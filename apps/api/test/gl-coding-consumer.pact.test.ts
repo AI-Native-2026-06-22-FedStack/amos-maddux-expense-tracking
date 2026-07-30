@@ -4,6 +4,7 @@ import { MatchersV3, PactV4 } from "@pact-foundation/pact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createGlCodingEngineClient } from "../src/engine/gl-client.js";
+import type { StageTransitionEventPublisher } from "../src/events/stage-transition-event-publisher.js";
 import type { ExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { createExpenseReportService } from "../src/services/expense-report-service.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
@@ -18,6 +19,7 @@ const reportId = "00000000-0000-4000-8000-000000000502";
 const actorId = "synthetic-user-00000000-0000-4000-8000-000000000503";
 const lineItemId = "00000000-0000-4000-8000-000000000504";
 const bearerToken = "synthetic-forwarded-token";
+const correlationId = "synthetic-pact-correlation-id";
 
 const pact = new PactV4({
   consumer: consumerName,
@@ -102,14 +104,19 @@ describe("Core Case Service GL-coding consumer pact", () => {
           baseUrl: mockServer.url,
           maxAttempts: 1
         });
-        const service = createExpenseReportService(repository, glCodingEngineClient);
+        const service = createExpenseReportService(
+          repository,
+          glCodingEngineClient,
+          makeStageTransitionEventPublisher()
+        );
 
         await expect(
           service.submitForApReview({
             expenseReportId: reportId,
             tenantId,
             actorId,
-            bearerToken
+            bearerToken,
+            correlationId
           })
         ).resolves.toMatchObject({ currentStage: "Submitted" });
 
@@ -148,6 +155,12 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     recordDeniedTransition: vi.fn(),
     ...overrides
   } as ExpenseReportRepository;
+}
+
+function makeStageTransitionEventPublisher(): StageTransitionEventPublisher {
+  return {
+    publishExpenseReportStageTransitioned: vi.fn()
+  };
 }
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";

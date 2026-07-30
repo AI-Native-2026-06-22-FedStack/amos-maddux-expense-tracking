@@ -187,7 +187,7 @@ export class ExpenseReportController {
   };
 
   public submitExpenseReport = async (
-    request: Pick<RequestWithAuthContext, "authContext" | "headers" | "params">,
+    request: Pick<RequestWithAuthContext, "authContext" | "correlationId" | "headers" | "params">,
     response: JsonResponse
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
@@ -196,7 +196,8 @@ export class ExpenseReportController {
       expenseReportId: parsedParams.id,
       tenantId: authContext.tenantId,
       actorId: authContext.userId,
-      bearerToken: readBearerToken(request.headers.authorization)
+      bearerToken: readBearerToken(request.headers.authorization),
+      correlationId: request.correlationId
     });
     const parsedResponse = expenseReportResponseSchema.parse(submittedReport);
 
@@ -204,7 +205,7 @@ export class ExpenseReportController {
   };
 
   public advanceExpenseReport = async (
-    request: Pick<RequestWithAuthContext, "authContext" | "body" | "params">,
+    request: Pick<RequestWithAuthContext, "authContext" | "body" | "correlationId" | "params">,
     response: JsonResponse
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
@@ -215,6 +216,7 @@ export class ExpenseReportController {
       tenantId: authContext.tenantId,
       actorId: authContext.userId,
       roles: authContext.roles,
+      correlationId: request.correlationId,
       reason: parsedBody.reason
     });
     const parsedResponse = expenseReportResponseSchema.parse(advancedReport);
@@ -223,7 +225,7 @@ export class ExpenseReportController {
   };
 
   public rejectExpenseReport = async (
-    request: Pick<RequestWithAuthContext, "authContext" | "body" | "params">,
+    request: Pick<RequestWithAuthContext, "authContext" | "body" | "correlationId" | "params">,
     response: JsonResponse
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
@@ -234,6 +236,7 @@ export class ExpenseReportController {
       tenantId: authContext.tenantId,
       actorId: authContext.userId,
       roles: authContext.roles,
+      correlationId: request.correlationId,
       reason: parsedBody.reason
     });
     const parsedResponse = expenseReportResponseSchema.parse(rejectedReport);
