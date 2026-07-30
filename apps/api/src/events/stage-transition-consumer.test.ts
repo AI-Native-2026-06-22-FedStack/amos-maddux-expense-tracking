@@ -1,7 +1,10 @@
 import {
   DeleteMessageCommand,
+  GetQueueAttributesCommand,
   GetQueueUrlCommand,
+  QueueAttributeName,
   ReceiveMessageCommand,
+  SendMessageCommand,
   type Message
 } from "@aws-sdk/client-sqs";
 import { describe, expect, it } from "vitest";
@@ -11,10 +14,12 @@ import {
   type ExpenseReportStageTransitionedEvent
 } from "./expense-report-stage-transitioned.event.js";
 import {
+  alertOnStageTransitionDlqDepth,
   createStageTransitionEventProcessedKey,
   createStageTransitionProjectionKey,
   handleStageTransitionMessage,
   pollStageTransitionQueue,
+  redriveStageTransitionDlq,
   stageTransitionEventDedupeTtlSeconds,
   stageTransitionEventLockTtlMs,
   type StageTransitionConsumerRedisClient
@@ -26,9 +31,11 @@ const eventId = "00000000-0000-4000-8000-000000000803";
 const correlationId = "synthetic-consumer-correlation-id";
 const projectedAt = new Date("2026-01-01T00:00:01.000Z");
 const queueUrl = "https://sqs.localhost.localstack.cloud/000000000000/expenseflow-stage-projection";
+const dlqUrl =
+  "https://sqs.localhost.localstack.cloud/000000000000/expenseflow-stage-projection-dlq";
 
 describe("handleStageTransitionMessage", () => {
-  it("validates and projects a stage-transitioned event with event-id dedupe", async () => {
+  it("validates and projects a stage-transitioned event with atomic idempotency claim", async () => {
     const redis = new FakeRedis();
     const event = makeEvent();
 
@@ -53,17 +60,17 @@ describe("handleStageTransitionMessage", () => {
       projectedAt: projectedAt.toISOString()
     });
     expect(redis.setCalls).toContainEqual({
-      key: createStageTransitionEventProcessedKey(eventId),
+      key: createStageTransitionEventProcessedKey(event),
       mode: "EX",
       ttl: stageTransitionEventDedupeTtlSeconds,
       condition: undefined
     });
-    expect(redis.setCalls).toContainEqual({
-      key: `lock:stage-transition-event:${eventId}`,
-      mode: "PX",
-      ttl: stageTransitionEventLockTtlMs,
-      condition: "NX"
-    });
+    expect(redis.evalCalls[0]).toEqual([
+      createStageTransitionEventProcessedKey(event),
+      `lock:${tenantId}:${eventId}`,
+      "synthetic-lock-value",
+      String(stageTransitionEventLockTtlMs)
+    ]);
   });
 
   it("dedupes duplicate deliveries by event id without double-projecting", async () => {
@@ -88,7 +95,7 @@ describe("handleStageTransitionMessage", () => {
       })
     ).rejects.toThrow("Synthetic projection failure.");
 
-    expect(await redis.get(createStageTransitionEventProcessedKey(eventId))).toBeNull();
+    expect(await redis.get(createStageTransitionEventProcessedKey(makeEvent()))).toBeNull();
   });
 });
 
@@ -141,6 +148,54 @@ describe("pollStageTransitionQueue", () => {
     ).rejects.toThrow();
 
     expect(sqs.deleteCommands).toEqual([]);
+  });
+});
+
+describe("stage-transition DLQ operations", () => {
+  it("alerts when the DLQ depth is above zero", async () => {
+    const sqs = new FakeSqs([], {
+      [dlqUrl]: 2
+    });
+    const alerts: string[] = [];
+
+    await expect(
+      alertOnStageTransitionDlqDepth({
+        sqs,
+        dlqUrl,
+        alert: (message) => alerts.push(message)
+      })
+    ).resolves.toBe(2);
+
+    expect(sqs.attributeCommands[0]?.input).toMatchObject({
+      QueueUrl: dlqUrl,
+      AttributeNames: [QueueAttributeName.ApproximateNumberOfMessages]
+    });
+    expect(alerts).toEqual(["[alert] stage-transition DLQ depth is 2"]);
+  });
+
+  it("redrives DLQ messages back to the source queue after a fix", async () => {
+    const poisonMessage = {
+      Body: JSON.stringify({ synthetic: "poison" }),
+      ReceiptHandle: "synthetic-dlq-receipt"
+    };
+    const sqs = new FakeSqs([poisonMessage]);
+
+    await expect(
+      redriveStageTransitionDlq({
+        sqs,
+        sourceQueueUrl: queueUrl,
+        dlqUrl
+      })
+    ).resolves.toBe(1);
+
+    expect(sqs.sendCommands[0]?.input).toMatchObject({
+      QueueUrl: queueUrl,
+      MessageBody: poisonMessage.Body
+    });
+    expect(sqs.deleteCommands[0]?.input).toMatchObject({
+      QueueUrl: dlqUrl,
+      ReceiptHandle: "synthetic-dlq-receipt"
+    });
   });
 });
 
@@ -228,10 +283,29 @@ class FakeRedis implements StageTransitionConsumerRedisClient {
 
   public async eval(
     _script: string,
-    _numberOfKeys: number,
-    key: string,
-    lockValue: string
-  ): Promise<number> {
+    numberOfKeys: number,
+    ...args: string[]
+  ): Promise<number | string> {
+    if (numberOfKeys === 2) {
+      const [processedKey, lockKey, lockValue, lockTtlMs] = args;
+      this.evalCalls.push([processedKey, lockKey, lockValue, lockTtlMs]);
+
+      if (this.entries.has(processedKey)) {
+        return "processed";
+      }
+
+      if (this.entries.has(lockKey)) {
+        return "locked";
+      }
+
+      this.entries.set(lockKey, {
+        value: lockValue,
+        expiresAtMs: null
+      });
+      return "claimed";
+    }
+
+    const [key, lockValue] = args;
     this.evalCalls.push([key, lockValue]);
 
     if ((await this.get(key)) !== lockValue) {
@@ -245,22 +319,53 @@ class FakeRedis implements StageTransitionConsumerRedisClient {
 class FakeSqs {
   public readonly receiveCommands: ReceiveMessageCommand[] = [];
   public readonly deleteCommands: DeleteMessageCommand[] = [];
+  public readonly attributeCommands: GetQueueAttributesCommand[] = [];
+  public readonly sendCommands: SendMessageCommand[] = [];
 
-  public constructor(private readonly messages: Message[]) {}
+  public constructor(
+    private readonly messages: Message[],
+    private readonly approximateDepthByQueueUrl: Record<string, number> = {}
+  ) {}
 
   public async send(command: GetQueueUrlCommand): Promise<{ QueueUrl?: string }>;
-  public async send(command: ReceiveMessageCommand): Promise<{ Messages?: Message[] }>;
-  public async send(command: DeleteMessageCommand): Promise<unknown>;
   public async send(
-    command: GetQueueUrlCommand | ReceiveMessageCommand | DeleteMessageCommand
+    command: GetQueueAttributesCommand
+  ): Promise<{ Attributes?: Record<string, string> }>;
+  public async send(command: ReceiveMessageCommand): Promise<{ Messages?: Message[] }>;
+  public async send(command: DeleteMessageCommand | SendMessageCommand): Promise<unknown>;
+  public async send(
+    command:
+      | GetQueueUrlCommand
+      | GetQueueAttributesCommand
+      | ReceiveMessageCommand
+      | DeleteMessageCommand
+      | SendMessageCommand
   ): Promise<unknown> {
     if (command instanceof GetQueueUrlCommand) {
       return { QueueUrl: queueUrl };
     }
 
+    if (command instanceof GetQueueAttributesCommand) {
+      this.attributeCommands.push(command);
+      const queueUrl = command.input.QueueUrl ?? "";
+
+      return {
+        Attributes: {
+          [QueueAttributeName.ApproximateNumberOfMessages]: String(
+            this.approximateDepthByQueueUrl[queueUrl] ?? 0
+          )
+        }
+      };
+    }
+
     if (command instanceof ReceiveMessageCommand) {
       this.receiveCommands.push(command);
       return { Messages: this.messages.splice(0, 1) };
+    }
+
+    if (command instanceof SendMessageCommand) {
+      this.sendCommands.push(command);
+      return {};
     }
 
     this.deleteCommands.push(command);

@@ -13,6 +13,7 @@ const runtimeConfigSchema = z
     AWS_REGION: z.string().trim().min(1),
     SNS_STAGE_EVENTS_TOPIC: z.string().trim().min(1),
     SQS_STAGE_EVENTS_QUEUE: z.string().trim().min(1),
+    SQS_STAGE_EVENTS_DLQ: z.string().trim().min(1),
     DB_PASSWORD_SECRET_ID: z.string().trim().min(1),
     JWT_SIGNING_KEYS_SECRET_ID: z.string().trim().min(1),
     DATABASE_URI: z.url(),
