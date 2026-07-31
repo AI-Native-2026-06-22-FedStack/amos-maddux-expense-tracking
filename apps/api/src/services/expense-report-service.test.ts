@@ -6,9 +6,9 @@ import {
   UpstreamEngineError
 } from "../errors/problem-json.js";
 import type { GlCodingEngineClient } from "../engine/gl-client.js";
-import type { StageTransitionEventPublisher } from "../events/stage-transition-event-publisher.js";
 import type { ExpenseReportRepository } from "../repository/expense-report-repository.js";
 import { createExpenseReportService } from "./expense-report-service.js";
+import type { SettlementSaga } from "./settlement-saga.js";
 import { makeExpenseReport } from "../../test/factories/make-expense-report.js";
 
 const tenantId = "00000000-0000-4000-8000-000000000501";
@@ -49,12 +49,7 @@ describe("ExpenseReportService submit", () => {
         flagged_line_item: lineItemId
       }))
     } satisfies GlCodingEngineClient;
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -90,6 +85,7 @@ describe("ExpenseReportService submit", () => {
       expenseReportId: reportId,
       tenantId,
       actorId,
+      correlationId,
       flaggedLineItemIds: [lineItemId],
       codedLineItems: [
         {
@@ -103,15 +99,6 @@ describe("ExpenseReportService submit", () => {
           unmappedMarker: null
         }
       ]
-    });
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).toHaveBeenCalledExactlyOnceWith({
-      tenantId,
-      expenseReportId: reportId,
-      fromStage: "Drafted",
-      toStage: "Submitted",
-      correlationId
     });
   });
 
@@ -129,12 +116,7 @@ describe("ExpenseReportService submit", () => {
         throw new UpstreamEngineError("Synthetic engine outage.");
       })
     } satisfies GlCodingEngineClient;
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -147,9 +129,6 @@ describe("ExpenseReportService submit", () => {
     ).rejects.toThrow(UpstreamEngineError);
 
     expect(repository.submitForApReview).not.toHaveBeenCalled();
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
   });
 
   it("rejects engine responses that reference unknown line item IDs", async () => {
@@ -176,11 +155,7 @@ describe("ExpenseReportService submit", () => {
         flagged_line_item: "00000000-0000-4000-8000-000000000599"
       }))
     } satisfies GlCodingEngineClient;
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      makeStageTransitionEventPublisher()
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -218,11 +193,7 @@ describe("ExpenseReportService submit", () => {
         coded_mileage_entries: []
       }))
     } satisfies GlCodingEngineClient;
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      makeStageTransitionEventPublisher()
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -251,11 +222,7 @@ describe("ExpenseReportService submit", () => {
         coded_mileage_entries: []
       }))
     } satisfies GlCodingEngineClient;
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      makeStageTransitionEventPublisher()
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -298,11 +265,7 @@ describe("ExpenseReportService submit", () => {
         coded_mileage_entries: []
       }))
     } satisfies GlCodingEngineClient;
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      makeStageTransitionEventPublisher()
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -329,11 +292,7 @@ describe("ExpenseReportService submit", () => {
     const engineClient = {
       codeExpenseReport: vi.fn()
     } satisfies GlCodingEngineClient;
-    const service = createExpenseReportService(
-      repository,
-      engineClient,
-      makeStageTransitionEventPublisher()
-    );
+    const service = createExpenseReportService(repository, engineClient);
 
     await expect(
       service.submit({
@@ -358,12 +317,7 @@ describe("ExpenseReportService submit", () => {
         mileageEntries: []
       }))
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -376,9 +330,6 @@ describe("ExpenseReportService submit", () => {
     ).rejects.toThrow("Actor cannot transition Expense Reports for this stage.");
 
     expect(repository.transitionStage).not.toHaveBeenCalled();
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
     expect(repository.recordDeniedTransition).toHaveBeenCalledWith({
       expenseReportId: reportId,
       tenantId,
@@ -397,12 +348,7 @@ describe("ExpenseReportService submit", () => {
         mileageEntries: []
       }))
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -415,9 +361,6 @@ describe("ExpenseReportService submit", () => {
     ).rejects.toThrow("Over-500 line items must be cleared before AP Review.");
 
     expect(repository.transitionStage).not.toHaveBeenCalled();
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
     expect(repository.recordDeniedTransition).toHaveBeenCalledWith({
       expenseReportId: reportId,
       tenantId,
@@ -438,12 +381,7 @@ describe("ExpenseReportService submit", () => {
       })),
       transitionStage: vi.fn(async () => managerApprovalReport)
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -461,16 +399,8 @@ describe("ExpenseReportService submit", () => {
       actorId: managerId,
       fromStage: "Submitted",
       toStage: "Manager Approval",
+      correlationId,
       reason: "Expense Report advanced to Manager Approval."
-    });
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).toHaveBeenCalledExactlyOnceWith({
-      tenantId,
-      expenseReportId: reportId,
-      fromStage: "Submitted",
-      toStage: "Manager Approval",
-      correlationId
     });
   });
 
@@ -486,12 +416,7 @@ describe("ExpenseReportService submit", () => {
         throw new ConflictError("Synthetic stale transition.");
       })
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -503,9 +428,15 @@ describe("ExpenseReportService submit", () => {
       })
     ).rejects.toThrow("Synthetic stale transition.");
 
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
+    expect(repository.transitionStage).toHaveBeenCalledWith({
+      expenseReportId: reportId,
+      tenantId,
+      actorId: managerId,
+      fromStage: "Submitted",
+      toStage: "Manager Approval",
+      correlationId,
+      reason: "Expense Report advanced to Manager Approval."
+    });
   });
 
   it("blocks Finance Admins from advancing Submitted reports into Manager Approval", async () => {
@@ -517,12 +448,7 @@ describe("ExpenseReportService submit", () => {
         mileageEntries: []
       }))
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -536,9 +462,6 @@ describe("ExpenseReportService submit", () => {
 
     expect(repository.transitionStage).not.toHaveBeenCalled();
     expect(repository.recordDeniedTransition).toHaveBeenCalled();
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
   });
 
   it("allows Finance Admins to advance AP Review reports to Paid", async () => {
@@ -552,12 +475,7 @@ describe("ExpenseReportService submit", () => {
       })),
       transitionStage: vi.fn(async () => paidReport)
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -568,14 +486,53 @@ describe("ExpenseReportService submit", () => {
         correlationId
       })
     ).resolves.toMatchObject({ currentStage: "Paid" });
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).toHaveBeenCalledExactlyOnceWith({
+    expect(repository.transitionStage).toHaveBeenCalledWith({
       tenantId,
       expenseReportId: reportId,
       fromStage: "AP Review",
       toStage: "Paid",
-      correlationId
+      actorId,
+      correlationId,
+      reason: "Expense Report advanced to Paid."
+    });
+  });
+
+  it("settles Paid reports through the saga before marking them Reconciled", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Paid" });
+    const reconciledReport = { ...report, currentStage: "Reconciled" as const };
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [],
+        mileageEntries: []
+      }))
+    });
+    const settlementSaga = {
+      settle: vi.fn(async () => reconciledReport)
+    } satisfies SettlementSaga;
+    const service = createExpenseReportService(
+      repository,
+      { codeExpenseReport: vi.fn() },
+      settlementSaga
+    );
+
+    await expect(
+      service.advance({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        roles: ["Finance Admin"],
+        correlationId
+      })
+    ).resolves.toMatchObject({ currentStage: "Reconciled" });
+
+    expect(repository.transitionStage).not.toHaveBeenCalled();
+    expect(settlementSaga.settle).toHaveBeenCalledExactlyOnceWith({
+      expenseReportId: reportId,
+      tenantId,
+      actorId,
+      correlationId,
+      reason: undefined
     });
   });
 
@@ -588,12 +545,7 @@ describe("ExpenseReportService submit", () => {
         mileageEntries: []
       }))
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.advance({
@@ -606,9 +558,6 @@ describe("ExpenseReportService submit", () => {
     ).rejects.toThrow("Actor cannot transition Expense Reports for this stage.");
 
     expect(repository.transitionStage).not.toHaveBeenCalled();
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).not.toHaveBeenCalled();
   });
 
   it("sends Manager Approval reports back to Drafted for Platform Admins with the required reason", async () => {
@@ -622,12 +571,7 @@ describe("ExpenseReportService submit", () => {
       })),
       transitionStage: vi.fn(async () => draftedReport)
     });
-    const stageTransitionEventPublisher = makeStageTransitionEventPublisher();
-    const service = createExpenseReportService(
-      repository,
-      { codeExpenseReport: vi.fn() },
-      stageTransitionEventPublisher
-    );
+    const service = createExpenseReportService(repository, { codeExpenseReport: vi.fn() });
 
     await expect(
       service.reject({
@@ -646,17 +590,9 @@ describe("ExpenseReportService submit", () => {
       actorId: managerId,
       fromStage: "Manager Approval",
       toStage: "Drafted",
+      correlationId,
       reason: "Synthetic receipt needs detail.",
       action: "Expense Report Sent Back"
-    });
-    expect(
-      stageTransitionEventPublisher.publishExpenseReportStageTransitioned
-    ).toHaveBeenCalledExactlyOnceWith({
-      tenantId,
-      expenseReportId: reportId,
-      fromStage: "Manager Approval",
-      toStage: "Drafted",
-      correlationId
     });
   });
 });
@@ -668,23 +604,21 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     findForSubmit: vi.fn(),
     listApprovalQueueLineItems: vi.fn(),
     listCaseQueue: vi.fn(),
+    listCaseQueueRollup: vi.fn(),
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
     approveLineItem: vi.fn(),
     rejectLineItem: vi.fn(),
     clearLineItemFlag: vi.fn(),
     updateLineItemDeductible: vi.fn(),
+    issuePayment: vi.fn(),
+    voidIssuedPayment: vi.fn(),
+    unreconcileSettlement: vi.fn(),
     submitForApReview: vi.fn(),
     transitionStage: vi.fn(),
     recordDeniedTransition: vi.fn(),
     ...overrides
   } as ExpenseReportRepository;
-}
-
-function makeStageTransitionEventPublisher(): StageTransitionEventPublisher {
-  return {
-    publishExpenseReportStageTransitioned: vi.fn()
-  };
 }
 
 function makeLineItem(overrides: Record<string, unknown> = {}) {

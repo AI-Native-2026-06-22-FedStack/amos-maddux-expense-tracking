@@ -50,6 +50,13 @@
       "when": 1785192000000,
       "tag": "0006_line_item_review_status",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785451200000,
+      "tag": "0007_stage_event_outbox",
+      "breakpoints": true
     }
   ]
 }

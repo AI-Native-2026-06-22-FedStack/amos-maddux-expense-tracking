@@ -4,7 +4,6 @@ import { MatchersV3, PactV4 } from "@pact-foundation/pact";
 import { describe, expect, it, vi } from "vitest";
 
 import { createGlCodingEngineClient } from "../src/engine/gl-client.js";
-import type { StageTransitionEventPublisher } from "../src/events/stage-transition-event-publisher.js";
 import type { ExpenseReportRepository } from "../src/repository/expense-report-repository.js";
 import { createExpenseReportService } from "../src/services/expense-report-service.js";
 import { makeExpenseReport } from "./factories/make-expense-report.js";
@@ -104,11 +103,7 @@ describe("Core Case Service GL-coding consumer pact", () => {
           baseUrl: mockServer.url,
           maxAttempts: 1
         });
-        const service = createExpenseReportService(
-          repository,
-          glCodingEngineClient,
-          makeStageTransitionEventPublisher()
-        );
+        const service = createExpenseReportService(repository, glCodingEngineClient);
 
         await expect(
           service.submitForApReview({
@@ -124,6 +119,7 @@ describe("Core Case Service GL-coding consumer pact", () => {
           expenseReportId: reportId,
           tenantId,
           actorId,
+          correlationId,
           flaggedLineItemIds: [lineItemId],
           codedLineItems: [
             {
@@ -147,20 +143,23 @@ function makeRepository(overrides: Partial<ExpenseReportRepository> = {}): Expen
     createDraftReport: vi.fn(),
     findById: vi.fn(),
     findForSubmit: vi.fn(),
+    listApprovalQueueLineItems: vi.fn(),
     listCaseQueue: vi.fn(),
+    listCaseQueueRollup: vi.fn(),
     listAuditEntries: vi.fn(),
     listWithLineItems: vi.fn(),
+    approveLineItem: vi.fn(),
+    rejectLineItem: vi.fn(),
+    clearLineItemFlag: vi.fn(),
+    updateLineItemDeductible: vi.fn(),
+    issuePayment: vi.fn(),
+    voidIssuedPayment: vi.fn(),
+    unreconcileSettlement: vi.fn(),
     submitForApReview: vi.fn(),
     transitionStage: vi.fn(),
     recordDeniedTransition: vi.fn(),
     ...overrides
   } as ExpenseReportRepository;
-}
-
-function makeStageTransitionEventPublisher(): StageTransitionEventPublisher {
-  return {
-    publishExpenseReportStageTransitioned: vi.fn()
-  };
 }
 
 const uuidPattern = "[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";

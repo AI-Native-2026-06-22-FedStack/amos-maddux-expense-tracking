@@ -1,7 +1,10 @@
 import {
   DeleteMessageCommand,
+  GetQueueAttributesCommand,
   GetQueueUrlCommand,
+  QueueAttributeName,
   ReceiveMessageCommand,
+  SendMessageCommand,
   SQSClient,
   type Message,
   type SQSClientConfig
@@ -9,6 +12,7 @@ import {
 import { Redis } from "ioredis";
 
 import { getApiRuntimeConfig } from "../config/runtime-config.js";
+import { createIdempotencyLockKey, createIdempotencyReplayKey } from "../store/idempotency.js";
 import {
   expenseReportStageTransitionedEventSchema,
   type ExpenseReportStageTransitionedEvent
@@ -23,6 +27,26 @@ if redis.call("GET", KEYS[1]) == ARGV[1] then
 end
 return 0
 `;
+const claimIdempotencyScript = `
+if redis.call("GET", KEYS[1]) then
+  return "processed"
+end
+if redis.call("SET", KEYS[2], ARGV[1], "PX", ARGV[2], "NX") then
+  return "claimed"
+end
+return "locked"
+`;
+const projectStageTransitionScript = `
+local existing = redis.call("GET", KEYS[1])
+if existing then
+  local ok, projection = pcall(cjson.decode, existing)
+  if ok and projection["transitionedAt"] and ARGV[2] ~= "" and projection["transitionedAt"] > ARGV[2] then
+    return "stale"
+  end
+end
+redis.call("SET", KEYS[1], ARGV[1])
+return "projected"
+`;
 
 export interface StageTransitionConsumerRedisClient {
   connect?(): Promise<unknown>;
@@ -36,8 +60,9 @@ export interface StageTransitionConsumerRedisClient {
 
 export interface StageTransitionConsumerSqsClient {
   send(command: GetQueueUrlCommand): Promise<{ QueueUrl?: string }>;
+  send(command: GetQueueAttributesCommand): Promise<{ Attributes?: Record<string, string> }>;
   send(command: ReceiveMessageCommand): Promise<{ Messages?: Message[] }>;
-  send(command: DeleteMessageCommand): Promise<unknown>;
+  send(command: DeleteMessageCommand | SendMessageCommand): Promise<unknown>;
 }
 
 export interface StageTransitionProjection {
@@ -62,12 +87,28 @@ export interface PollStageTransitionQueueDependencies extends HandleStageTransit
   queueUrl: string;
   waitTimeSeconds?: number;
   maxNumberOfMessages?: number;
+  alert?: (message: string) => void;
 }
 
 export interface RunStageTransitionConsumerDependencies extends HandleStageTransitionMessageDependencies {
   sqs: StageTransitionConsumerSqsClient;
   queueUrl: string;
+  dlqUrl?: string;
+  alert?: (message: string) => void;
   signal?: AbortSignal;
+}
+
+export interface AlertStageTransitionDlqDependencies {
+  sqs: StageTransitionConsumerSqsClient;
+  dlqUrl: string;
+  alert?: (message: string) => void;
+}
+
+export interface RedriveStageTransitionDlqDependencies {
+  sqs: StageTransitionConsumerSqsClient;
+  sourceQueueUrl: string;
+  dlqUrl: string;
+  maxMessages?: number;
 }
 
 export async function handleStageTransitionMessage(
@@ -75,23 +116,24 @@ export async function handleStageTransitionMessage(
   dependencies: HandleStageTransitionMessageDependencies
 ): Promise<void> {
   const event = expenseReportStageTransitionedEventSchema.parse(JSON.parse(message.Body ?? "{}"));
-  const processedKey = createStageTransitionEventProcessedKey(event.id);
+  const processedKey = createStageTransitionEventProcessedKey(event);
 
-  if ((await dependencies.redis.get(processedKey)) !== null) {
+  const lockKey = createStageTransitionEventLockKey(event);
+  const lockValue = dependencies.createLockValue?.() ?? event.id;
+  const claim = await dependencies.redis.eval(
+    claimIdempotencyScript,
+    2,
+    processedKey,
+    lockKey,
+    lockValue,
+    String(stageTransitionEventLockTtlMs)
+  );
+
+  if (claim === "processed") {
     return;
   }
 
-  const lockKey = createStageTransitionEventLockKey(event.id);
-  const lockValue = dependencies.createLockValue?.() ?? event.id;
-  const lockAcquired = await dependencies.redis.set(
-    lockKey,
-    lockValue,
-    "PX",
-    stageTransitionEventLockTtlMs,
-    "NX"
-  );
-
-  if (lockAcquired !== "OK") {
+  if (claim !== "claimed") {
     throw new Error(`Stage transition event ${event.id} is already being handled.`);
   }
 
@@ -117,15 +159,26 @@ export async function pollStageTransitionQueue(
     new ReceiveMessageCommand({
       QueueUrl: dependencies.queueUrl,
       MaxNumberOfMessages: dependencies.maxNumberOfMessages ?? 10,
+      MessageAttributeNames: ["All"],
       WaitTimeSeconds: dependencies.waitTimeSeconds ?? 20
     })
   );
 
   for (const message of response.Messages ?? []) {
-    await handleStageTransitionMessage(message, dependencies);
+    try {
+      await handleStageTransitionMessage(message, dependencies);
+    } catch (error) {
+      (dependencies.alert ?? console.error)(
+        `[alert] stage-transition message handling failed: ${errorToMessage(error)}`
+      );
+      continue;
+    }
 
     if (message.ReceiptHandle === undefined) {
-      throw new Error("Handled SQS stage-transition message did not include a receipt handle.");
+      (dependencies.alert ?? console.error)(
+        "[alert] handled SQS stage-transition message did not include a receipt handle."
+      );
+      continue;
     }
 
     await dependencies.sqs.send(
@@ -142,8 +195,72 @@ export async function runStageTransitionConsumer(
   dependencies: RunStageTransitionConsumerDependencies
 ): Promise<void> {
   while (dependencies.signal?.aborted !== true) {
+    if (dependencies.dlqUrl !== undefined) {
+      await alertOnStageTransitionDlqDepth({
+        sqs: dependencies.sqs,
+        dlqUrl: dependencies.dlqUrl,
+        alert: dependencies.alert
+      });
+    }
+
     await pollStageTransitionQueue(dependencies);
   }
+}
+
+export async function alertOnStageTransitionDlqDepth(
+  dependencies: AlertStageTransitionDlqDependencies
+): Promise<number> {
+  const response = await dependencies.sqs.send(
+    new GetQueueAttributesCommand({
+      QueueUrl: dependencies.dlqUrl,
+      AttributeNames: [QueueAttributeName.ApproximateNumberOfMessages]
+    })
+  );
+  const depth = Number(response.Attributes?.[QueueAttributeName.ApproximateNumberOfMessages] ?? 0);
+
+  if (depth > 0) {
+    const message = `[alert] stage-transition DLQ depth is ${depth}`;
+    (dependencies.alert ?? console.error)(message);
+  }
+
+  return depth;
+}
+
+export async function redriveStageTransitionDlq(
+  dependencies: RedriveStageTransitionDlqDependencies
+): Promise<number> {
+  const response = await dependencies.sqs.send(
+    new ReceiveMessageCommand({
+      QueueUrl: dependencies.dlqUrl,
+      MaxNumberOfMessages: Math.min(dependencies.maxMessages ?? 10, 10),
+      MessageAttributeNames: ["All"],
+      WaitTimeSeconds: 1
+    })
+  );
+  let moved = 0;
+
+  for (const message of response.Messages ?? []) {
+    if (message.Body === undefined || message.ReceiptHandle === undefined) {
+      continue;
+    }
+
+    await dependencies.sqs.send(
+      new SendMessageCommand({
+        QueueUrl: dependencies.sourceQueueUrl,
+        MessageBody: message.Body,
+        MessageAttributes: message.MessageAttributes
+      })
+    );
+    await dependencies.sqs.send(
+      new DeleteMessageCommand({
+        QueueUrl: dependencies.dlqUrl,
+        ReceiptHandle: message.ReceiptHandle
+      })
+    );
+    moved += 1;
+  }
+
+  return moved;
 }
 
 export async function createStageTransitionConsumerDependencies(): Promise<
@@ -159,13 +276,14 @@ export async function createStageTransitionConsumerDependencies(): Promise<
     }
   } satisfies SQSClientConfig);
   const queueUrl = await resolveStageTransitionQueueUrl(sqs, config.SQS_STAGE_EVENTS_QUEUE);
+  const dlqUrl = await resolveStageTransitionQueueUrl(sqs, config.SQS_STAGE_EVENTS_DLQ);
   const redis = new Redis(config.REDIS_URL, {
     lazyConnect: true
   });
 
   await redis.connect();
 
-  return { sqs, queueUrl, redis };
+  return { sqs, queueUrl, dlqUrl, redis };
 }
 
 export async function resolveStageTransitionQueueUrl(
@@ -185,12 +303,16 @@ export async function resolveStageTransitionQueueUrl(
   return response.QueueUrl;
 }
 
-export function createStageTransitionEventProcessedKey(eventId: string): string {
-  return `idem:stage-transition-event:${eventId}`;
+export function createStageTransitionEventProcessedKey(
+  event: Pick<ExpenseReportStageTransitionedEvent, "id" | "data">
+): string {
+  return createIdempotencyReplayKey(event.data.tenantId, event.id);
 }
 
-export function createStageTransitionEventLockKey(eventId: string): string {
-  return `lock:stage-transition-event:${eventId}`;
+export function createStageTransitionEventLockKey(
+  event: Pick<ExpenseReportStageTransitionedEvent, "id" | "data">
+): string {
+  return createIdempotencyLockKey(event.data.tenantId, event.id);
 }
 
 export function createStageTransitionProjectionKey(
@@ -201,7 +323,7 @@ export function createStageTransitionProjectionKey(
 }
 
 async function projectStageTransitionEvent(
-  redis: Pick<StageTransitionConsumerRedisClient, "set">,
+  redis: Pick<StageTransitionConsumerRedisClient, "eval">,
   event: ExpenseReportStageTransitionedEvent,
   now: () => Date
 ): Promise<void> {
@@ -216,8 +338,19 @@ async function projectStageTransitionEvent(
     projectedAt: now().toISOString()
   };
 
-  await redis.set(
+  await redis.eval(
+    projectStageTransitionScript,
+    1,
     createStageTransitionProjectionKey(event.data.tenantId, event.data.expenseReportId),
-    JSON.stringify(projection)
+    JSON.stringify(projection),
+    event.time ?? ""
   );
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

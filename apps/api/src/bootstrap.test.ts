@@ -12,6 +12,7 @@ const validEnvironment = {
   AWS_REGION: "us-east-1",
   SNS_STAGE_EVENTS_TOPIC: "expenseflow-stage-events",
   SQS_STAGE_EVENTS_QUEUE: "expenseflow-stage-projection",
+  SQS_STAGE_EVENTS_DLQ: "expenseflow-stage-projection-dlq",
   DB_PASSWORD_SECRET_ID: "expenseflow/local/db-password",
   JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
   DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",

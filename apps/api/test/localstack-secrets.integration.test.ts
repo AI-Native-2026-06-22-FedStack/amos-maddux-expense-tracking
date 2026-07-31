@@ -25,6 +25,7 @@ describeLocalStack("LocalStack Secrets Manager runtime secrets", () => {
       AWS_REGION: process.env.AWS_REGION ?? "us-east-1",
       SNS_STAGE_EVENTS_TOPIC: "synthetic-localstack-stage-events",
       SQS_STAGE_EVENTS_QUEUE: "synthetic-localstack-stage-projection",
+      SQS_STAGE_EVENTS_DLQ: "synthetic-localstack-stage-projection-dlq",
       DB_PASSWORD_SECRET_ID: dbPasswordSecretId,
       JWT_SIGNING_KEYS_SECRET_ID: jwtSigningKeysSecretId,
       DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",

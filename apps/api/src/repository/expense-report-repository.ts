@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { NodePgDatabase } from "drizzle-orm/node-postgres";
 
@@ -5,6 +7,7 @@ import { getDb } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import {
   auditEntry,
+  eventOutbox,
   expenseReport,
   expenseReportStages,
   lineItem,
@@ -12,6 +15,10 @@ import {
   receipt,
   stageTransition
 } from "../db/schema.js";
+import {
+  buildExpenseReportStageTransitionedEvent,
+  EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE
+} from "../events/expense-report-stage-transitioned.event.js";
 import { ConflictError } from "../errors/problem-json.js";
 import type {
   AuditEntrySelect,
@@ -56,7 +63,12 @@ export interface ExpenseReportRepository {
   approveLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
   rejectLineItem(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
   clearLineItemFlag(request: LineItemActionRequest): Promise<ApprovalQueueLineItem>;
-  updateLineItemDeductible(request: UpdateLineItemDeductibleRequest): Promise<ApprovalQueueLineItem>;
+  updateLineItemDeductible(
+    request: UpdateLineItemDeductibleRequest
+  ): Promise<ApprovalQueueLineItem>;
+  issuePayment(request: IssuePaymentRequest): Promise<ExpenseReportSelect>;
+  voidIssuedPayment(request: VoidIssuedPaymentRequest): Promise<void>;
+  unreconcileSettlement(request: UnreconcileSettlementRequest): Promise<void>;
   submitForApReview(request: SubmitForApReviewRequest): Promise<ExpenseReportSelect>;
   transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect>;
   recordDeniedTransition(request: RecordDeniedTransitionRequest): Promise<void>;
@@ -72,6 +84,7 @@ export interface SubmitForApReviewRequest {
   expenseReportId: string;
   tenantId: string;
   actorId: string;
+  correlationId: string;
   flaggedLineItemIds: string[];
   codedLineItems: CodedLineItemForPersistence[];
 }
@@ -94,7 +107,27 @@ export interface TransitionStageRequest {
   fromStage: ExpenseReportStage;
   toStage: ExpenseReportStage;
   reason: string;
+  correlationId: string;
   action?: string;
+}
+
+export interface IssuePaymentRequest {
+  expenseReportId: string;
+  tenantId: string;
+  actorId: string;
+  paymentId: string;
+}
+
+export type VoidIssuedPaymentRequest = IssuePaymentRequest & {
+  reason: string;
+};
+
+export interface UnreconcileSettlementRequest {
+  expenseReportId: string;
+  tenantId: string;
+  actorId: string;
+  reason: string;
+  correlationId: string;
 }
 
 export interface RecordDeniedTransitionRequest {
@@ -119,11 +152,14 @@ export type UpdateLineItemDeductibleRequest = LineItemActionRequest & {
 class DrizzleExpenseReportRepository implements ExpenseReportRepository {
   public constructor(
     private readonly db: ExpenseReportDatabase,
-    private readonly now: () => Date
+    private readonly now: () => Date,
+    private readonly createEventId: () => string = randomUUID
   ) {}
 
   public async createDraftReport(insert: CreateDraftReportInsert): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
+      // draftType is an API-level discriminator and is intentionally excluded from persistence.
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { lineItems, mileageEntries, draftType: _draftType, ...reportInsert } = insert;
       const [report] = await tx.insert(expenseReport).values(reportInsert).returning();
 
@@ -410,6 +446,18 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           occurredAt: this.now()
         })
       );
+      await tx.insert(eventOutbox).values({
+        eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+        payload: buildExpenseReportStageTransitionedEvent({
+          id: this.createEventId(),
+          time: this.now().toISOString(),
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          fromStage: "Drafted",
+          toStage: "Submitted",
+          correlationId: request.correlationId
+        })
+      });
 
       return updatedReport;
     });
@@ -493,6 +541,144 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
     });
   }
 
+  public async issuePayment(request: IssuePaymentRequest): Promise<ExpenseReportSelect> {
+    return this.db.transaction(async (tx) => {
+      const [updatedReport] = await tx
+        .update(expenseReport)
+        .set({
+          paymentId: request.paymentId,
+          updatedAt: this.now()
+        })
+        .where(
+          and(
+            eq(expenseReport.id, request.expenseReportId),
+            eq(expenseReport.tenantId, request.tenantId),
+            eq(expenseReport.currentStage, "Paid"),
+            sql`${expenseReport.paymentId} is null`
+          )
+        )
+        .returning();
+
+      if (updatedReport === undefined) {
+        const existingReport = await readReport(tx, request.expenseReportId, request.tenantId);
+
+        if (
+          existingReport?.currentStage === "Paid" &&
+          existingReport.paymentId === request.paymentId
+        ) {
+          return existingReport;
+        }
+
+        throw new ConflictError("Expense Report must be Paid with no issued payment.");
+      }
+
+      await tx.insert(auditEntry).values(
+        auditEntryWriteSchema.parse({
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          actorId: request.actorId,
+          action: "Expense Report Payment Issued",
+          reason: "Synthetic settlement payment issued.",
+          result: "success",
+          occurredAt: this.now()
+        })
+      );
+
+      return updatedReport;
+    });
+  }
+
+  public async voidIssuedPayment(request: VoidIssuedPaymentRequest): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [updatedReport] = await tx
+        .update(expenseReport)
+        .set({
+          paymentId: null,
+          updatedAt: this.now()
+        })
+        .where(
+          and(
+            eq(expenseReport.id, request.expenseReportId),
+            eq(expenseReport.tenantId, request.tenantId),
+            eq(expenseReport.currentStage, "Paid"),
+            eq(expenseReport.paymentId, request.paymentId)
+          )
+        )
+        .returning();
+
+      if (updatedReport === undefined) {
+        return;
+      }
+
+      await tx.insert(auditEntry).values(
+        auditEntryWriteSchema.parse({
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          actorId: request.actorId,
+          action: "Expense Report Payment Voided",
+          reason: request.reason,
+          result: "success",
+          occurredAt: this.now()
+        })
+      );
+    });
+  }
+
+  public async unreconcileSettlement(request: UnreconcileSettlementRequest): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const [updatedReport] = await tx
+        .update(expenseReport)
+        .set({
+          currentStage: "Paid",
+          updatedAt: this.now()
+        })
+        .where(
+          and(
+            eq(expenseReport.id, request.expenseReportId),
+            eq(expenseReport.tenantId, request.tenantId),
+            eq(expenseReport.currentStage, "Reconciled")
+          )
+        )
+        .returning();
+
+      if (updatedReport === undefined) {
+        return;
+      }
+
+      await tx.insert(stageTransition).values({
+        tenantId: request.tenantId,
+        expenseReportId: request.expenseReportId,
+        fromStage: "Reconciled",
+        toStage: "Paid",
+        actorId: request.actorId,
+        reason: request.reason
+      });
+      await tx.insert(auditEntry).values(
+        auditEntryWriteSchema.parse({
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          actorId: request.actorId,
+          action: "Expense Report Reconciliation Compensated",
+          reason: request.reason,
+          result: "success",
+          occurredAt: this.now()
+        })
+      );
+      await tx.insert(eventOutbox).values({
+        eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+        payload: buildExpenseReportStageTransitionedEvent({
+          id: this.createEventId(),
+          time: this.now().toISOString(),
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          fromStage: "Reconciled",
+          toStage: "Paid",
+          correlationId: request.correlationId
+        })
+      });
+    });
+  }
+
   public async transitionStage(request: TransitionStageRequest): Promise<ExpenseReportSelect> {
     return this.db.transaction(async (tx) => {
       const [updatedReport] = await tx
@@ -533,6 +719,18 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           occurredAt: this.now()
         })
       );
+      await tx.insert(eventOutbox).values({
+        eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
+        payload: buildExpenseReportStageTransitionedEvent({
+          id: this.createEventId(),
+          time: this.now().toISOString(),
+          tenantId: request.tenantId,
+          expenseReportId: request.expenseReportId,
+          fromStage: request.fromStage,
+          toStage: request.toStage,
+          correlationId: request.correlationId
+        })
+      });
 
       return updatedReport;
     });
@@ -623,9 +821,10 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
 
 export function createExpenseReportRepository(
   db: ExpenseReportDatabase = getDb(),
-  now: () => Date = () => new Date()
+  now: () => Date = () => new Date(),
+  createEventId: () => string = randomUUID
 ): ExpenseReportRepository {
-  return new DrizzleExpenseReportRepository(db, now);
+  return new DrizzleExpenseReportRepository(db, now, createEventId);
 }
 
 const approvalQueueSelection = {
@@ -646,6 +845,20 @@ const approvalQueueSelection = {
   managerReviewStatus: lineItem.manager_review_status,
   createdAt: lineItem.created_at
 };
+
+async function readReport(
+  db: ExpenseReportDatabase,
+  id: string,
+  tenantId: string
+): Promise<ExpenseReportSelect | null> {
+  const [report] = await db
+    .select()
+    .from(expenseReport)
+    .where(and(eq(expenseReport.id, id), eq(expenseReport.tenantId, tenantId)))
+    .limit(1);
+
+  return report ?? null;
+}
 
 async function readReportForLineItemAction(
   db: ExpenseReportDatabase,

@@ -30,6 +30,7 @@ TRUNCATE
     "user",
     "role",
     audit_entry,
+    event_outbox,
     stage_transition,
     expense_report,
     expense_line_item,
@@ -43,6 +44,9 @@ beforeEach(() => {
   process.env.NODE_ENV = "test";
   process.env.AWS_ENDPOINT ??= "http://localhost:4566";
   process.env.AWS_REGION ??= "us-east-1";
+  process.env.SNS_STAGE_EVENTS_TOPIC ??= "expenseflow-stage-events";
+  process.env.SQS_STAGE_EVENTS_QUEUE ??= "expenseflow-stage-projection";
+  process.env.SQS_STAGE_EVENTS_DLQ ??= "expenseflow-stage-projection-dlq";
   process.env.DB_PASSWORD_SECRET_ID ??= "expenseflow/test/db-password";
   process.env.JWT_SIGNING_KEYS_SECRET_ID ??= "expenseflow/test/jwt-signing-keys";
   process.env.REDIS_URL ??= "redis://localhost:6379";

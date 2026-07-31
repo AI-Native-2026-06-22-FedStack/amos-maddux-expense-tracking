@@ -5,6 +5,7 @@ import pg from "pg";
 
 import {
   auditEntry,
+  eventOutbox,
   expenseReport,
   lineItem,
   mileageEntry,
@@ -206,6 +207,41 @@ const tableShapes = [
       "stage_transition_to_stage_check"
     ],
     indexes: ["stage_transition_pkey", "stage_transition_tenant_id_id_unique"]
+  },
+  {
+    table: eventOutbox,
+    columns: {
+      id: { dataType: "uuid", nullable: false, defaultExpression: "gen_random_uuid()" },
+      event_type: { dataType: "text", nullable: false },
+      payload: { dataType: "jsonb", nullable: false },
+      status: { dataType: "text", nullable: false, defaultExpression: "'pending'::text" },
+      attempt_count: { dataType: "integer", nullable: false, defaultExpression: "0" },
+      next_attempt_at: {
+        dataType: "timestamp with time zone",
+        nullable: false,
+        defaultExpression: "now()"
+      },
+      locked_by: { dataType: "text", nullable: true },
+      locked_at: { dataType: "timestamp with time zone", nullable: true },
+      sent_at: { dataType: "timestamp with time zone", nullable: true },
+      last_error: { dataType: "text", nullable: true },
+      created_at: {
+        dataType: "timestamp with time zone",
+        nullable: false,
+        defaultExpression: "now()"
+      },
+      updated_at: {
+        dataType: "timestamp with time zone",
+        nullable: false,
+        defaultExpression: "now()"
+      }
+    },
+    constraints: [
+      "event_outbox_pkey",
+      "event_outbox_sent_status_check",
+      "event_outbox_status_check"
+    ],
+    indexes: ["event_outbox_due_unsent_idx", "event_outbox_pkey"]
   }
 ] as const;
 

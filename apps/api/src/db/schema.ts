@@ -6,6 +6,7 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -27,6 +28,7 @@ export const expenseReportPriorities = ["Low", "Normal", "High", "Urgent"] as co
 export const auditEntryResults = ["success", "failure"] as const;
 export const glCodingStatuses = ["mapped", "unmapped"] as const;
 export const managerReviewStatuses = ["pending", "approved", "rejected"] as const;
+export const eventOutboxStatuses = ["pending", "in_progress", "sent", "dead_lettered"] as const;
 
 export const role = pgTable(
   "role",
@@ -405,6 +407,37 @@ export const stageTransition = pgTable(
   ]
 );
 
+export const eventOutbox = pgTable(
+  "event_outbox",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventType: text("event_type").notNull(),
+    payload: jsonb("payload").notNull(),
+    status: text("status", { enum: eventOutboxStatuses }).notNull().default("pending"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    lockedBy: text("locked_by"),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    check(
+      "event_outbox_status_check",
+      sql`${table.status} in ('pending', 'in_progress', 'sent', 'dead_lettered')`
+    ),
+    check(
+      "event_outbox_sent_status_check",
+      sql`(${table.status} = 'sent' and ${table.sentAt} is not null) or (${table.status} <> 'sent' and ${table.sentAt} is null)`
+    ),
+    index("event_outbox_due_unsent_idx")
+      .on(table.status, table.nextAttemptAt, table.createdAt)
+      .where(sql`${table.sentAt} is null`)
+  ]
+);
+
 export type ExpenseReportSelect = typeof expenseReport.$inferSelect;
 export type ExpenseReportInsert = typeof expenseReport.$inferInsert;
 export type LineItemSelect = typeof lineItem.$inferSelect;
@@ -417,6 +450,8 @@ export type AuditEntrySelect = typeof auditEntry.$inferSelect;
 export type AuditEntryInsert = typeof auditEntry.$inferInsert;
 export type StageTransitionSelect = typeof stageTransition.$inferSelect;
 export type StageTransitionInsert = typeof stageTransition.$inferInsert;
+export type EventOutboxSelect = typeof eventOutbox.$inferSelect;
+export type EventOutboxInsert = typeof eventOutbox.$inferInsert;
 export type RoleSelect = typeof role.$inferSelect;
 export type RoleInsert = typeof role.$inferInsert;
 export type UserSelect = typeof user.$inferSelect;
