@@ -13,6 +13,7 @@ import type {
 
 const consumerName = "ExpenseFlow Core Case Service";
 const providerName = "ExpenseFlow TIVS ACL";
+const pactFileName = `${consumerName}-${providerName}.json`;
 
 let providerState = "default";
 
@@ -33,12 +34,7 @@ describe("TIVS ACL Pact provider", () => {
       new Verifier({
         provider: providerName,
         providerBaseUrl: runningProvider.url,
-        pactUrls: [
-          resolve(
-            import.meta.dirname,
-            "../../../pacts/ExpenseFlow Core Case Service-ExpenseFlow TIVS ACL.json"
-          )
-        ],
+        pactUrls: [resolve(import.meta.dirname, "../../../pacts", pactFileName)],
         stateHandlers: {
           "TIVS has a matching active employer EIN": () => {
             providerState = "matching-employer-ein";
@@ -73,12 +69,18 @@ async function startProvider(): Promise<{ server: Server; url: string }> {
 
 function createFakeGateway(): ExpenseFlowTaxpayerVerificationGateway {
   return {
-    getTaxpayerStanding: vi.fn(async (_request: TaxpayerStandingRequest) => ({
-      asOf: new Date("2026-01-15T00:00:00.000Z"),
-      standing: "active" as const,
-      taxIdentifierType: "ein" as const
-    })),
-    verifyTaxpayer: vi.fn(async (_request: TaxpayerVerificationRequest) => {
+    getTaxpayerStanding: vi.fn(async (request: TaxpayerStandingRequest) => {
+      void request;
+
+      return {
+        asOf: new Date("2026-01-15T00:00:00.000Z"),
+        standing: "active" as const,
+        taxIdentifierType: "ein" as const
+      };
+    }),
+    verifyTaxpayer: vi.fn(async (request: TaxpayerVerificationRequest) => {
+      void request;
+
       if (providerState === "matching-employer-ein") {
         return {
           matched: true,

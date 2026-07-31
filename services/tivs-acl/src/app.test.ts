@@ -91,6 +91,26 @@ describe("createTivsAclApp", () => {
     });
     expect(response.payload).not.toContain("00-0000000");
   });
+
+  it("returns 503 for open-breaker failures instead of taxpayer-not-found", async () => {
+    const gateway = createGateway({
+      getTaxpayerStanding: vi.fn(async () => {
+        throw new Error("Breaker is open");
+      })
+    });
+
+    const response = await inject(createTivsAclApp(gateway), {
+      method: "POST",
+      url: "/v1/taxpayer-status",
+      payload: { taxIdentifier: "12-3456789", taxIdentifierType: "ein" }
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toMatchObject({
+      title: "TIVS Unavailable",
+      status: 503
+    });
+  });
 });
 
 function createGateway(

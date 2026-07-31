@@ -27,6 +27,8 @@ export function createResilientTivsSoapOperations(
     volumeThreshold: config.breakerVolumeThreshold
   };
 
+  // Opossum timeouts can race the underlying SOAP request. TIVS operations are read-only lookups,
+  // so retrying or abandoning a timed-out call does not create duplicate side effects.
   const verifyTaxpayerBreaker = new CircuitBreaker(
     (request: VerifyTaxpayerSoapRequest) => soapOperations.verifyTaxpayer(request),
     options

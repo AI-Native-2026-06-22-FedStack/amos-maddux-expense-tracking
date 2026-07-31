@@ -1,8 +1,4 @@
-import {
-  createTivsSoapClient,
-  type TinTypeCode,
-  type TivsSoapOperations
-} from "./client.js";
+import { createTivsSoapClient, type TinTypeCode, type TivsSoapOperations } from "./client.js";
 import type { TivsRuntimeConfig } from "./config.js";
 import { createResilientTivsSoapOperations } from "./resilient-soap-operations.js";
 import { ConsoleTivsAuditSink, type TivsAuditSink, type TivsAuditOperation } from "./audit.js";
@@ -78,9 +74,7 @@ export class TivsTaxpayerVerificationGateway implements ExpenseFlowTaxpayerVerif
     private readonly now: () => number = () => Date.now()
   ) {}
 
-  async verifyTaxpayer(
-    request: TaxpayerVerificationRequest
-  ): Promise<TaxpayerVerificationResult> {
+  async verifyTaxpayer(request: TaxpayerVerificationRequest): Promise<TaxpayerVerificationResult> {
     return this.audit("VerifyTaxpayer", request, async () => {
       const response = await this.soapOperations.verifyTaxpayer({
         LegalName: request.legalName,
@@ -99,9 +93,7 @@ export class TivsTaxpayerVerificationGateway implements ExpenseFlowTaxpayerVerif
     });
   }
 
-  async getTaxpayerStanding(
-    request: TaxpayerStandingRequest
-  ): Promise<TaxpayerStandingResult> {
+  async getTaxpayerStanding(request: TaxpayerStandingRequest): Promise<TaxpayerStandingResult> {
     return this.audit("GetTaxpayerStatus", request, async () => {
       const response = await this.soapOperations.getTaxpayerStatus({
         TIN: request.taxIdentifier,
@@ -216,37 +208,50 @@ function parseLegacyAsOfDate(value: string): Date {
 }
 
 function isTaxpayerNotFoundFault(error: unknown): boolean {
-  const fault = getRecordProperty(getRecordProperty(error, "root"), "Envelope");
-  const body = getRecordProperty(fault, "Body");
-  const soapFault = getRecordProperty(body, "Fault");
-  const detail = getRecordProperty(soapFault, "detail");
-
-  return (
-    getRecordProperty(detail, "TaxpayerNotFoundFault") !== undefined ||
-    getStringProperty(error, "message").includes("TaxpayerNotFoundFault")
-  );
-}
-
-function getRecordProperty(value: unknown, property: string): Record<string, unknown> | undefined {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const child = value[property];
-
-  return isRecord(child) ? child : undefined;
-}
-
-function getStringProperty(value: unknown, property: string): string {
-  if (!isRecord(value)) {
-    return "";
-  }
-
-  const child = value[property];
-
-  return typeof child === "string" ? child : "";
+  return hasSoapFaultDetailElement(error, "TaxpayerNotFoundFault");
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function hasSoapFaultDetailElement(error: unknown, expectedLocalName: string): boolean {
+  const fault = findRecordByLocalName(error, "Fault");
+  const detail = findRecordByLocalName(fault, "detail");
+
+  return findRecordByLocalName(detail, expectedLocalName) !== undefined;
+}
+
+function findRecordByLocalName(
+  value: unknown,
+  expectedLocalName: string,
+  seen = new Set<unknown>()
+): Record<string, unknown> | undefined {
+  if (!isRecord(value) || seen.has(value)) {
+    return undefined;
+  }
+
+  seen.add(value);
+
+  for (const [key, child] of Object.entries(value)) {
+    if (localName(key) === expectedLocalName && isRecord(child)) {
+      return child;
+    }
+  }
+
+  for (const child of Object.values(value)) {
+    const match = findRecordByLocalName(child, expectedLocalName, seen);
+
+    if (match !== undefined) {
+      return match;
+    }
+  }
+
+  return undefined;
+}
+
+function localName(name: string): string {
+  const colonIndex = name.lastIndexOf(":");
+
+  return colonIndex === -1 ? name : name.slice(colonIndex + 1);
 }

@@ -120,8 +120,10 @@ function errorHandler(
   error: unknown,
   _request: Request,
   response: Response,
-  _next: NextFunction
+  next: NextFunction
 ): void {
+  void next;
+
   if (error instanceof BadRequestError) {
     response.status(400).json({
       type: "https://expenseflow.example.test/problems/bad-request",

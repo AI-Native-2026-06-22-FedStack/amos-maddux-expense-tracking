@@ -388,6 +388,107 @@ describe("ExpenseReportRepository integration", () => {
     });
   });
 
+  it("persists successful Employer EIN validation audit rows during submit", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000435"
+    });
+
+    await repository.submitForApReview({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-actor-00000000-0000-4000-8000-000000000436",
+      correlationId,
+      employerEinValidation: {
+        outcome: "success",
+        matched: true,
+        reason: "matched",
+        registeredName: "SYNTHETIC GOVERNMENT SERVICES LLC"
+      },
+      flaggedLineItemIds: [],
+      codedLineItems: []
+    });
+
+    const auditRows = await repository.listAuditEntries(report.id, tenantA);
+
+    expect(auditRows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "Employer EIN Validated",
+          result: "success",
+          reason:
+            "Employer EIN validation matched: matched. Registered name: SYNTHETIC GOVERNMENT SERVICES LLC."
+        })
+      ])
+    );
+  });
+
+  it("persists failed Employer EIN validation audit rows without blocking submit", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000437"
+    });
+
+    await repository.submitForApReview({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-actor-00000000-0000-4000-8000-000000000438",
+      correlationId,
+      employerEinValidation: {
+        outcome: "failure",
+        reason: "acl-unavailable"
+      },
+      flaggedLineItemIds: [],
+      codedLineItems: []
+    });
+
+    await expect(repository.findById(report.id, tenantA)).resolves.toMatchObject({
+      currentStage: "Submitted"
+    });
+    await expect(repository.listAuditEntries(report.id, tenantA)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "Employer EIN Validated",
+          result: "failure",
+          reason: "Employer EIN validation could not be completed: acl-unavailable."
+        })
+      ])
+    );
+  });
+
+  it("ignores malformed Employer EIN validation audit payloads instead of rolling back submit", async () => {
+    const db = drizzle(client, { schema });
+    const repository = createExpenseReportRepository(db);
+    const report = await repository.createDraftReport({
+      tenantId: tenantA,
+      submitterId: "synthetic-submitter-00000000-0000-4000-8000-000000000439"
+    });
+
+    await repository.submitForApReview({
+      expenseReportId: report.id,
+      tenantId: tenantA,
+      actorId: "synthetic-actor-00000000-0000-4000-8000-000000000440",
+      correlationId,
+      employerEinValidation: {
+        outcome: "skipped",
+        reason: "synthetic-invalid-shape"
+      } as never,
+      flaggedLineItemIds: [],
+      codedLineItems: []
+    });
+
+    await expect(repository.findById(report.id, tenantA)).resolves.toMatchObject({
+      currentStage: "Submitted"
+    });
+    expect(
+      (await repository.listAuditEntries(report.id, tenantA)).map((row) => row.action)
+    ).toEqual(["Expense Report Created", "Expense Report Submitted"]);
+  });
+
   it("returns a conflict when the report is no longer Drafted at submit write time", async () => {
     const db = drizzle(client, { schema });
     const repository = createExpenseReportRepository(db);

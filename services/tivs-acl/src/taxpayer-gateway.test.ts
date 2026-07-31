@@ -139,6 +139,53 @@ describe("TivsTaxpayerVerificationGateway", () => {
     });
   });
 
+  it("maps namespaced TaxpayerNotFoundFault detail to the typed domain error", async () => {
+    const gateway = new TivsTaxpayerVerificationGateway(
+      createSoapOperations({
+        getTaxpayerStatusError: createTaxpayerNotFoundFault("ns1:TaxpayerNotFoundFault")
+      })
+    );
+
+    await expect(
+      gateway.getTaxpayerStanding({
+        taxIdentifier: "00-0000000",
+        taxIdentifierType: "ein"
+      })
+    ).rejects.toThrow(TaxpayerStatusNotFoundError);
+  });
+
+  it("does not classify unrelated SOAP faults by message text alone", async () => {
+    const gateway = new TivsTaxpayerVerificationGateway(
+      createSoapOperations({
+        getTaxpayerStatusError: Object.assign(
+          new Error("Synthetic validation mentions TaxpayerNotFoundFault documentation."),
+          {
+            root: {
+              Envelope: {
+                Body: {
+                  Fault: {
+                    detail: {
+                      ValidationFault: {
+                        FaultCode: "VALIDATION"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        )
+      })
+    );
+
+    await expect(
+      gateway.getTaxpayerStanding({
+        taxIdentifier: "12-3456789",
+        taxIdentifierType: "ein"
+      })
+    ).rejects.toThrow("Synthetic validation mentions TaxpayerNotFoundFault documentation.");
+  });
+
   it("audits successful and failed calls with redacted identifiers", async () => {
     const auditSink = createMemoryAuditSink();
     const gateway = new TivsTaxpayerVerificationGateway(
@@ -191,12 +238,8 @@ describe("TivsTaxpayerVerificationGateway", () => {
 
 describe("redactTaxIdentifierForLog", () => {
   it("shows only the last four digits for EIN and SSN-shaped values", () => {
-    expect(redactTaxIdentifierForLog("12-3456789")).toBe(
-      "[redacted-tax-identifier-last4:6789]"
-    );
-    expect(redactTaxIdentifierForLog("219-09-9999")).toBe(
-      "[redacted-tax-identifier-last4:9999]"
-    );
+    expect(redactTaxIdentifierForLog("12-3456789")).toBe("[redacted-tax-identifier-last4:6789]");
+    expect(redactTaxIdentifierForLog("219-09-9999")).toBe("[redacted-tax-identifier-last4:9999]");
   });
 
   it("uses the redacted identifier in domain error messages", () => {
@@ -260,7 +303,7 @@ function createSoapOperations(options: {
   };
 }
 
-function createTaxpayerNotFoundFault(): Error {
+function createTaxpayerNotFoundFault(elementName = "TaxpayerNotFoundFault"): Error {
   const error = new Error("Synthetic TaxpayerNotFoundFault");
 
   return Object.assign(error, {
@@ -269,7 +312,7 @@ function createTaxpayerNotFoundFault(): Error {
         Body: {
           Fault: {
             detail: {
-              TaxpayerNotFoundFault: {
+              [elementName]: {
                 FaultCode: "TAXPAYER_NOT_FOUND",
                 FaultReason: "Synthetic missing taxpayer."
               }
