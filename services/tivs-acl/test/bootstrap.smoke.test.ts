@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-const expectedWsdlUrl = "https://d2xnf2iv2yptek.cloudfront.net/tivs?wsdl";
+import { loadTivsRuntimeConfig } from "../src/config.js";
 
 describe("TIVS ACL bootstrap", () => {
-  it("has the shared TIVS WSDL URL available for local bootstrap", () => {
-    const configuredWsdlUrl = process.env.TIVS_WSDL_URL ?? expectedWsdlUrl;
+  it("loads TIVS config from the environment", () => {
+    const config = loadTivsRuntimeConfig({
+      TIVS_WSDL_URL: "https://synthetic-tivs.example.test/tivs?wsdl"
+    });
 
-    expect(configuredWsdlUrl).toBe(expectedWsdlUrl);
+    expect(config.wsdlUrl).toBe("https://synthetic-tivs.example.test/tivs?wsdl");
   });
 });
