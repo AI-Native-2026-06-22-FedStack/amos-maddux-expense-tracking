@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createMemoryAuditSink, type TivsAuditLine } from "./audit.js";
 import {
   TaxpayerStatusNotFoundError,
   TivsTaxpayerVerificationGateway,
@@ -137,6 +138,55 @@ describe("TivsTaxpayerVerificationGateway", () => {
       redactedTaxIdentifier: "[redacted-tax-identifier-last4:0000]"
     });
   });
+
+  it("audits successful and failed calls with redacted identifiers", async () => {
+    const auditSink = createMemoryAuditSink();
+    const gateway = new TivsTaxpayerVerificationGateway(
+      createSoapOperations({
+        getTaxpayerStatusError: createTaxpayerNotFoundFault(),
+        verifyTaxpayer: [
+          {
+            MatchCode: "0",
+            TINType: "EIN"
+          }
+        ]
+      }),
+      auditSink,
+      createSteppedClock([10, 18, 20, 29])
+    );
+
+    await gateway.verifyTaxpayer({
+      correlationId: "synthetic-success-correlation-id",
+      legalName: "Synthetic Vendor LLC",
+      taxIdentifier: "12-3456789",
+      taxIdentifierType: "ein"
+    });
+    await expect(
+      gateway.getTaxpayerStanding({
+        correlationId: "synthetic-failure-correlation-id",
+        taxIdentifier: "00-0000000",
+        taxIdentifierType: "ein"
+      })
+    ).rejects.toThrow(TaxpayerStatusNotFoundError);
+
+    expect(auditSink.lines).toEqual([
+      {
+        correlationId: "synthetic-success-correlation-id",
+        durationMs: 8,
+        operation: "VerifyTaxpayer",
+        outcome: "success",
+        taxIdentifier: "[redacted-tax-identifier-last4:6789]"
+      },
+      {
+        correlationId: "synthetic-failure-correlation-id",
+        durationMs: 9,
+        operation: "GetTaxpayerStatus",
+        outcome: "failure",
+        reason: "taxpayer-status-not-found",
+        taxIdentifier: "[redacted-tax-identifier-last4:0000]"
+      }
+    ] satisfies TivsAuditLine[]);
+  });
 });
 
 describe("redactTaxIdentifierForLog", () => {
@@ -229,4 +279,10 @@ function createTaxpayerNotFoundFault(): Error {
       }
     }
   });
+}
+
+function createSteppedClock(values: number[]): () => number {
+  let index = 0;
+
+  return () => values[index++] ?? values.at(-1) ?? 0;
 }

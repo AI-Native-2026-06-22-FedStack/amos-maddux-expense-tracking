@@ -1,0 +1,154 @@
+{
+  "consumer": {
+    "name": "ExpenseFlow Core Case Service"
+  },
+  "interactions": [
+    {
+      "description": "Core asks the TIVS ACL to verify an employer EIN",
+      "pending": false,
+      "providerStates": [
+        {
+          "name": "TIVS has a matching active employer EIN"
+        }
+      ],
+      "request": {
+        "body": {
+          "content": {
+            "legalName": "Synthetic Government Services LLC",
+            "taxIdentifier": "12-3456789",
+            "taxIdentifierType": "ein"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ],
+          "content-type": [
+            "application/json"
+          ],
+          "x-correlation-id": [
+            "synthetic-tivs-acl-pact-correlation-id"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.legalName": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.taxIdentifier": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^\\d{2}-\\d{7}$"
+                }
+              ]
+            },
+            "$.taxIdentifierType": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            }
+          },
+          "header": {
+            "x-correlation-id": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            }
+          }
+        },
+        "method": "POST",
+        "path": "/v1/taxpayer-verifications"
+      },
+      "response": {
+        "body": {
+          "content": {
+            "matched": true,
+            "reason": "matched",
+            "registeredName": "SYNTHETIC GOVERNMENT SERVICES LLC",
+            "taxIdentifierType": "ein"
+          },
+          "contentType": "application/json",
+          "encoded": false
+        },
+        "headers": {
+          "Content-Type": [
+            "application/json"
+          ],
+          "content-type": [
+            "application/json; charset=utf-8"
+          ]
+        },
+        "matchingRules": {
+          "body": {
+            "$.matched": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            },
+            "$.reason": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.registeredName": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            },
+            "$.taxIdentifierType": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "equality"
+                }
+              ]
+            }
+          },
+          "header": {},
+          "status": {}
+        },
+        "status": 200
+      },
+      "type": "Synchronous/HTTP"
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "13.2.0"
+    },
+    "pactRust": {
+      "ffi": "0.4.22",
+      "models": "1.2.3"
+    },
+    "pactSpecification": {
+      "version": "4.0"
+    }
+  },
+  "provider": {
+    "name": "ExpenseFlow TIVS ACL"
+  }
+}

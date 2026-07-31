@@ -4,7 +4,12 @@ import { createTivsSoapClient } from "./client.js";
 import type { TivsRuntimeConfig } from "./config.js";
 
 const config: TivsRuntimeConfig = {
+  breakerErrorThresholdPercentage: 50,
+  breakerResetTimeoutMs: 5000,
+  breakerTimeoutMs: 1000,
+  breakerVolumeThreshold: 3,
   endpointUrl: "https://synthetic-endpoint.example.test/tivs",
+  port: 3015,
   wsdlUrl: "https://synthetic-wsdl.example.test/tivs?wsdl"
 };
 

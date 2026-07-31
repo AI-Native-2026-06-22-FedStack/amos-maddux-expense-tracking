@@ -4,29 +4,29 @@ import type { TivsRuntimeConfig } from "./config.js";
 
 export type TinTypeCode = "EIN" | "SSN";
 
-interface VerifyTaxpayerSoapRequest {
+export interface VerifyTaxpayerSoapRequest {
   LegalName: string;
   TIN: string;
   TINType: TinTypeCode;
 }
 
-interface VerifyTaxpayerSoapResult {
+export interface VerifyTaxpayerSoapResult {
   MatchCode: "0" | "1" | "2" | "3";
   TINType: TinTypeCode;
   VerifiedName?: string;
 }
 
-interface GetTaxpayerStatusSoapRequest {
+export interface GetTaxpayerStatusSoapRequest {
   TIN: string;
   TINType: TinTypeCode;
 }
 
-interface GetTaxpayerStatusSoapResult {
+export interface GetTaxpayerStatusSoapResult {
   AsOfDate: string;
   Standing: "ACTIVE" | "INACTIVE" | "SUSPENDED";
 }
 
-interface RawSoapResponse<TResult> {
+export interface RawSoapResponse<TResult> {
   body: TResult;
   rawRequestXml?: string;
   rawResponseXml?: string;

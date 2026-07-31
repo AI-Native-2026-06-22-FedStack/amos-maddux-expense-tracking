@@ -33,6 +33,7 @@ describe("loadApiRuntimeConfig", () => {
       DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
       REDIS_URL: "redis://localhost:6379",
       PORT: 3000,
+      TIVS_ACL_URL: "http://localhost:3015",
       JWT_ACCESS_TOKEN_TTL_SECONDS: 900,
       JWT_REFRESH_TOKEN_TTL_SECONDS: 2_592_000
     });

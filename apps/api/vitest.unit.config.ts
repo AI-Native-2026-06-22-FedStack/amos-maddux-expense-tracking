@@ -4,8 +4,7 @@ export default defineConfig({
   root: import.meta.dirname,
   test: {
     clearMocks: true,
-    exclude: ["src/pact-provider.test.ts"],
-    include: ["test/**/*.test.ts", "src/**/*.test.ts"],
+    include: ["src/**/*.test.ts"],
     restoreMocks: true
   }
 });

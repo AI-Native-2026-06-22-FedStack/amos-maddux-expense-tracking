@@ -13,6 +13,7 @@ import {
   expenseReportResponseSchema,
   lineItemIdParamSchema,
   rejectExpenseReportRequestSchema,
+  submitExpenseReportRequestSchema,
   transitionRequestSchema
 } from "../schemas/expense-report.schema.js";
 import {
@@ -187,17 +188,27 @@ export class ExpenseReportController {
   };
 
   public submitExpenseReport = async (
-    request: Pick<RequestWithAuthContext, "authContext" | "correlationId" | "headers" | "params">,
+    request: Pick<
+      RequestWithAuthContext,
+      "authContext" | "body" | "correlationId" | "headers" | "params"
+    >,
     response: JsonResponse
   ): Promise<void> => {
     const parsedParams = expenseReportIdParamSchema.parse(request.params);
+    const parsedBody = submitExpenseReportRequestSchema.parse(request.body ?? {});
     const authContext = requireAuthenticatedContext(request);
     const submittedReport = await this.expenseReportService.submit({
       expenseReportId: parsedParams.id,
       tenantId: authContext.tenantId,
       actorId: authContext.userId,
       bearerToken: readBearerToken(request.headers.authorization),
-      correlationId: request.correlationId
+      correlationId: request.correlationId,
+      ...(parsedBody.employerEin === undefined
+        ? {}
+        : {
+            employerEin: parsedBody.employerEin,
+            employerLegalName: parsedBody.employerLegalName
+          })
     });
     const parsedResponse = expenseReportResponseSchema.parse(submittedReport);
 

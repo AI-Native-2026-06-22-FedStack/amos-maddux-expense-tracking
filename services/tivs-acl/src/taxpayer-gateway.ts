@@ -4,6 +4,10 @@ import {
   type TivsSoapOperations
 } from "./client.js";
 import type { TivsRuntimeConfig } from "./config.js";
+import { createResilientTivsSoapOperations } from "./resilient-soap-operations.js";
+import { ConsoleTivsAuditSink, type TivsAuditSink, type TivsAuditOperation } from "./audit.js";
+import { redactTaxIdentifierForLog } from "./redaction.js";
+export { redactTaxIdentifierForLog, redactTaxIdentifiersInLogLine } from "./redaction.js";
 
 export type TaxIdentifierType = "ein" | "ssn";
 
@@ -14,6 +18,7 @@ export type TaxpayerVerificationReason =
   | "legal-name-mismatch";
 
 export interface TaxpayerVerificationRequest {
+  correlationId?: string;
   legalName: string;
   taxIdentifier: string;
   taxIdentifierType: TaxIdentifierType;
@@ -29,6 +34,7 @@ export interface TaxpayerVerificationResult {
 export type TaxpayerStanding = "active" | "inactive" | "suspended";
 
 export interface TaxpayerStandingRequest {
+  correlationId?: string;
   taxIdentifier: string;
   taxIdentifierType: TaxIdentifierType;
 }
@@ -56,37 +62,47 @@ export interface ExpenseFlowTaxpayerVerificationGateway {
 }
 
 export async function createExpenseFlowTaxpayerVerificationGateway(
-  config: TivsRuntimeConfig
+  config: TivsRuntimeConfig,
+  auditSink: TivsAuditSink = new ConsoleTivsAuditSink()
 ): Promise<ExpenseFlowTaxpayerVerificationGateway> {
-  return new TivsTaxpayerVerificationGateway(await createTivsSoapClient(config));
+  return new TivsTaxpayerVerificationGateway(
+    createResilientTivsSoapOperations(await createTivsSoapClient(config), config),
+    auditSink
+  );
 }
 
 export class TivsTaxpayerVerificationGateway implements ExpenseFlowTaxpayerVerificationGateway {
-  constructor(private readonly soapOperations: TivsSoapOperations) {}
+  constructor(
+    private readonly soapOperations: TivsSoapOperations,
+    private readonly auditSink: TivsAuditSink = new ConsoleTivsAuditSink(),
+    private readonly now: () => number = () => Date.now()
+  ) {}
 
   async verifyTaxpayer(
     request: TaxpayerVerificationRequest
   ): Promise<TaxpayerVerificationResult> {
-    const response = await this.soapOperations.verifyTaxpayer({
-      LegalName: request.legalName,
-      TIN: request.taxIdentifier,
-      TINType: toSoapTinType(request.taxIdentifierType)
-    });
+    return this.audit("VerifyTaxpayer", request, async () => {
+      const response = await this.soapOperations.verifyTaxpayer({
+        LegalName: request.legalName,
+        TIN: request.taxIdentifier,
+        TINType: toSoapTinType(request.taxIdentifierType)
+      });
 
-    return {
-      matched: response.body.MatchCode === "0",
-      reason: toVerificationReason(response.body.MatchCode),
-      ...(response.body.VerifiedName === undefined
-        ? {}
-        : { registeredName: response.body.VerifiedName }),
-      taxIdentifierType: fromSoapTinType(response.body.TINType)
-    };
+      return {
+        matched: response.body.MatchCode === "0",
+        reason: toVerificationReason(response.body.MatchCode),
+        ...(response.body.VerifiedName === undefined
+          ? {}
+          : { registeredName: response.body.VerifiedName }),
+        taxIdentifierType: fromSoapTinType(response.body.TINType)
+      };
+    });
   }
 
   async getTaxpayerStanding(
     request: TaxpayerStandingRequest
   ): Promise<TaxpayerStandingResult> {
-    try {
+    return this.audit("GetTaxpayerStatus", request, async () => {
       const response = await this.soapOperations.getTaxpayerStatus({
         TIN: request.taxIdentifier,
         TINType: toSoapTinType(request.taxIdentifierType)
@@ -97,28 +113,53 @@ export class TivsTaxpayerVerificationGateway implements ExpenseFlowTaxpayerVerif
         standing: toTaxpayerStanding(response.body.Standing),
         taxIdentifierType: request.taxIdentifierType
       };
+    });
+  }
+
+  private async audit<TResult>(
+    operation: TivsAuditOperation,
+    request: { correlationId?: string; taxIdentifier: string },
+    action: () => Promise<TResult>
+  ): Promise<TResult> {
+    const startedAt = this.now();
+
+    try {
+      const result = await action();
+
+      this.auditSink.write({
+        correlationId: request.correlationId ?? "missing-correlation-id",
+        durationMs: this.now() - startedAt,
+        operation,
+        outcome: "success",
+        taxIdentifier: request.taxIdentifier
+      });
+
+      return result;
     } catch (error) {
       if (isTaxpayerNotFoundFault(error)) {
+        this.auditSink.write({
+          correlationId: request.correlationId ?? "missing-correlation-id",
+          durationMs: this.now() - startedAt,
+          operation,
+          outcome: "failure",
+          reason: "taxpayer-status-not-found",
+          taxIdentifier: request.taxIdentifier
+        });
         throw new TaxpayerStatusNotFoundError(request.taxIdentifier);
       }
+
+      this.auditSink.write({
+        correlationId: request.correlationId ?? "missing-correlation-id",
+        durationMs: this.now() - startedAt,
+        operation,
+        outcome: "failure",
+        reason: error instanceof Error ? error.name : "unknown-error",
+        taxIdentifier: request.taxIdentifier
+      });
 
       throw error;
     }
   }
-}
-
-export function redactTaxIdentifierForLog(taxIdentifier: string): string {
-  const digits = taxIdentifier.replace(/\D/g, "");
-  const lastFour = digits.slice(-4).padStart(4, "*");
-
-  return `[redacted-tax-identifier-last4:${lastFour}]`;
-}
-
-export function redactTaxIdentifiersInLogLine(message: string): string {
-  return message.replace(
-    /\b(?:\d{2}-\d{7}|\d{3}-\d{2}-\d{4})\b/g,
-    (taxIdentifier) => redactTaxIdentifierForLog(taxIdentifier)
-  );
 }
 
 function toSoapTinType(taxIdentifierType: TaxIdentifierType): TinTypeCode {

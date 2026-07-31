@@ -85,9 +85,22 @@ export interface SubmitForApReviewRequest {
   tenantId: string;
   actorId: string;
   correlationId: string;
+  employerEinValidation?: EmployerEinValidationForPersistence;
   flaggedLineItemIds: string[];
   codedLineItems: CodedLineItemForPersistence[];
 }
+
+export type EmployerEinValidationForPersistence =
+  | {
+      outcome: "success";
+      matched: boolean;
+      reason: "matched" | "tin-not-issued" | "tin-not-found" | "legal-name-mismatch";
+      registeredName?: string;
+    }
+  | {
+      outcome: "failure";
+      reason: "acl-unavailable" | "acl-contract-error";
+    };
 
 export interface CodedLineItemForPersistence {
   id: string;
@@ -446,6 +459,19 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           occurredAt: this.now()
         })
       );
+      if (request.employerEinValidation !== undefined) {
+        await tx.insert(auditEntry).values(
+          auditEntryWriteSchema.parse({
+            tenantId: request.tenantId,
+            expenseReportId: request.expenseReportId,
+            actorId: request.actorId,
+            action: "Employer EIN Validated",
+            reason: formatEmployerEinValidationReason(request.employerEinValidation),
+            result: request.employerEinValidation.outcome,
+            occurredAt: this.now()
+          })
+        );
+      }
       await tx.insert(eventOutbox).values({
         eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
         payload: buildExpenseReportStageTransitionedEvent({
@@ -924,4 +950,17 @@ function assertReportStage(report: ExpenseReportSelect, expectedStage: ExpenseRe
   if (report.currentStage !== expectedStage) {
     throw new ConflictError(`Expense Report must be ${expectedStage} for this line item action.`);
   }
+}
+
+function formatEmployerEinValidationReason(validation: EmployerEinValidationForPersistence): string {
+  if (validation.outcome === "failure") {
+    return `Employer EIN validation could not be completed: ${validation.reason}.`;
+  }
+
+  const registeredName =
+    validation.registeredName === undefined ? "" : ` Registered name: ${validation.registeredName}.`;
+
+  return `Employer EIN validation ${validation.matched ? "matched" : "did not match"}: ${
+    validation.reason
+  }.${registeredName}`;
 }

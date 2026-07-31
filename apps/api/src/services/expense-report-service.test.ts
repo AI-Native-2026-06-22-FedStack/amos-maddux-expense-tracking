@@ -9,6 +9,7 @@ import type { GlCodingEngineClient } from "../engine/gl-client.js";
 import type { ExpenseReportRepository } from "../repository/expense-report-repository.js";
 import { createExpenseReportService } from "./expense-report-service.js";
 import type { SettlementSaga } from "./settlement-saga.js";
+import type { TivsAclClient } from "./tivs-acl-client.js";
 import { makeExpenseReport } from "../../test/factories/make-expense-report.js";
 
 const tenantId = "00000000-0000-4000-8000-000000000501";
@@ -100,6 +101,107 @@ describe("ExpenseReportService submit", () => {
         }
       ]
     });
+  });
+
+  it("validates the employer EIN through the ACL and records the result at submit", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
+    const submittedReport = { ...report, currentStage: "Submitted" as const };
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ id: lineItemId })],
+        mileageEntries: []
+      })),
+      submitForApReview: vi.fn(async () => submittedReport)
+    });
+    const tivsAclClient = {
+      validateEmployerEin: vi.fn(async () => ({
+        checked: true as const,
+        matched: true,
+        reason: "matched" as const,
+        registeredName: "SYNTHETIC GOVERNMENT SERVICES LLC"
+      }))
+    } satisfies TivsAclClient;
+    const service = createExpenseReportService(
+      repository,
+      createSuccessfulEngineClient(),
+      undefined,
+      tivsAclClient
+    );
+
+    await expect(
+      service.submit({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        bearerToken: "synthetic-forwarded-token",
+        correlationId,
+        employerEin: "12-3456789",
+        employerLegalName: "Synthetic Government Services LLC"
+      })
+    ).resolves.toMatchObject({ currentStage: "Submitted" });
+
+    expect(tivsAclClient.validateEmployerEin).toHaveBeenCalledWith({
+      correlationId,
+      employerEin: "12-3456789",
+      employerLegalName: "Synthetic Government Services LLC"
+    });
+    expect(repository.submitForApReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        employerEinValidation: {
+          outcome: "success",
+          matched: true,
+          reason: "matched",
+          registeredName: "SYNTHETIC GOVERNMENT SERVICES LLC"
+        }
+      })
+    );
+  });
+
+  it("records an ACL validation outage without blocking submit", async () => {
+    const report = makeExpenseReport({ id: reportId, tenantId, currentStage: "Drafted" });
+    const submittedReport = { ...report, currentStage: "Submitted" as const };
+    const repository = makeRepository({
+      findForSubmit: vi.fn(async () => ({
+        ...report,
+        lineItems: [makeLineItem({ id: lineItemId })],
+        mileageEntries: []
+      })),
+      submitForApReview: vi.fn(async () => submittedReport)
+    });
+    const tivsAclClient = {
+      validateEmployerEin: vi.fn(async () => ({
+        checked: false as const,
+        reason: "acl-unavailable" as const
+      }))
+    } satisfies TivsAclClient;
+    const service = createExpenseReportService(
+      repository,
+      createSuccessfulEngineClient(),
+      undefined,
+      tivsAclClient
+    );
+
+    await expect(
+      service.submit({
+        expenseReportId: reportId,
+        tenantId,
+        actorId,
+        bearerToken: "synthetic-forwarded-token",
+        correlationId,
+        employerEin: "12-3456789",
+        employerLegalName: "Synthetic Government Services LLC"
+      })
+    ).resolves.toMatchObject({ currentStage: "Submitted" });
+
+    expect(repository.submitForApReview).toHaveBeenCalledWith(
+      expect.objectContaining({
+        employerEinValidation: {
+          outcome: "failure",
+          reason: "acl-unavailable"
+        }
+      })
+    );
   });
 
   it("does not persist a submit transition when the engine is down", async () => {
@@ -657,5 +759,22 @@ function makeMileageEntry(overrides: Record<string, unknown> = {}) {
     business_purpose: "Synthetic business purpose",
     created_at: new Date(),
     ...overrides
+  };
+}
+
+function createSuccessfulEngineClient(): GlCodingEngineClient {
+  return {
+    codeExpenseReport: vi.fn(async () => ({
+      coded_line_items: [
+        {
+          status: "unmapped",
+          line_item_id: lineItemId,
+          category: "Meals",
+          unmapped_marker: "UNMAPPED_GL_CATEGORY",
+          flagged: false
+        }
+      ],
+      coded_mileage_entries: []
+    }))
   };
 }

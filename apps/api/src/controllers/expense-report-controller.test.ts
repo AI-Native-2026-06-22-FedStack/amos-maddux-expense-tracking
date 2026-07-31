@@ -95,6 +95,7 @@ describe("ExpenseReportController", () => {
           roles: ["Employee"]
         },
         correlationId,
+        body: {},
         headers: {
           authorization: "Bearer synthetic-forwarded-token"
         },
