@@ -8,6 +8,7 @@ import {
 import {
   ExpenseReportRepository,
   ExpenseReportForSubmit,
+  type EmployerEinValidationForPersistence,
   createExpenseReportRepository
 } from "../repository/expense-report-repository.js";
 import {
@@ -18,6 +19,11 @@ import {
   ExpenseReportResponse
 } from "../schemas/expense-report.schema.js";
 import { createSettlementSaga, type SettlementSaga } from "./settlement-saga.js";
+import {
+  createTivsAclClient,
+  type EmployerEinValidationResult,
+  type TivsAclClient
+} from "./tivs-acl-client.js";
 
 export type CreateDraftExpenseReportRequest = CreateExpenseReportRequest & {
   tenantId: string;
@@ -48,6 +54,8 @@ export interface SubmitExpenseReportRequest {
   actorId: string;
   bearerToken: string;
   correlationId: string;
+  employerEin?: string;
+  employerLegalName?: string;
 }
 
 export interface TransitionExpenseReportRequest {
@@ -84,7 +92,8 @@ class RepositoryExpenseReportService implements ExpenseReportService {
   public constructor(
     private readonly expenseReportRepository: ExpenseReportRepository,
     private readonly glCodingEngineClient: GlCodingEngineClient,
-    private readonly settlementSaga: SettlementSaga
+    private readonly settlementSaga: SettlementSaga,
+    private readonly tivsAclClient: TivsAclClient
   ) {}
 
   public async createDraftReport(
@@ -169,6 +178,7 @@ class RepositoryExpenseReportService implements ExpenseReportService {
     }
 
     assertGlCodingCategoriesAreSupported(report);
+    const employerEinValidation = await this.validateEmployerEin(request);
     const glCodingRequest = toGlCodingRequest(report);
     const glCodingResponse = await this.glCodingEngineClient.codeExpenseReport(
       glCodingRequest,
@@ -180,11 +190,28 @@ class RepositoryExpenseReportService implements ExpenseReportService {
       tenantId: request.tenantId,
       actorId: request.actorId,
       correlationId: request.correlationId,
+      ...(employerEinValidation === undefined ? {} : { employerEinValidation }),
       flaggedLineItemIds: codedLineItems.filter((item) => item.flagged).map((item) => item.id),
       codedLineItems
     });
 
     return submittedReport;
+  }
+
+  private async validateEmployerEin(
+    request: SubmitExpenseReportRequest
+  ): Promise<EmployerEinValidationForPersistence | undefined> {
+    if (request.employerEin === undefined || request.employerLegalName === undefined) {
+      return undefined;
+    }
+
+    const result = await this.tivsAclClient.validateEmployerEin({
+      correlationId: request.correlationId,
+      employerEin: request.employerEin,
+      employerLegalName: request.employerLegalName
+    });
+
+    return toEmployerEinValidationForPersistence(result);
   }
 
   public async submitForApReview(
@@ -295,13 +322,33 @@ class RepositoryExpenseReportService implements ExpenseReportService {
 export function createExpenseReportService(
   expenseReportRepository: ExpenseReportRepository = createExpenseReportRepository(),
   glCodingEngineClient: GlCodingEngineClient = createGlCodingEngineClient(),
-  settlementSaga: SettlementSaga = createSettlementSaga(expenseReportRepository)
+  settlementSaga: SettlementSaga = createSettlementSaga(expenseReportRepository),
+  tivsAclClient: TivsAclClient = createTivsAclClient()
 ): ExpenseReportService {
   return new RepositoryExpenseReportService(
     expenseReportRepository,
     glCodingEngineClient,
-    settlementSaga
+    settlementSaga,
+    tivsAclClient
   );
+}
+
+function toEmployerEinValidationForPersistence(
+  result: EmployerEinValidationResult
+): EmployerEinValidationForPersistence {
+  if (!result.checked) {
+    return {
+      outcome: "failure",
+      reason: result.reason
+    };
+  }
+
+  return {
+    matched: result.matched,
+    outcome: "success",
+    reason: result.reason,
+    registeredName: result.registeredName
+  };
 }
 
 const supportedGlCodingCategories = new Set(["Meals", "Lodging", "Mileage", "Supplies", "Other"]);

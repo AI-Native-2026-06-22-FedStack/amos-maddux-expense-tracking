@@ -35,6 +35,22 @@ export const transitionRequestSchema = z.object({
 export const rejectExpenseReportRequestSchema = z.object({
   reason: z.string().trim().min(1).max(500)
 });
+export const submitExpenseReportRequestSchema = z
+  .object({
+    employerEin: z.string().trim().min(1).max(32).optional(),
+    employerLegalName: z.string().trim().min(1).max(200).optional()
+  })
+  .strict()
+  .superRefine((request, context) => {
+    if (
+      (request.employerEin === undefined) !== (request.employerLegalName === undefined)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "employerEin and employerLegalName must be provided together."
+      });
+    }
+  });
 export const lineItemIdParamSchema = expenseReportIdParamSchema.extend({
   lineItemId: z.uuid()
 });
@@ -99,4 +115,5 @@ export type ExpenseReportStage = z.infer<typeof expenseReportStageSchema>;
 export type ExpenseReportPriority = z.infer<typeof expenseReportPrioritySchema>;
 export type TransitionRequest = z.infer<typeof transitionRequestSchema>;
 export type RejectExpenseReportRequest = z.infer<typeof rejectExpenseReportRequestSchema>;
+export type SubmitExpenseReportBody = z.infer<typeof submitExpenseReportRequestSchema>;
 export type DeductibleRequest = z.infer<typeof deductibleRequestSchema>;

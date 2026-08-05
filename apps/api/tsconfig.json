@@ -12,6 +12,7 @@
     "drizzle.config.ts",
     "vitest.config.ts",
     "vitest.pact.config.ts",
+    "vitest.unit.config.ts",
     "vitest.submit-slice.config.ts"
   ]
 }

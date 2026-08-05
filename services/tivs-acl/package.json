@@ -1,0 +1,24 @@
+{
+  "name": "@expenseflow/tivs-acl",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "pact:provider": "vitest run --config vitest.pact.config.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "opossum": "^10.0.0",
+    "soap": "^1.10.0"
+  },
+  "devDependencies": {
+    "@pact-foundation/pact": "^13.2.0",
+    "vitest": "^3.2.7"
+  }
+}

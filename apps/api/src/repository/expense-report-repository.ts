@@ -85,9 +85,22 @@ export interface SubmitForApReviewRequest {
   tenantId: string;
   actorId: string;
   correlationId: string;
+  employerEinValidation?: EmployerEinValidationForPersistence;
   flaggedLineItemIds: string[];
   codedLineItems: CodedLineItemForPersistence[];
 }
+
+export type EmployerEinValidationForPersistence =
+  | {
+      outcome: "success";
+      matched: boolean;
+      reason: "matched" | "tin-not-issued" | "tin-not-found" | "legal-name-mismatch";
+      registeredName?: string;
+    }
+  | {
+      outcome: "failure";
+      reason: "acl-unavailable" | "acl-contract-error";
+    };
 
 export interface CodedLineItemForPersistence {
   id: string;
@@ -446,6 +459,17 @@ class DrizzleExpenseReportRepository implements ExpenseReportRepository {
           occurredAt: this.now()
         })
       );
+      const employerEinValidationAuditEntry = buildEmployerEinValidationAuditEntry({
+        actorId: request.actorId,
+        expenseReportId: request.expenseReportId,
+        occurredAt: this.now(),
+        tenantId: request.tenantId,
+        validation: request.employerEinValidation
+      });
+
+      if (employerEinValidationAuditEntry !== null) {
+        await tx.insert(auditEntry).values(employerEinValidationAuditEntry);
+      }
       await tx.insert(eventOutbox).values({
         eventType: EXPENSE_REPORT_STAGE_TRANSITIONED_EVENT_TYPE,
         payload: buildExpenseReportStageTransitionedEvent({
@@ -924,4 +948,70 @@ function assertReportStage(report: ExpenseReportSelect, expectedStage: ExpenseRe
   if (report.currentStage !== expectedStage) {
     throw new ConflictError(`Expense Report must be ${expectedStage} for this line item action.`);
   }
+}
+
+function buildEmployerEinValidationAuditEntry(input: {
+  actorId: string;
+  expenseReportId: string;
+  occurredAt: Date;
+  tenantId: string;
+  validation: EmployerEinValidationForPersistence | undefined;
+}) {
+  if (!isEmployerEinValidationForPersistence(input.validation)) {
+    return null;
+  }
+
+  return auditEntryWriteSchema.parse({
+    tenantId: input.tenantId,
+    expenseReportId: input.expenseReportId,
+    actorId: input.actorId,
+    action: "Employer EIN Validated",
+    reason: formatEmployerEinValidationReason(input.validation),
+    result: input.validation.outcome,
+    occurredAt: input.occurredAt
+  });
+}
+
+function isEmployerEinValidationForPersistence(
+  value: unknown
+): value is EmployerEinValidationForPersistence {
+  if (!isPlainRecord(value)) {
+    return false;
+  }
+
+  if (value.outcome === "failure") {
+    return value.reason === "acl-unavailable" || value.reason === "acl-contract-error";
+  }
+
+  if (value.outcome !== "success" || typeof value.matched !== "boolean") {
+    return false;
+  }
+
+  return (
+    value.reason === "matched" ||
+    value.reason === "tin-not-issued" ||
+    value.reason === "tin-not-found" ||
+    value.reason === "legal-name-mismatch"
+  );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function formatEmployerEinValidationReason(
+  validation: EmployerEinValidationForPersistence
+): string {
+  if (validation.outcome === "failure") {
+    return `Employer EIN validation could not be completed: ${validation.reason}.`;
+  }
+
+  const registeredName =
+    validation.registeredName === undefined
+      ? ""
+      : ` Registered name: ${validation.registeredName}.`;
+
+  return `Employer EIN validation ${validation.matched ? "matched" : "did not match"}: ${
+    validation.reason
+  }.${registeredName}`;
 }

@@ -19,6 +19,7 @@ const runtimeConfigSchema = z
     DATABASE_URI: z.url(),
     REDIS_URL: z.url(),
     COMPUTE_SERVICE_URL: z.url().default("http://localhost:8000"),
+    TIVS_ACL_URL: z.url().default("http://localhost:3015"),
     JWT_ISSUER: z.string().trim().min(1).default("expense-api"),
     JWT_AUDIENCE: z.string().trim().min(1).default("expense-clients"),
     JWT_KEY_ID: z.string().trim().min(1).default("local-development-key"),
