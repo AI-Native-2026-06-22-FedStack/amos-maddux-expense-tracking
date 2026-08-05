@@ -1,0 +1,21 @@
+# Documented HIGH severity exceptions for `trivy image --severity HIGH,CRITICAL --exit-code 1`.
+# Full CVE-by-CVE justification, applicability reasoning, and accepter is
+# recorded in docs/adr/0019-container-image-hardening-and-scan-gate.md.
+# All five findings below have no published fix in gcr.io/distroless/python3-debian13
+# as of the accepted-at date and are in code paths this service does not exercise.
+# Accepted by: Amos Maddux (amosmaddux@gmail.com) — 2026-08-05
+
+# ncurses buffer overflow (libncursesw6, libtinfo6) — service is headless, no curses usage.
+CVE-2025-69720
+
+# tarfile.extractall() data/tar filter bypass (libpython3.13-*, python3.13-*) — app never imports tarfile.
+CVE-2026-11940
+
+# stdlib html.parser CPU DoS (libpython3.13-*, python3.13-*) — app never imports html.parser, JSON only.
+CVE-2026-15308
+
+# expat XML parser DoS (libpython3.13-*, python3.13-*) — app never imports xml/expat, accepts no XML input.
+CVE-2026-7210
+
+# libblkid integer overflow via libuuid1 — app only uses pure-Python uuid.UUID() string parsing.
+CVE-2026-53615

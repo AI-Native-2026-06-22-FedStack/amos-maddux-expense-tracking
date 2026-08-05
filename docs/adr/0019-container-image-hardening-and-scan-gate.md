@@ -139,8 +139,25 @@ trivy image --severity HIGH,CRITICAL --exit-code 1 <image>
 `--exit-code 1` is what makes this a gate rather than a report: without it,
 trivy prints CRITICAL findings and still exits 0, so a CI step that only
 checks the exit code would pass regardless of what was found. The compute
-service also carries a per-directory `.trivyignore.yaml` exception file
-(below); the API image needs none.
+service also carries a per-directory `.trivyignore` exception file (below);
+the API image needs none.
+
+The exception file is named exactly `.trivyignore` (not `.trivyignore.yaml`)
+because that is the only filename `trivy image` auto-discovers — its
+`--ignorefile` flag defaults to the literal string `.trivyignore`, and a
+`.trivyignore.yaml` sitting in the same directory is silently not read
+unless `--ignorefile` is passed explicitly. This was caught by re-running
+the gate command exactly as specified
+(`trivy image --severity HIGH,CRITICAL --exit-code 1 <image>`, no extra
+flags) from `services/compute/`: an earlier `.trivyignore.yaml` draft
+looked like it passed because it had only been tested with `--ignorefile`
+passed explicitly, and re-verifying with the bare command showed it still
+exiting 1. Trivy's structured YAML exception format additionally requires
+the `.yaml` extension to be parsed as YAML at all — a `.trivyignore` file
+with YAML content inside is read as the plain per-line format and matches
+nothing — so the exception file uses the plain `.trivyignore` format
+(one CVE ID per line, `#` comments) instead, with the full CVE-by-CVE
+justification kept here in the ADR rather than inline in the ignore file.
 
 **Fixable findings were fixed, not excepted.** The first scan of the API
 image surfaced `CVE-2026-16221`/`CVE-2026-18446` (HIGH) in `fast-uri@3.1.3`,
@@ -179,14 +196,20 @@ and none of the vulnerable code paths are reachable:
 | CVE-2026-7210 | libpython3.13-\* | expat XML parser DoS; `app/` never imports `xml`/expat, accepts no XML input |
 | CVE-2026-53615 | libuuid1 | integer overflow in libblkid's partition-table parser; `app/` only uses Python's pure-Python `uuid.UUID()` string parsing, which does not call into libblkid |
 
-Each is recorded with its CVE ID, applicability reasoning, and accepter in
-[services/compute/.trivyignore.yaml](../../services/compute/.trivyignore.yaml).
-This was demonstrated as an actual gate, not asserted: running the scan
-without `--ignorefile` exits **1** (the 15 findings fail the build); running
-it with `--ignorefile .trivyignore.yaml` exits **0**. Silently downgrading
-severity, deleting the scanner step, or shipping the findings unrecorded
-were all rejected as options — the gate has to fail loudly until someone
-signs off on record, not disappear quietly.
+Each CVE is recorded by ID in
+[services/compute/.trivyignore](../../services/compute/.trivyignore), with
+the full applicability reasoning and accepter kept in the table above and
+this ADR (the plain-text ignore-file format has no field for either). This
+was demonstrated as an actual gate, not asserted: with `.trivyignore`
+temporarily moved out of the directory, `trivy image --severity
+HIGH,CRITICAL --exit-code 1 expenseflow-compute:verify` — the exact command
+from the gate spec, no extra flags — exits **1** (the 15 findings fail the
+build); with the file restored, the identical command exits **0**, because
+trivy auto-discovers `.trivyignore` in the scan working directory without
+needing `--ignorefile` passed. Silently downgrading severity, deleting the
+scanner step, or shipping the findings unrecorded were all rejected as
+options — the gate has to fail loudly until someone signs off on record,
+not disappear quietly.
 
 ### Layer-by-layer justification
 
@@ -286,8 +309,8 @@ the pins" habit, not a one-time fix.
 NEGATIVE: The five accepted CVEs in the compute image's distroless base
 need to be revisited whenever the base image is rebumped — a future
 `gcr.io/distroless/python3-debian13` digest may fix them (removing the
-exception) or introduce new ones (requiring a new one), so
-`.trivyignore.yaml` is not "set and forget."
+exception) or introduce new ones (requiring a new one), so `.trivyignore`
+is not "set and forget."
 
 NEGATIVE: `override-dependencies` in `services/compute/pyproject.toml`
 pins `cryptography` above what `pyjwt[crypto]` itself requires; if `pyjwt`
