@@ -97,15 +97,17 @@ describe("startApiServer", () => {
   it("listens only after secrets, Redis, and DB are ready", async () => {
     const server = createFakeHttpServer();
     const redisClient = createFakeRedisClient();
+    const closeDbPool = vi.fn().mockResolvedValue(undefined);
+    const stopSecretRefresh = vi.fn();
 
     const handle = await startApiServer({
       getConfig: () => validConfig,
       preloadSecrets: vi.fn().mockResolvedValue(undefined),
       startSecretRefresh: vi.fn(),
-      stopSecretRefresh: vi.fn(),
+      stopSecretRefresh,
       createRedisClient: () => redisClient,
       assertDbReady: vi.fn().mockResolvedValue(undefined),
-      closeDbPool: vi.fn().mockResolvedValue(undefined),
+      closeDbPool,
       buildApp: () => express(),
       createHttpServer: () => server
     });
@@ -116,6 +118,85 @@ describe("startApiServer", () => {
 
     expect(server.close).toHaveBeenCalledOnce();
     expect(redisClient.quit).toHaveBeenCalledOnce();
+    expect(closeDbPool).toHaveBeenCalledOnce();
+    expect(stopSecretRefresh).toHaveBeenCalledOnce();
+    expect(server.close.mock.invocationCallOrder[0]).toBeLessThan(
+      redisClient.quit.mock.invocationCallOrder[0]
+    );
+    expect(redisClient.quit.mock.invocationCallOrder[0]).toBeLessThan(
+      closeDbPool.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("waits for the HTTP server to drain before closing dependencies", async () => {
+    let closeCallback: ((error?: Error) => void) | undefined;
+    const server = createFakeHttpServer({
+      closeImplementation(callback) {
+        closeCallback = callback;
+      }
+    });
+    const redisClient = createFakeRedisClient();
+    const closeDbPool = vi.fn().mockResolvedValue(undefined);
+
+    const handle = await startApiServer({
+      getConfig: () => validConfig,
+      preloadSecrets: vi.fn().mockResolvedValue(undefined),
+      startSecretRefresh: vi.fn(),
+      stopSecretRefresh: vi.fn(),
+      createRedisClient: () => redisClient,
+      assertDbReady: vi.fn().mockResolvedValue(undefined),
+      closeDbPool,
+      buildApp: () => express(),
+      createHttpServer: () => server
+    });
+
+    const shutdownPromise = handle.shutdown();
+    await Promise.resolve();
+
+    expect(server.close).toHaveBeenCalledOnce();
+    expect(redisClient.quit).not.toHaveBeenCalled();
+    expect(closeDbPool).not.toHaveBeenCalled();
+
+    closeCallback?.();
+    await shutdownPromise;
+
+    expect(redisClient.quit).toHaveBeenCalledOnce();
+    expect(closeDbPool).toHaveBeenCalledOnce();
+  });
+
+  it("rejects shutdown when the grace deadline expires", async () => {
+    vi.useFakeTimers();
+    const server = createFakeHttpServer({
+      closeImplementation() {
+        return;
+      }
+    });
+    const redisClient = createFakeRedisClient();
+    const closeDbPool = vi.fn().mockResolvedValue(undefined);
+
+    const handle = await startApiServer({
+      getConfig: () => validConfig,
+      preloadSecrets: vi.fn().mockResolvedValue(undefined),
+      startSecretRefresh: vi.fn(),
+      stopSecretRefresh: vi.fn(),
+      createRedisClient: () => redisClient,
+      assertDbReady: vi.fn().mockResolvedValue(undefined),
+      closeDbPool,
+      buildApp: () => express(),
+      createHttpServer: () => server,
+      shutdownGraceMs: 5
+    });
+
+    const shutdownPromise = handle.shutdown();
+    const shutdownExpectation = expect(shutdownPromise).rejects.toThrow(
+      "exceeded 5ms grace period"
+    );
+    await vi.advanceTimersByTimeAsync(5);
+
+    await shutdownExpectation;
+    expect(redisClient.quit).not.toHaveBeenCalled();
+    expect(closeDbPool).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });
 
@@ -127,7 +208,11 @@ function createFakeRedisClient(): RedisLike {
   };
 }
 
-function createFakeHttpServer() {
+interface FakeHttpServerOptions {
+  closeImplementation?: (callback: (error?: Error) => void) => void;
+}
+
+function createFakeHttpServer(options: FakeHttpServerOptions = {}) {
   const emitter = new EventEmitter();
 
   return {
@@ -135,9 +220,12 @@ function createFakeHttpServer() {
       callback();
       return emitter;
     }),
-    close: vi.fn((callback: (error?: Error) => void) => {
-      callback();
-    }),
+    close: vi.fn(
+      options.closeImplementation ??
+        ((callback: (error?: Error) => void) => {
+          callback();
+        })
+    ),
     once: vi.fn((eventName: string, listener: (...arguments_: unknown[]) => void) => {
       emitter.once(eventName, listener);
       return emitter;

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx watch src/server.ts",
     "dev:stage-events": "tsx src/workers/stage-transition-worker.ts",
     "dev:outbox-relay": "tsx src/workers/outbox-relay-worker.ts",
@@ -18,6 +19,7 @@
     "@aws-sdk/client-sqs": "^3.1098.0",
     "@expenseflow/shared-schemas": "file:../../packages/shared-schemas",
     "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
     "express-rate-limit": "^8.5.2",
     "express-slow-down": "^2.1.0",
     "ioredis": "^5.11.1",
@@ -28,7 +30,6 @@
   },
   "devDependencies": {
     "@types/node": "^24.13.2",
-    "drizzle-kit": "^0.31.10",
-    "drizzle-zod": "^0.8.3"
+    "drizzle-kit": "^0.31.10"
   }
 }

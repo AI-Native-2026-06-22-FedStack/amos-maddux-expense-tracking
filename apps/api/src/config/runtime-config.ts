@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const maxDelayMsBound = 60_000;
 const defaultPort = 3000;
+const defaultShutdownGraceMs = 9_000;
 const defaultJwtAccessTokenTtlSeconds = 15 * 60;
 const defaultJwtRefreshTokenTtlSeconds = 30 * 24 * 60 * 60;
 
@@ -9,6 +10,7 @@ const runtimeConfigSchema = z
   .object({
     NODE_ENV: z.string().optional(),
     PORT: z.coerce.number().int().min(1).max(65_535).default(defaultPort),
+    SHUTDOWN_GRACE_MS: z.coerce.number().int().positive().default(defaultShutdownGraceMs),
     AWS_ENDPOINT: z.url(),
     AWS_REGION: z.string().trim().min(1),
     SNS_STAGE_EVENTS_TOPIC: z.string().trim().min(1),
