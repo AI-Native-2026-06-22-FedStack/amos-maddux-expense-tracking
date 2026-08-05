@@ -1,0 +1,54 @@
+vulnerabilities:
+  - id: CVE-2025-69720
+    statement: >-
+      ncurses buffer overflow in libncursesw6/libtinfo6, part of the
+      gcr.io/distroless/python3-debian13 base image. No fix is published
+      upstream as of this scan. The compute service is a headless FastAPI
+      process invoked via uvicorn; it never renders a terminal UI and the
+      app code has no curses/ncurses import or usage. Not reachable.
+    accepted: true
+    accepted-by: Amos Maddux (amosmaddux@gmail.com)
+    accepted-at: 2026-08-05
+
+  - id: CVE-2026-11940
+    statement: >-
+      tarfile.extractall() data/tar filter bypass in libpython3.13-minimal,
+      libpython3.13-stdlib, python3.13-minimal, python3.13-venv. No fix is
+      published upstream as of this scan. app/ never imports tarfile and
+      does not extract archives at runtime. Not reachable.
+    accepted: true
+    accepted-by: Amos Maddux (amosmaddux@gmail.com)
+    accepted-at: 2026-08-05
+
+  - id: CVE-2026-15308
+    statement: >-
+      CPU DoS in the stdlib HTML parser (html.parser) via repeated
+      unterminated tags, in libpython3.13-minimal, libpython3.13-stdlib,
+      python3.13-minimal, python3.13-venv. No fix is published upstream as
+      of this scan. app/ never imports html.parser and does not parse HTML;
+      it only serves JSON over FastAPI. Not reachable.
+    accepted: true
+    accepted-by: Amos Maddux (amosmaddux@gmail.com)
+    accepted-at: 2026-08-05
+
+  - id: CVE-2026-7210
+    statement: >-
+      DoS in the expat XML parser bundled with libpython3.13-minimal,
+      libpython3.13-stdlib, python3.13-minimal, python3.13-venv. No fix is
+      published upstream as of this scan. app/ never imports xml or expat
+      and accepts no XML input; all request/response bodies are JSON
+      validated against the shared GL-coding schema. Not reachable.
+    accepted: true
+    accepted-by: Amos Maddux (amosmaddux@gmail.com)
+    accepted-at: 2026-08-05
+
+  - id: CVE-2026-53615
+    statement: >-
+      Integer overflow in libblkid's DOS partition-table parser, shipped
+      via libuuid1. No fix is published upstream as of this scan. The
+      service never reads block devices or partition tables; app/ only
+      uses Python's pure-Python `uuid.UUID()` for parsing string
+      identifiers, which does not call into libblkid. Not reachable.
+    accepted: true
+    accepted-by: Amos Maddux (amosmaddux@gmail.com)
+    accepted-at: 2026-08-05
