@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { Buffer } from "node:buffer";
 import { createCipheriv, generateKeyPairSync, randomBytes } from "node:crypto";
@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 import {
   CreateSecretCommand,
+  GetSecretValueCommand,
   PutSecretValueCommand,
   SecretsManagerClient
 } from "@aws-sdk/client-secrets-manager";
@@ -118,6 +119,8 @@ async function ensureJwtKeys() {
   await mkdir(secretDirectory, { recursive: true });
 
   if ((await pathExists(privateKeyPath)) && (await pathExists(publicKeyPath))) {
+    await chmod(privateKeyPath, 0o644);
+    await chmod(publicKeyPath, 0o644);
     return {
       privateKeyPem: await readFile(privateKeyPath, "utf8"),
       publicKeyPem: await readFile(publicKeyPath, "utf8")
@@ -136,7 +139,7 @@ async function ensureJwtKeys() {
     }
   });
 
-  await writeFile(privateKeyPath, keyPair.privateKey, { mode: 0o600 });
+  await writeFile(privateKeyPath, keyPair.privateKey, { mode: 0o644 });
   await writeFile(publicKeyPath, keyPair.publicKey, { mode: 0o644 });
 
   return {
@@ -149,6 +152,7 @@ async function ensureTotpEncryptionKey() {
   await mkdir(secretDirectory, { recursive: true });
 
   if (await pathExists(totpEncryptionKeyPath)) {
+    await chmod(totpEncryptionKeyPath, 0o644);
     const existingKey = (await readFile(totpEncryptionKeyPath, "utf8")).trim();
     const decodedKey = Buffer.from(existingKey, "base64");
 
@@ -160,32 +164,35 @@ async function ensureTotpEncryptionKey() {
   }
 
   const generatedKey = randomBytes(32).toString("base64");
-  await writeFile(totpEncryptionKeyPath, `${generatedKey}\n`, { mode: 0o600 });
+  await writeFile(totpEncryptionKeyPath, `${generatedKey}\n`, { mode: 0o644 });
 
   return generatedKey;
 }
 
 async function upsertSecret(secretId, secretString) {
   try {
-    await secretsManager.send(
-      new CreateSecretCommand({
-        Name: secretId,
-        SecretString: secretString
-      })
-    );
+    const existing = await secretsManager.send(new GetSecretValueCommand({ SecretId: secretId }));
+    if (existing.SecretString === secretString) {
+      return;
+    }
+
+    await secretsManager.send(new PutSecretValueCommand({ SecretId: secretId, SecretString: secretString }));
     return;
   } catch (error) {
-    if (error?.name !== "ResourceExistsException") {
+    if (error?.name !== "ResourceNotFoundException") {
       throw error;
     }
   }
 
-  await secretsManager.send(
-    new PutSecretValueCommand({
-      SecretId: secretId,
-      SecretString: secretString
-    })
-  );
+  try {
+    await secretsManager.send(new CreateSecretCommand({ Name: secretId, SecretString: secretString }));
+  } catch (error) {
+    if (error?.name !== "ResourceExistsException") {
+      throw error;
+    }
+
+    await upsertSecret(secretId, secretString);
+  }
 }
 
 async function withPgClient(callback) {
@@ -243,48 +250,80 @@ async function applyMigrations(client, directory, namespace) {
 async function seedGlMapping(client) {
   await client.query(
     `
-    with upsert_codes as (
-      insert into gl_code (
-        tenant_id,
-        account_code,
-        account_name,
-        normal_balance
-      )
-      values
-        ($1::uuid, '6100', 'Synthetic Meals Expense', 'debit')
-      on conflict (tenant_id, account_code) do update
-      set
-        account_name = excluded.account_name,
-        normal_balance = excluded.normal_balance,
-        active = true,
-        updated_at = now()
-      returning id, tenant_id
+    insert into gl_code (
+      tenant_id,
+      account_code,
+      account_name,
+      normal_balance
     )
+    values ($1::uuid, '6100', 'Synthetic Meals Expense', 'debit')
+    on conflict (tenant_id, account_code) do nothing;
+    `,
+    [tenantId]
+  );
+
+  await client.query(
+    `
+    update gl_code
+    set
+      account_name = 'Synthetic Meals Expense',
+      normal_balance = 'debit',
+      active = true,
+      updated_at = now()
+    where tenant_id = $1::uuid
+      and account_code = '6100'
+      and (
+        account_name is distinct from 'Synthetic Meals Expense'
+        or normal_balance is distinct from 'debit'
+        or active is distinct from true
+      );
+    `,
+    [tenantId]
+  );
+
+  const codeResult = await client.query(
+    `
+    select id
+    from gl_code
+    where tenant_id = $1::uuid and account_code = '6100';
+    `,
+    [tenantId]
+  );
+  const glCodeId = codeResult.rows[0]?.id;
+
+  if (typeof glCodeId !== "string") {
+    throw new Error("Local GL mapping seed did not return a GL code id.");
+  }
+
+  await client.query(
+    `
     insert into gl_mapping (
       tenant_id,
       category,
       gl_code_id
     )
-    select tenant_id, 'Meals', id
-    from upsert_codes
-    on conflict (tenant_id, category) do update
-    set
-      gl_code_id = excluded.gl_code_id,
-      updated_at = now();
+    values ($1::uuid, 'Meals', $2::uuid)
+    on conflict (tenant_id, category) do nothing;
     `,
-    [tenantId]
+    [tenantId, glCodeId]
+  );
+
+  await client.query(
+    `
+    update gl_mapping
+    set
+      gl_code_id = $2::uuid,
+      updated_at = now()
+    where tenant_id = $1::uuid
+      and category = 'Meals'
+      and gl_code_id is distinct from $2::uuid;
+    `,
+    [tenantId, glCodeId]
   );
 }
 
 async function seedLocalAuthUser(client) {
   const roleId = await upsertLocalRole(client);
-  const passwordHash = await argon2.hash(localDevAuthFixture.password, {
-    type: argon2.argon2id,
-    memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? "19456"),
-    timeCost: Number(process.env.ARGON2_TIME_COST ?? "2"),
-    parallelism: Number(process.env.ARGON2_PARALLELISM ?? "1")
-  });
-  const encryptedTotpSecret = protectTotpSecret(localDevAuthFixture.mfaSecret);
   const userResult = await client.query(
     `
     insert into "user" (
@@ -295,21 +334,76 @@ async function seedLocalAuthUser(client) {
       disabled_at
     )
     values ($1::uuid, $2::uuid, $3, $4, null)
-    on conflict (tenant_id, email) do update
-    set
-      role_id = excluded.role_id,
-      display_name = excluded.display_name,
-      disabled_at = null,
-      updated_at = now()
+    on conflict (tenant_id, email) do nothing
     returning id;
     `,
     [tenantId, roleId, localDevAuthFixture.email, localDevAuthFixture.displayName]
   );
-  const userId = userResult.rows[0]?.id;
+  let userId = userResult.rows[0]?.id;
+
+  if (typeof userId !== "string") {
+    const repairedUser = await client.query(
+      `
+      update "user"
+      set
+        role_id = $2::uuid,
+        display_name = $4,
+        disabled_at = null,
+        updated_at = now()
+      where tenant_id = $1::uuid
+        and email = $3
+        and (
+          role_id is distinct from $2::uuid
+          or display_name is distinct from $4
+          or disabled_at is not null
+        )
+      returning id;
+      `,
+      [tenantId, roleId, localDevAuthFixture.email, localDevAuthFixture.displayName]
+    );
+    userId = repairedUser.rows[0]?.id;
+  }
+
+  if (typeof userId !== "string") {
+    const existingUser = await client.query(
+      `
+      select id
+      from "user"
+      where tenant_id = $1::uuid and email = $2;
+      `,
+      [tenantId, localDevAuthFixture.email]
+    );
+    userId = existingUser.rows[0]?.id;
+  }
 
   if (typeof userId !== "string") {
     throw new Error("Local auth user seed did not return a user id.");
   }
+
+  await seedLocalCredential(client, userId);
+  await seedLocalMfaEnrollment(client, userId);
+}
+
+async function seedLocalCredential(client, userId) {
+  const existingCredential = await client.query(
+    `
+    select 1
+    from credential
+    where tenant_id = $1::uuid and user_id = $2::uuid;
+    `,
+    [tenantId, userId]
+  );
+
+  if (existingCredential.rowCount > 0) {
+    return;
+  }
+
+  const passwordHash = await argon2.hash(localDevAuthFixture.password, {
+    type: argon2.argon2id,
+    memoryCost: Number(process.env.ARGON2_MEMORY_COST ?? "19456"),
+    timeCost: Number(process.env.ARGON2_TIME_COST ?? "2"),
+    parallelism: Number(process.env.ARGON2_PARALLELISM ?? "1")
+  });
 
   await client.query(
     `
@@ -319,13 +413,28 @@ async function seedLocalAuthUser(client) {
       password_hash
     )
     values ($1::uuid, $2::uuid, $3)
-    on conflict (tenant_id, user_id) do update
-    set
-      password_hash = excluded.password_hash,
-      updated_at = now();
+    on conflict (tenant_id, user_id) do nothing;
     `,
     [tenantId, userId, passwordHash]
   );
+}
+
+async function seedLocalMfaEnrollment(client, userId) {
+  const existingEnrollment = await client.query(
+    `
+    select 1
+    from mfa_enrollment
+    where tenant_id = $1::uuid and user_id = $2::uuid;
+    `,
+    [tenantId, userId]
+  );
+
+  if (existingEnrollment.rowCount > 0) {
+    return;
+  }
+
+  const encryptedTotpSecret = protectTotpSecret(localDevAuthFixture.mfaSecret);
+
   await client.query(
     `
     insert into mfa_enrollment (
@@ -338,13 +447,7 @@ async function seedLocalAuthUser(client) {
       last_accepted_totp_at
     )
     values ($1::uuid, $2::uuid, $3, $4, null, null, null)
-    on conflict (tenant_id, user_id) do update
-    set
-      encrypted_totp_secret = excluded.encrypted_totp_secret,
-      totp_secret_key_id = excluded.totp_secret_key_id,
-      disabled_at = null,
-      last_accepted_totp_time_step = null,
-      last_accepted_totp_at = null;
+    on conflict (tenant_id, user_id) do nothing;
     `,
     [tenantId, userId, encryptedTotpSecret, localDevAuthFixture.totpSecretKeyId]
   );
@@ -358,13 +461,24 @@ async function upsertLocalRole(client) {
       name
     )
     values ($1::uuid, $2)
-    on conflict (tenant_id, name) do update
-    set updated_at = now()
+    on conflict (tenant_id, name) do nothing
     returning id;
     `,
     [tenantId, localDevAuthFixture.role]
   );
-  const roleId = result.rows[0]?.id;
+  let roleId = result.rows[0]?.id;
+
+  if (typeof roleId !== "string") {
+    const existingRole = await client.query(
+      `
+      select id
+      from role
+      where tenant_id = $1::uuid and name = $2;
+      `,
+      [tenantId, localDevAuthFixture.role]
+    );
+    roleId = existingRole.rows[0]?.id;
+  }
 
   if (typeof roleId !== "string") {
     throw new Error("Local auth role seed did not return a role id.");
