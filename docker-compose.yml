@@ -17,6 +17,7 @@ services:
         ]
       interval: 5s
       timeout: 5s
+      start_period: 20s
       retries: 12
     networks:
       - expenseflow
@@ -27,6 +28,7 @@ services:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
+      start_period: 10s
       retries: 12
     networks:
       - expenseflow
@@ -52,6 +54,7 @@ services:
         ]
       interval: 5s
       timeout: 5s
+      start_period: 10s
       retries: 12
     networks:
       - expenseflow
@@ -115,6 +118,18 @@ services:
       MILEAGE_REIMBURSEMENT_RATE: ${MILEAGE_REIMBURSEMENT_RATE:-0.67}
     volumes:
       - compose-secrets:/run/expenseflow-secrets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=2)"
+        ]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
     networks:
       - expenseflow
 
@@ -153,6 +168,7 @@ services:
       REDIS_URL: redis://redis:6379
       COMPUTE_SERVICE_URL: http://compute:8001
       GL_CODING_SERVICE_BASE_URL: http://compute:8001
+      TIVS_ACL_URL: http://tivs-acl:3015
       AUTH_JWT_ISSUER: ${JWT_ISSUER:-expense-api}
       AUTH_JWT_KEY_ID: ${JWT_KEY_ID:-local-development-key}
       AUTH_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-900}
@@ -183,6 +199,55 @@ services:
       - "${API_HOST_PORT:-3000}:3000"
     volumes:
       - compose-secrets:/run/expenseflow-secrets:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
+    networks:
+      - expenseflow
+
+  tivs-acl:
+    image: node:24-bookworm-slim
+    profiles: ["brownfield"]
+    working_dir: /workspace
+    command: ["sh", "-c", "npm ci && npm --workspace @expenseflow/tivs-acl run dev"]
+    depends_on:
+      compose-init:
+        condition: service_completed_successfully
+    environment:
+      PORT: 3015
+      TIVS_WSDL_URL: ${TIVS_WSDL_URL:-https://d2xnf2iv2yptek.cloudfront.net/tivs?wsdl}
+      TIVS_ENDPOINT_URL: ${TIVS_ENDPOINT_URL:-https://d2xnf2iv2yptek.cloudfront.net/tivs}
+      TIVS_USERNAME: ${TIVS_USERNAME:-synthetic-tivs-user}
+      TIVS_PASSWORD: ${TIVS_PASSWORD:-synthetic-tivs-password}
+      TIVS_BREAKER_ERROR_THRESHOLD_PERCENTAGE: ${TIVS_BREAKER_ERROR_THRESHOLD_PERCENTAGE:-50}
+      TIVS_BREAKER_VOLUME_THRESHOLD: ${TIVS_BREAKER_VOLUME_THRESHOLD:-3}
+      TIVS_BREAKER_RESET_TIMEOUT_MS: ${TIVS_BREAKER_RESET_TIMEOUT_MS:-5000}
+      TIVS_BREAKER_TIMEOUT_MS: ${TIVS_BREAKER_TIMEOUT_MS:-1000}
+    ports:
+      - "${TIVS_ACL_HOST_PORT:-3015}:3015"
+    volumes:
+      - .:/workspace
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3015/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+        ]
+      interval: 5s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
     networks:
       - expenseflow
 
