@@ -2,199 +2,195 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_USER: expenseflow
-      POSTGRES_DB: expenseflow
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_USER: ${POSTGRES_USER:-expenseflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synthetic-compose-db-password}
+      POSTGRES_DB: ${POSTGRES_DB:-expenseflow}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U expenseflow -d expenseflow"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER:-expenseflow} -d $${POSTGRES_DB:-expenseflow}"
+        ]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 12
+    networks:
+      - expenseflow
 
-  core:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - expenseflow
+
+  floci:
+    image: floci/floci:1.5.11
+    environment:
+      FLOCI_HOSTNAME: floci
+      FLOCI_BASE_URL: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_ENDPOINT_URL: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+    ports:
+      - "${FLOCI_HOST_PORT:-4566}:4566"
+    volumes:
+      - floci-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/4566"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks:
+      - expenseflow
+
+  compose-init:
     image: node:24-bookworm-slim
     working_dir: /workspace
-    command: ["sh", "-c", "npm install && npm run dev"]
+    command: ["sh", "-c", "npm ci && npm run compose:init"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      floci:
+        condition: service_healthy
+    environment:
+      AWS_ENDPOINT_URL: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      DYNAMODB_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      DATABASE_URI: postgres://${POSTGRES_USER:-expenseflow}:${POSTGRES_PASSWORD:-synthetic-compose-db-password}@postgres:5432/${POSTGRES_DB:-expenseflow}
+      DB_PASSWORD_SECRET_ID: ${DB_PASSWORD_SECRET_ID:-expenseflow/local/db-password}
+      JWT_SIGNING_KEYS_SECRET_ID: ${JWT_SIGNING_KEYS_SECRET_ID:-expenseflow/local/jwt-signing-keys}
+      SNS_STAGE_EVENTS_TOPIC: ${SNS_STAGE_EVENTS_TOPIC:-expenseflow-stage-events}
+      SQS_STAGE_EVENTS_QUEUE: ${SQS_STAGE_EVENTS_QUEUE:-expenseflow-stage-projection}
+      SQS_STAGE_EVENTS_DLQ: ${SQS_STAGE_EVENTS_DLQ:-expenseflow-stage-projection-dlq}
+      SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT: ${SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT:-3}
+      COMPOSE_SECRET_DIR: /run/expenseflow-secrets
+      TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
+      ARGON2_MEMORY_COST: ${ARGON2_MEMORY_COST:-19456}
+      ARGON2_TIME_COST: ${ARGON2_TIME_COST:-2}
+      ARGON2_PARALLELISM: ${ARGON2_PARALLELISM:-1}
+    volumes:
+      - .:/workspace
+      - compose-secrets:/run/expenseflow-secrets
+    networks:
+      - expenseflow
+
+  compute:
+    image: expenseflow-gl-coding:smoke
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        export AUTH_JWT_PUBLIC_KEY_BASE64="$(python -c 'import base64, pathlib;
+        print(base64.b64encode(pathlib.Path("/run/expenseflow-secrets/jwt-public.pem").read_bytes()).decode())')";
+        exec uvicorn backend.python.main:app --host 0.0.0.0 --port 8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      compose-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URI: postgres://${POSTGRES_USER:-expenseflow}:${POSTGRES_PASSWORD:-synthetic-compose-db-password}@postgres:5432/${POSTGRES_DB:-expenseflow}
+      DATABASE_URL: postgres://${POSTGRES_USER:-expenseflow}:${POSTGRES_PASSWORD:-synthetic-compose-db-password}@postgres:5432/${POSTGRES_DB:-expenseflow}
+      AUTH_JWT_ISSUER: ${JWT_ISSUER:-expense-api}
+      AUTH_JWT_KEY_ID: ${JWT_KEY_ID:-local-development-key}
+      JWT_PUBLIC_KEY_PATH: /run/expenseflow-secrets/jwt-public.pem
+      JWT_KEY_ID: ${JWT_KEY_ID:-local-development-key}
+      JWT_ISSUER: ${JWT_ISSUER:-expense-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-expense-clients}
+      MILEAGE_REIMBURSEMENT_RATE: ${MILEAGE_REIMBURSEMENT_RATE:-0.67}
+    volumes:
+      - compose-secrets:/run/expenseflow-secrets:ro
+    networks:
+      - expenseflow
+
+  api:
+    image: expenseflow-core-case:smoke
+    entrypoint: ["sh", "-c"]
+    command:
+      - >
+        export AUTH_JWT_PRIVATE_KEY_BASE64="$(node -e 'process.stdout.write(Buffer.from(require("node:fs").readFileSync("/run/expenseflow-secrets/jwt-private.pem")).toString("base64"))')";
+        export AUTH_JWT_PUBLIC_KEY_BASE64="$(node -e 'process.stdout.write(Buffer.from(require("node:fs").readFileSync("/run/expenseflow-secrets/jwt-public.pem")).toString("base64"))')";
+        export MFA_TOTP_SECRET_ENCRYPTION_KEY="$(node -e 'process.stdout.write(require("node:fs").readFileSync("/run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64", "utf8").trim())')";
+        exec node backend/core-case-service/dist/index.js
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      localstack:
+      floci:
         condition: service_healthy
+      compose-init:
+        condition: service_completed_successfully
       compute:
         condition: service_healthy
-      local-dev-init:
-        condition: service_completed_successfully
     environment:
-      NODE_ENV: development
-      PORT: "3000"
-      AWS_ENDPOINT: http://localstack:4566
-      AWS_REGION: us-east-1
-      DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
-      JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
-      DATABASE_URI: postgres://expenseflow@postgres:5432/expenseflow
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      AWS_ENDPOINT_URL: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      DB_PASSWORD_SECRET_ID: ${DB_PASSWORD_SECRET_ID:-expenseflow/local/db-password}
+      JWT_SIGNING_KEYS_SECRET_ID: ${JWT_SIGNING_KEYS_SECRET_ID:-expenseflow/local/jwt-signing-keys}
+      DATABASE_URI: postgres://${POSTGRES_USER:-expenseflow}@postgres:5432/${POSTGRES_DB:-expenseflow}
+      DATABASE_URL: postgres://${POSTGRES_USER:-expenseflow}:${POSTGRES_PASSWORD:-synthetic-compose-db-password}@postgres:5432/${POSTGRES_DB:-expenseflow}
       REDIS_URL: redis://redis:6379
-      COMPUTE_SERVICE_URL: http://compute:8000
-      EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: "60000"
-      EXPENSE_WRITE_RATE_LIMIT_MAX: "120"
-      EXPENSE_WRITE_SLOW_DOWN_AFTER: "80"
-      EXPENSE_WRITE_DELAY_INCREMENT_MS: "250"
-      EXPENSE_WRITE_MAX_DELAY_MS: "5000"
-      JWT_ISSUER: expense-api
-      JWT_AUDIENCE: expense-clients
-      JWT_KEY_ID: local-development-key
-      JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
-      JWT_REFRESH_TOKEN_TTL_SECONDS: "2592000"
-      SNS_STAGE_EVENTS_TOPIC: expenseflow-stage-events
-      SQS_STAGE_EVENTS_QUEUE: expenseflow-stage-projection
-      SQS_STAGE_EVENTS_DLQ: expenseflow-stage-projection-dlq
+      COMPUTE_SERVICE_URL: http://compute:8001
+      GL_CODING_SERVICE_BASE_URL: http://compute:8001
+      AUTH_JWT_ISSUER: ${JWT_ISSUER:-expense-api}
+      AUTH_JWT_KEY_ID: ${JWT_KEY_ID:-local-development-key}
+      AUTH_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-900}
+      EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: ${EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS:-60000}
+      EXPENSE_WRITE_RATE_LIMIT_MAX: ${EXPENSE_WRITE_RATE_LIMIT_MAX:-120}
+      EXPENSE_WRITE_SLOW_DOWN_AFTER: ${EXPENSE_WRITE_SLOW_DOWN_AFTER:-80}
+      EXPENSE_WRITE_DELAY_INCREMENT_MS: ${EXPENSE_WRITE_DELAY_INCREMENT_MS:-250}
+      EXPENSE_WRITE_MAX_DELAY_MS: ${EXPENSE_WRITE_MAX_DELAY_MS:-5000}
+      CORE_CASE_RATE_LIMIT_WINDOW_SECONDS: ${CORE_CASE_RATE_LIMIT_WINDOW_SECONDS:-60}
+      CORE_CASE_RATE_LIMIT_REQUESTS: ${CORE_CASE_RATE_LIMIT_REQUESTS:-100}
+      JWT_ISSUER: ${JWT_ISSUER:-expense-api}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-expense-clients}
+      JWT_KEY_ID: ${JWT_KEY_ID:-local-development-key}
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-900}
+      JWT_REFRESH_TOKEN_TTL_SECONDS: ${JWT_REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      SNS_STAGE_EVENTS_TOPIC: ${SNS_STAGE_EVENTS_TOPIC:-expenseflow-stage-events}
+      SQS_STAGE_EVENTS_QUEUE: ${SQS_STAGE_EVENTS_QUEUE:-expenseflow-stage-projection}
+      SQS_STAGE_EVENTS_DLQ: ${SQS_STAGE_EVENTS_DLQ:-expenseflow-stage-projection-dlq}
+      STAGE_TRANSITION_SNS_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      STAGE_TRANSITION_SNS_TOPIC_ARN: arn:aws:sns:${AWS_REGION:-us-east-1}:000000000000:${SNS_STAGE_EVENTS_TOPIC:-expenseflow-stage-events}
+      STAGE_TRANSITION_SQS_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      STAGE_TRANSITION_SQS_QUEUE_URL: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}/000000000000/${SQS_STAGE_EVENTS_QUEUE:-expenseflow-stage-projection}
+      RECEIPT_STORAGE_ENDPOINT: ${COMPOSE_AWS_ENDPOINT_URL:-http://floci:4566}
+      RECEIPT_STORAGE_BUCKET: ${RECEIPT_STORAGE_BUCKET:-expenseflow-receipts}
+      RECEIPT_STORAGE_FORCE_PATH_STYLE: "true"
       TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
     ports:
-      - "3000:3000"
+      - "${API_HOST_PORT:-3000}:3000"
     volumes:
-      - .:/workspace
       - compose-secrets:/run/expenseflow-secrets:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
-  compute:
-    image: ghcr.io/astral-sh/uv:python3.13-bookworm-slim
-    working_dir: /workspace/services/compute
-    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      local-dev-init:
-        condition: service_completed_successfully
-    environment:
-      UV_PROJECT_ENVIRONMENT: /tmp/expenseflow-compute-venv
-      DATABASE_URI: postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow
-      JWT_PUBLIC_KEY_PATH: /run/expenseflow-secrets/jwt-public.pem
-      JWT_KEY_ID: local-development-key
-      JWT_ISSUER: expense-api
-      JWT_AUDIENCE: expense-clients
-      MILEAGE_REIMBURSEMENT_RATE: "0.67"
-    ports:
-      - "8000:8000"
-    volumes:
-      - .:/workspace
-      - compose-secrets:/run/expenseflow-secrets:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  dynamodb-local:
-    image: amazon/dynamodb-local:2.6.1
-    command: ["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"]
-    ports:
-      - "8001:8000"
-
-  localstack:
-    image: localstack/localstack:3
-    environment:
-      SERVICES: secretsmanager,sns,sqs
-      AWS_DEFAULT_REGION: us-east-1
-      LOCALSTACK_HOST: localstack
-    ports:
-      - "4566:4566"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:4566/_localstack/health >/dev/null"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-
-  local-dev-init:
-    image: node:24-bookworm-slim
-    working_dir: /workspace
-    command: ["sh", "-c", "npm install && node scripts/compose-dev-init.mjs"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-      dynamodb-local:
-        condition: service_started
-    environment:
-      AWS_ENDPOINT: http://localstack:4566
-      AWS_REGION: us-east-1
-      DYNAMODB_ENDPOINT: http://dynamodb-local:8000
-      DATABASE_URI: postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow
-      DB_PASSWORD_SECRET_ID: expenseflow/local/db-password
-      JWT_SIGNING_KEYS_SECRET_ID: expenseflow/local/jwt-signing-keys
-      SNS_STAGE_EVENTS_TOPIC: expenseflow-stage-events
-      SQS_STAGE_EVENTS_QUEUE: expenseflow-stage-projection
-      SQS_STAGE_EVENTS_DLQ: expenseflow-stage-projection-dlq
-      SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT: "3"
-      COMPOSE_SECRET_DIR: /run/expenseflow-secrets
-      TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
-    volumes:
-      - .:/workspace
-      - compose-secrets:/run/expenseflow-secrets
-
-  pact-broker-db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_USER: pact_broker
-      POSTGRES_PASSWORD: pact_broker
-      POSTGRES_DB: pact_broker
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pact_broker -d pact_broker"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  pact-broker:
-    image: pactfoundation/pact-broker:latest
-    depends_on:
-      pact-broker-db:
-        condition: service_healthy
-    environment:
-      PACT_BROKER_DATABASE_ADAPTER: postgres
-      PACT_BROKER_DATABASE_HOST: pact-broker-db
-      PACT_BROKER_DATABASE_NAME: pact_broker
-      PACT_BROKER_DATABASE_USERNAME: pact_broker
-      PACT_BROKER_DATABASE_PASSWORD: pact_broker
-    ports:
-      - "9292:9292"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          'ruby -rnet/http -e ''exit(Net::HTTP.get_response(URI("http://127.0.0.1:9292/diagnostic/status/heartbeat")).is_a?(Net::HTTPSuccess) ? 0 : 1)'''
-        ]
-      interval: 5s
-      timeout: 5s
-      retries: 12
+    networks:
+      - expenseflow
 
 volumes:
+  postgres-data:
+  floci-data:
   compose-secrets:
+
+networks:
+  expenseflow:
+    name: expenseflow-local

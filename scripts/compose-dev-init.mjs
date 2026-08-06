@@ -45,8 +45,9 @@ const jwtSigningKeysSecretId =
 const databaseUri =
   process.env.DATABASE_URI ??
   "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow";
-const awsEndpoint = process.env.AWS_ENDPOINT ?? "http://localstack:4566";
-const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT ?? "http://dynamodb-local:8000";
+const awsEndpoint =
+  process.env.AWS_ENDPOINT_URL ?? process.env.AWS_ENDPOINT ?? "http://floci:4566";
+const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT ?? awsEndpoint;
 const awsRegion = process.env.AWS_REGION ?? "us-east-1";
 const stageEventsTopicName = process.env.SNS_STAGE_EVENTS_TOPIC ?? "expenseflow-stage-events";
 const stageEventsQueueName = process.env.SQS_STAGE_EVENTS_QUEUE ?? "expenseflow-stage-projection";
@@ -85,7 +86,7 @@ const dynamodb = new DynamoDBClient({
   credentials
 });
 
-await waitForLocalStack();
+await waitForAwsEmulator();
 await waitForDynamoDB();
 const jwtSigningKeys = await ensureJwtKeys();
 await ensureTotpEncryptionKey();
@@ -605,19 +606,16 @@ function createSnsQueuePolicy(queueArn, topicArn) {
   };
 }
 
-async function waitForLocalStack() {
+async function waitForAwsEmulator() {
   await retry(async () => {
-    const response = await fetch(`${awsEndpoint}/_localstack/health`);
-    if (!response.ok) {
-      throw new Error(`LocalStack health returned ${response.status}`);
-    }
-  }, "LocalStack");
+    await dynamodb.send(new ListTablesCommand({ Limit: 1 }));
+  }, "AWS emulator");
 }
 
 async function waitForDynamoDB() {
   await retry(async () => {
     await dynamodb.send(new ListTablesCommand({ Limit: 1 }));
-  }, "DynamoDB Local");
+  }, "DynamoDB");
 }
 
 async function retry(callback, label) {
