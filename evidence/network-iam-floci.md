@@ -15,54 +15,54 @@ AWS_SECRET_ACCESS_KEY=test
 
 Created VPC:
 
-- `expenseflow-vpc`: `vpc-c67c89b4`
+- `expenseflow-vpc`: `vpc-78eac74c`
 - CIDR: `10.42.0.0/16`
-- Internet gateway: `igw-f69f60cf`
+- Internet gateway: `igw-401c9377`
 
 Created public ALB subnets:
 
-- `expenseflow-public-a`: `subnet-56de6018`, `10.42.0.0/24`, `us-east-1a`
-- `expenseflow-public-b`: `subnet-fdb821bf`, `10.42.1.0/24`, `us-east-1b`
+- `expenseflow-public-a`: `subnet-42ce98ee`, `10.42.0.0/24`, `us-east-1a`
+- `expenseflow-public-b`: `subnet-5c8c0d81`, `10.42.1.0/24`, `us-east-1b`
 
 Created private task subnets:
 
-- `expenseflow-task-a`: `subnet-4f95624a`, `10.42.10.0/24`, `us-east-1a`
-- `expenseflow-task-b`: `subnet-b0b92cb6`, `10.42.11.0/24`, `us-east-1b`
+- `expenseflow-task-a`: `subnet-a0408ed5`, `10.42.10.0/24`, `us-east-1a`
+- `expenseflow-task-b`: `subnet-dcb3026d`, `10.42.11.0/24`, `us-east-1b`
 
 Created isolated DB subnets:
 
-- `expenseflow-db-a`: `subnet-1bda8cff`, `10.42.20.0/24`, `us-east-1a`
-- `expenseflow-db-b`: `subnet-345df5f0`, `10.42.21.0/24`, `us-east-1b`
+- `expenseflow-db-a`: `subnet-2d354f6f`, `10.42.20.0/24`, `us-east-1a`
+- `expenseflow-db-b`: `subnet-8d188dee`, `10.42.21.0/24`, `us-east-1b`
 
 ## Route tables
 
 Public route table:
 
-- `expenseflow-public-rt`: `rtb-17fb2bbf`
-- Associated with `subnet-56de6018` and `subnet-fdb821bf`
-- Routes `0.0.0.0/0` to `igw-f69f60cf`
+- `expenseflow-public-rt`: `rtb-dc76ad97`
+- Associated with `subnet-42ce98ee` and `subnet-5c8c0d81`
+- Routes `0.0.0.0/0` to `igw-401c9377`
 
 Private task route table:
 
-- `expenseflow-task-rt`: `rtb-45030206`
-- Associated with `subnet-4f95624a` and `subnet-b0b92cb6`
+- `expenseflow-task-rt`: `rtb-9e76ba3c`
+- Associated with `subnet-a0408ed5` and `subnet-dcb3026d`
 - floci 1.5.11 rejected `CreateNatGateway` as unsupported, so no default route
   was created in the emulator.
 
 Isolated DB route table:
 
-- `expenseflow-db-rt`: `rtb-9ab72b99`
-- Associated with `subnet-1bda8cff` and `subnet-345df5f0`
+- `expenseflow-db-rt`: `rtb-f420ff10`
+- Associated with `subnet-2d354f6f` and `subnet-8d188dee`
 - No internet default route.
 
 ## Security groups
 
 Created security groups:
 
-- `expenseflow-alb-sg`: `sg-17bf052d24246d38b`
-- `expenseflow-api-task-sg`: `sg-1779db7ac9153fcc1`
-- `expenseflow-compute-task-sg`: `sg-f6c13429eb0aa74f9`
-- `expenseflow-db-sg`: `sg-2d79ce99d4dbe6d81`
+- `expenseflow-alb-sg`: `sg-8fd0ef710c9071d28`
+- `expenseflow-api-task-sg`: `sg-e5d28647385595786`
+- `expenseflow-compute-task-sg`: `sg-308cf514067a24815`
+- `expenseflow-db-sg`: `sg-e9f9e37c5f4a33130`
 
 Committed intended rules are in `network/security-groups.json`:
 
