@@ -42,10 +42,12 @@ services:
       AWS_DEFAULT_REGION: ${AWS_REGION:-us-east-1}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+      FLOCI_SERVICES_ECR_URI_STYLE: path
     ports:
       - "${FLOCI_HOST_PORT:-4566}:4566"
     volumes:
       - floci-data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
       test:
         [
