@@ -41,6 +41,7 @@ export interface StartApiServerDependencies {
   closeDbPool?: () => Promise<void>;
   buildApp?: (config: ApiRuntimeConfig, redisClient: RedisLike) => express.Express;
   createHttpServer?: (app: express.Express) => HttpServer;
+  shutdownGraceMs?: number;
 }
 
 export async function startApiServer(
@@ -56,6 +57,7 @@ export async function startApiServer(
   const buildApp = dependencies.buildApp ?? createDefaultApp;
   const createHttpServer = dependencies.createHttpServer ?? createServer;
   const config = getConfig();
+  const shutdownGraceMs = dependencies.shutdownGraceMs ?? config.SHUTDOWN_GRACE_MS;
   let redisClient: RedisLike | undefined;
   let secretRefreshStarted = false;
 
@@ -88,7 +90,8 @@ export async function startApiServer(
           server,
           redisClient: readyRedisClient,
           stopSecretRefresh,
-          closeDbPool
+          closeDbPool,
+          graceMs: shutdownGraceMs
         });
       }
     };
@@ -110,16 +113,28 @@ async function shutdownApiServer({
   server,
   redisClient,
   stopSecretRefresh,
-  closeDbPool
+  closeDbPool,
+  graceMs
 }: {
   server: HttpServer;
   redisClient: RedisLike;
   stopSecretRefresh: () => void;
   closeDbPool: () => Promise<void>;
+  graceMs: number;
 }): Promise<void> {
-  stopSecretRefresh();
+  await withShutdownDeadline(
+    async () => {
+      stopSecretRefresh();
+      await closeHttpServer(server);
+      await redisClient.quit();
+      await closeDbPool();
+    },
+    graceMs
+  );
+}
 
-  await new Promise<void>((resolve, reject) => {
+function closeHttpServer(server: HttpServer): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     server.close((error) => {
       if (error !== undefined) {
         reject(error);
@@ -129,8 +144,25 @@ async function shutdownApiServer({
       resolve();
     });
   });
-  await redisClient.quit();
-  await closeDbPool();
+}
+
+async function withShutdownDeadline(work: () => Promise<void>, graceMs: number): Promise<void> {
+  let timeout: NodeJS.Timeout | undefined;
+
+  try {
+    await Promise.race([
+      work(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          reject(new Error(`ExpenseFlow API shutdown exceeded ${graceMs}ms grace period.`));
+        }, graceMs);
+      })
+    ]);
+  } finally {
+    if (timeout !== undefined) {
+      clearTimeout(timeout);
+    }
+  }
 }
 
 function createDefaultRedisClient(redisUrl: string): RedisLike {
