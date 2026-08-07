@@ -1,0 +1,25 @@
+{
+  "cluster": "expenseflow-floci",
+  "serviceName": "expenseflow-core-case-service",
+  "taskDefinition": "expenseflow-core-case",
+  "desiredCount": 1,
+  "launchType": "FARGATE",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["subnet-a0408ed5", "subnet-dcb3026d"],
+      "securityGroups": ["sg-e5d28647385595786"],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/expenseflow-api-tg/445dcc7129904a93",
+      "containerName": "core-case",
+      "containerPort": 3000
+    }
+  ],
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100
+  }
+}

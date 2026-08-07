@@ -120,11 +120,11 @@ describe("startApiServer", () => {
     expect(redisClient.quit).toHaveBeenCalledOnce();
     expect(closeDbPool).toHaveBeenCalledOnce();
     expect(stopSecretRefresh).toHaveBeenCalledOnce();
-    expect(server.close.mock.invocationCallOrder[0]).toBeLessThan(
-      redisClient.quit.mock.invocationCallOrder[0]
+    expect(vi.mocked(server.close).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(redisClient.quit).mock.invocationCallOrder[0]
     );
-    expect(redisClient.quit.mock.invocationCallOrder[0]).toBeLessThan(
-      closeDbPool.mock.invocationCallOrder[0]
+    expect(vi.mocked(redisClient.quit).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(closeDbPool).mock.invocationCallOrder[0]
     );
   });
 

@@ -11,7 +11,7 @@
       "containerDefinitions": [
         {
           "name": "core-case",
-          "image": "localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807",
+          "image": "localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807-r2",
           "essential": true,
           "portMappings": [
             {
@@ -31,8 +31,8 @@
             { "name": "JWT_SIGNING_KEYS_SECRET_ID", "value": "expenseflow/local/jwt-signing-keys" },
             { "name": "DATABASE_URI", "value": "postgres://expenseflow@postgres:5432/expenseflow" },
             { "name": "REDIS_URL", "value": "redis://redis:6379" },
-            { "name": "COMPUTE_SERVICE_URL", "value": "http://expenseflow-gl-coding-service:8000" },
-            { "name": "GL_CODING_SERVICE_BASE_URL", "value": "http://expenseflow-gl-coding-service:8000" },
+            { "name": "COMPUTE_SERVICE_URL", "value": "http://expenseflow-compute-r2:8000" },
+            { "name": "GL_CODING_SERVICE_BASE_URL", "value": "http://expenseflow-compute-r2:8000" },
             { "name": "TIVS_ACL_URL", "value": "http://tivs-acl:3015" },
             { "name": "JWT_ISSUER", "value": "expense-api" },
             { "name": "JWT_AUDIENCE", "value": "expense-clients" },
@@ -47,14 +47,17 @@
             { "name": "EXPENSE_WRITE_SLOW_DOWN_AFTER", "value": "80" },
             { "name": "EXPENSE_WRITE_DELAY_INCREMENT_MS", "value": "250" },
             { "name": "EXPENSE_WRITE_MAX_DELAY_MS", "value": "5000" },
-            { "name": "TOTP_SECRET_ENCRYPTION_KEY", "value": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" }
+            {
+              "name": "TOTP_SECRET_ENCRYPTION_KEY",
+              "value": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+            }
           ],
           "healthCheck": {
             "command": [
               "CMD",
               "node",
               "-e",
-              "fetch('http://127.0.0.1:3000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+              "fetch('http://127.0.0.1:3000/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
             ],
             "interval": 15,
             "timeout": 5,
@@ -83,16 +86,8 @@
       "containerDefinitions": [
         {
           "name": "gl-coding",
-          "image": "localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807",
+          "image": "localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807-r2",
           "essential": true,
-          "command": [
-            "uvicorn",
-            "backend.python.main:app",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            "8000"
-          ],
           "portMappings": [
             {
               "containerPort": 8000,
@@ -100,9 +95,18 @@
             }
           ],
           "environment": [
-            { "name": "DATABASE_URI", "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow" },
-            { "name": "DATABASE_URL", "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow" },
-            { "name": "JWT_PUBLIC_KEY_PEM", "value": "-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsyntheticPublicKeyForLocalOnly\\n-----END PUBLIC KEY-----" },
+            {
+              "name": "DATABASE_URI",
+              "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+            },
+            {
+              "name": "DATABASE_URL",
+              "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+            },
+            {
+              "name": "JWT_PUBLIC_KEY_PEM",
+              "value": "-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsyntheticPublicKeyForLocalOnly\\n-----END PUBLIC KEY-----"
+            },
             { "name": "JWT_ISSUER", "value": "expense-api" },
             { "name": "JWT_AUDIENCE", "value": "expense-clients" },
             { "name": "JWT_KEY_ID", "value": "local-development-key" },

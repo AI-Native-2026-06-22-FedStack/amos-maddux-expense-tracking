@@ -1,0 +1,18 @@
+{
+  "cluster": "expenseflow-floci",
+  "serviceName": "expenseflow-gl-coding-service",
+  "taskDefinition": "expenseflow-gl-coding",
+  "desiredCount": 1,
+  "launchType": "FARGATE",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["subnet-a0408ed5", "subnet-dcb3026d"],
+      "securityGroups": ["sg-308cf514067a24815"],
+      "assignPublicIp": "DISABLED"
+    }
+  },
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 100
+  }
+}

@@ -12,7 +12,9 @@ export default tseslint.config(
       ".venv/**",
       "**/dist/**",
       "eslint.config.js",
-      "node_modules/**"
+      "node_modules/**",
+      "packages/shared-schemas/*.d.ts",
+      "packages/shared-schemas/*.js"
     ]
   },
   eslint.configs.recommended,
@@ -21,7 +23,12 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["vitest.config.ts", "scripts/*.mjs"]
+          allowDefaultProject: [
+            "vitest.config.ts",
+            "scripts/*.mjs",
+            "apps/api/healthcheck.js",
+            "packages/shared-schemas/*.test.ts"
+          ]
         },
         tsconfigRootDir: import.meta.dirname
       }
@@ -36,12 +43,12 @@ export default tseslint.config(
     }
   },
   {
-    files: ["scripts/*.mjs"],
+    files: ["apps/api/healthcheck.js", "scripts/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
-        fetch: "readonly",
         process: "readonly",
+        fetch: "readonly",
         setTimeout: "readonly"
       }
     }

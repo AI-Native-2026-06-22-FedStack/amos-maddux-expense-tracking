@@ -7,7 +7,7 @@
   "HealthCheckProtocol": "HTTP",
   "HealthCheckPort": "traffic-port",
   "HealthCheckEnabled": true,
-  "HealthCheckPath": "/health",
+  "HealthCheckPath": "/ready",
   "HealthCheckIntervalSeconds": 15,
   "HealthCheckTimeoutSeconds": 5,
   "HealthyThresholdCount": 2,

@@ -57,14 +57,34 @@ The local registry catalog shows both pushed tags:
 000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807
 ```
 
+After fixing the ECS readiness caveat, rebuilt the current service images and
+pushed them under fixed replacement tag `m7d3-20260807-r2`:
+
+```text
+localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807-r2
+duplicate-push digest: sha256:e1c71ac997e77e052dc57cd08f949860c0fba9caebbf411059e3a0770b5313da
+
+localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807-r2
+duplicate-push digest: sha256:d122949176bb78638bca0e57797a217991ffb3c0e4cdda9cb787160740d6c2d5
+```
+
+The local registry catalog now shows both fixed tags for each repository:
+
+```text
+core-case-service tags: m7d3-20260807, m7d3-20260807-r2
+gl-coding-engine tags: m7d3-20260807, m7d3-20260807-r2
+```
+
 ## Duplicate push result
 
 Duplicate pushes were not rejected by floci 1.5.11, even with repository
 immutability set to `IMMUTABLE`:
 
 ```text
-core duplicate exit=0
-compute duplicate exit=0
+core duplicate m7d3-20260807 exit=0
+compute duplicate m7d3-20260807 exit=0
+core duplicate m7d3-20260807-r2 exit=0
+compute duplicate m7d3-20260807-r2 exit=0
 ```
 
 This means the local floci registry stored the fixed tags, but the duplicate

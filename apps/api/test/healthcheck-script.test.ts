@@ -39,7 +39,7 @@ describe("healthcheck script", () => {
   });
 
   it("fails when readiness does not respond", async () => {
-    server = http.createServer((_request, _response) => undefined);
+    server = http.createServer(() => undefined);
     const port = await listen(server);
 
     await expect(runHealthcheck(port)).resolves.toBe(1);

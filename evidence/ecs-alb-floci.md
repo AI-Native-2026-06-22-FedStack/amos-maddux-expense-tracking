@@ -24,21 +24,20 @@ Task and service definitions are committed under `ecs/`.
 - Both task definitions use distinct role ARNs:
   - execution role: `arn:aws:iam::000000000000:role/expenseflow-ecs-execution-role`
   - task role: `arn:aws:iam::000000000000:role/expenseflow-app-task-role`
-- Both task definitions reference fixed `m7d3-20260807` image tags, not `latest`.
+- Both task definitions reference fixed `m7d3-20260807-r2` image tags, not `latest`.
 
 ALB inputs are committed under `alb/`.
 
 - Load balancer: `expenseflow-public-alb`
 - Target group: `expenseflow-api-tg`
 - Target type: `ip`
-- Health check path: `/health`
+- Health check path: `/ready`
 - Listener: HTTP `80`
 - Listener rule: `/v1` and `/v1/*` forward to the Core Case Service target group.
 
-The immutable Core Case Service image deployed in this floci run exposes
-`/health` as its readiness endpoint. The current source tree includes `/ready`,
-but the pushed m7d1/m7d2 smoke image responds `404` on `/ready` and `200` on
-`/health`, so the target group checks `/health` to match the bytes that shipped.
+The original smoke image responded `404` on `/ready`, so the services were
+rebuilt and pushed as `m7d3-20260807-r2`. The r2 Core Case Service image exposes
+`/ready`, and the target group now health-checks that readiness endpoint.
 
 ## floci resources
 
@@ -59,7 +58,7 @@ Target group:
 - Protocol: `HTTP`
 - Port: `3000`
 - Target type: `ip`
-- Health check path: `/health`
+- Health check path: `/ready`
 - Matcher: `200`
 
 Listener:
@@ -74,9 +73,9 @@ ECS:
 - Requested cluster: `expenseflow-floci`
 - floci-created runtime cluster: `default`
 - Core Case Service task definition:
-  `arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-core-case:2`
+  `arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-core-case:3`
 - GL-coding engine task definition:
-  `arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-gl-coding:1`
+  `arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-gl-coding:2`
 - Core Case Service service:
   `arn:aws:ecs:us-east-1:000000000000:service/default/expenseflow-core-case-service`
 - GL-coding engine service:
@@ -91,40 +90,74 @@ expenseflow-core-case-service: desiredCount=1 runningCount=1 pendingCount=0
 expenseflow-gl-coding-service: desiredCount=1 runningCount=1 pendingCount=0
 ```
 
-Running task records:
+Running replacement task records after stopping stale tasks:
+
+```text
+arn:aws:ecs:us-east-1:000000000000:task/default/c735bef7b1fd4b419572880f3f392cf4
+  lastStatus=RUNNING
+  desiredStatus=RUNNING
+  group=expenseflow-core-case-service
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-core-case:3
+  image=localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807-r2
+
+arn:aws:ecs:us-east-1:000000000000:task/default/65272efa827e422ea19705c348f80651
+  lastStatus=RUNNING
+  desiredStatus=RUNNING
+  group=expenseflow-gl-coding-service
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-gl-coding:2
+  image=localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807-r2
+```
+
+After rolling services forward, `describe-services` reported:
+
+```text
+expenseflow-core-case-service ACTIVE desiredCount=1 runningCount=1
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-core-case:3
+
+expenseflow-gl-coding-service ACTIVE desiredCount=1 runningCount=1
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-gl-coding:2
+```
+
+Stopping stale running tasks:
 
 ```text
 arn:aws:ecs:us-east-1:000000000000:task/default/5bd794f94f54458aaabddb51816b7c32
-  group=expenseflow-core-case-service
-  lastStatus=RUNNING
-  image=localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807
+  lastStatus=STOPPED
+  desiredStatus=STOPPED
 
 arn:aws:ecs:us-east-1:000000000000:task/default/8fe5c5577ba04bc2911e9951ce4aea88
-  group=expenseflow-gl-coding-service
-  lastStatus=RUNNING
-  image=localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807
-```
-
-Stopping the original Core Case Service task:
-
-```text
-arn:aws:ecs:us-east-1:000000000000:task/default/25db5d8c328a4c5d8c2a6c8adb1b8bcd
   lastStatus=STOPPED
   desiredStatus=STOPPED
 ```
 
-floci then created replacement task:
+floci then created replacement tasks:
 
 ```text
-arn:aws:ecs:us-east-1:000000000000:task/default/5bd794f94f54458aaabddb51816b7c32
+arn:aws:ecs:us-east-1:000000000000:task/default/c735bef7b1fd4b419572880f3f392cf4
   lastStatus=RUNNING
   desiredStatus=RUNNING
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-core-case:3
+
+arn:aws:ecs:us-east-1:000000000000:task/default/65272efa827e422ea19705c348f80651
+  lastStatus=RUNNING
+  desiredStatus=RUNNING
+  taskDefinition=arn:aws:ecs:us-east-1:000000000000:task-definition/expenseflow-gl-coding:2
 ```
 
-Target health after registering the reachable local API endpoint:
+Target health after registering the rebuilt r2 local API endpoint:
 
 ```text
-Target Id=172.19.0.6 Port=3000 State=healthy
+Target Id=172.19.0.8 Port=3000 State=healthy
+HealthCheckPath=/ready
+TargetType=ip
+```
+
+The rebuilt r2 service pair was verified on the private floci Docker network:
+
+```text
+http://expenseflow-compute-r2:8000/health 200 {"status":"ok"}
+http://expenseflow-api-r2:3000/health 200 {"service":"ExpenseFlow API","status":"ok"}
+http://expenseflow-api-r2:3000/ready 200 {"service":"ExpenseFlow API","status":"ready"}
 ```
 
 The ALB listener on host port `8080` forwarded `/v1/*` traffic to the Core Case

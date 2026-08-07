@@ -3,7 +3,10 @@ import { useForm, type FieldError } from "react-hook-form";
 import { createMileageDraftExpenseReportRequestSchema } from "@expenseflow/shared-schemas";
 import { Button } from "../atoms/Button";
 import { ApiProblemError } from "../api";
-import { type MileageDraftFormValues, useExpenseDraftMutations } from "../api/useExpenseDraftMutations";
+import {
+  type MileageDraftFormValues,
+  useExpenseDraftMutations
+} from "../api/useExpenseDraftMutations";
 import styles from "./ExpenseWriteForms.module.css";
 
 export function LogMileageScreen() {
@@ -45,7 +48,7 @@ export function LogMileageScreen() {
       <form
         className={styles.form}
         onSubmit={(event) => {
-          void handleSubmit((values) => createMileageDraft.mutate(values))(event);
+          handleSubmit((values) => createMileageDraft.mutate(values))(event).catch(() => undefined);
         }}
       >
         <input type="hidden" {...register("draftType")} />
