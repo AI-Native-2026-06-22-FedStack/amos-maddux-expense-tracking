@@ -97,75 +97,47 @@ When the API dev server is running, open the generated API contract and docs at:
 - OpenAPI JSON: `http://localhost:3000/openapi.json`
 - Scalar API reference: `http://localhost:3000/docs`
 
-### Local Web Sign-In
+### Local Compose Stack
 
-Use this flow to run the Docker-backed local API and sign into the Vite web app.
+Use the root Makefile for the canonical local ExpenseFlow stack. It runs the
+pinned m7d1 API and compute images with Postgres, Redis, and floci. floci hosts
+the AWS-shaped local services; no cloud account is needed.
+
+| Command | Purpose | Expected local timing |
+| --- | --- | --- |
+| `make up` | Seed synthetic local data, then bring the core stack up healthy. | About 1 minute on a warm machine. |
+| `make down` | Stop containers and remove Compose volumes. | Usually under 30 seconds. |
+| `make seed` | Re-run the idempotent synthetic seed only. | Usually under 30 seconds once images are warm. |
+| `make test` | Run the stack-backed Compose smoke test. | A few minutes, depending on local npm/DB speed. |
+
+All host-side AWS SDK and CLI calls must use the local floci endpoint:
+
+```sh
+export AWS_ENDPOINT_URL=http://localhost:4566
+aws sqs list-queues
+```
+
+Healthy core stack state looks like this:
+
+```sh
+docker compose ps
+```
+
+Postgres, Redis, floci, compute, and API should report healthy, and
+`compose-init` should have exited with code 0. The brownfield TIVS ACL mock is
+opt-in:
+
+```sh
+docker compose --profile brownfield up -d
+```
+
 The seeded login is synthetic local-development fixture data only. Do not reuse
 these credentials, MFA seeds, or generated local secret files outside the Docker
-development stack.
-
-From the repository root, start the local services:
-
-```sh
-docker compose up -d
-```
-
-Recreate the one-shot init container and API container so migrations, local
-secrets, and the synthetic sign-in user are current:
-
-```sh
-docker compose up -d --force-recreate local-dev-init core
-```
-
-Start the web app:
-
-```sh
-npm --workspace @expenseflow/web run dev
-```
-
-Open the Vite URL printed by the command, usually `http://localhost:5173`.
-The web dev server proxies `/v1` API calls to the Docker API at
-`http://localhost:3000`.
-
-Print the local synthetic tenant, email, and password:
+development stack. Print the synthetic login and MFA code with:
 
 ```sh
 npm run compose:login
-```
-
-When the sign-in screen asks for MFA, print a fresh rotating code:
-
-```sh
 npm run compose:mfa
-```
-
-The MFA code rotates every 30 seconds, so run the command when you are ready to
-submit the MFA step.
-
-If the UI cannot reach the API, check the Docker API health endpoint:
-
-```sh
-curl http://localhost:3000/health
-```
-
-### LocalStack Secrets Manager
-
-The API loads its database password and RS256 JWT signing keys from AWS Secrets
-Manager through LocalStack in local capstone runs. Pin LocalStack to
-`localstack/localstack:4.14.0` for this capstone:
-
-```sh
-docker run --rm -p 4566:4566 -e SERVICES=secretsmanager localstack/localstack:4.14.0
-```
-
-Do not use the floating `latest` tag for this capstone. Newer LocalStack images
-no longer provide the same free local path and require a `LOCALSTACK_AUTH_TOKEN`,
-which is outside this repository's local setup.
-
-After building, run the async entrypoint with:
-
-```sh
-npm start
 ```
 
 ### Database Migrations

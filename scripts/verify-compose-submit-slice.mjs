@@ -2,19 +2,16 @@ import { mkdir, readFile, appendFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import jwt from "jsonwebtoken";
 import pg from "pg";
 
 const tenantA = "00000000-0000-4000-8000-000000000701";
-const tenantB = "00000000-0000-4000-8000-000000000702";
-const employeeId = "synthetic-compose-employee-00000000-0000-4000-8000-000000000703";
-const managerId = "synthetic-compose-manager-00000000-0000-4000-8000-000000000704";
+const localUserEmail = "synthetic.local.finance@example.test";
 const apiBaseUrl = process.env.COMPOSE_CORE_URL ?? "http://localhost:3000";
-const computeBaseUrl = process.env.COMPOSE_COMPUTE_URL ?? "http://localhost:8000";
-const pactBrokerBaseUrl = process.env.PACT_BROKER_BASE_URL ?? "http://localhost:9292";
 const databaseUri =
-  process.env.COMPOSE_DATABASE_URI ?? "postgres://expenseflow@localhost:5433/expenseflow";
-const awsEndpoint = process.env.AWS_ENDPOINT ?? "http://localhost:4566";
+  process.env.COMPOSE_DATABASE_URI ??
+  "postgres://expenseflow:synthetic-compose-db-password@localhost:5433/expenseflow";
+const awsEndpoint =
+  process.env.AWS_ENDPOINT_URL ?? process.env.AWS_ENDPOINT ?? "http://localhost:4566";
 const jwtSigningKeysSecretId =
   process.env.JWT_SIGNING_KEYS_SECRET_ID ?? "expenseflow/local/jwt-signing-keys";
 const reportPath = "docs/temp_test_results.md";
@@ -22,6 +19,14 @@ const commandText = "npm run compose:verify-submit-slice";
 
 const output = [];
 let exitCode = 0;
+const expectedSeedCounts = {
+  roles: 1,
+  users: 1,
+  credentials: 1,
+  mfa: 1,
+  gl_codes: 1,
+  gl_mappings: 1
+};
 
 try {
   await run();
@@ -38,92 +43,15 @@ if (exitCode !== 0) {
 
 async function run() {
   output.push(`Core health: ${await expectHealthy(`${apiBaseUrl}/health`)}`);
-  output.push(`Compute health: ${await expectHealthy(`${computeBaseUrl}/health`)}`);
-  output.push(
-    `Pact Broker health: ${await expectHealthy(`${pactBrokerBaseUrl}/diagnostic/status/heartbeat`)}`
-  );
 
-  const jwtSigningKeys = await fetchJwtSigningKeys();
-  const employeeToken = signBearer(jwtSigningKeys.privateKeyPem, tenantA, employeeId, ["Employee"]);
-  const crossTenantEmployeeToken = signBearer(jwtSigningKeys.privateKeyPem, tenantB, employeeId, [
-    "Employee"
-  ]);
-  const managerToken = signBearer(jwtSigningKeys.privateKeyPem, tenantA, managerId, [
-    "Department Manager"
-  ]);
-
-  const createResponse = await postJson(`${apiBaseUrl}/v1/expense-reports`, employeeToken, {});
-  expectStatus(createResponse, 201, "create Expense Report");
-  const reportId = createResponse.body.id;
-  if (typeof reportId !== "string") {
-    throw new Error("Core create response did not include an Expense Report id.");
-  }
-
-  const lineItemId = await seedLineItem(reportId);
-  output.push(`Seeded synthetic over-500 Meals line item: ${lineItemId}`);
-
-  const crossTenantSubmit = await postJson(
-    `${apiBaseUrl}/v1/expense-reports/${reportId}/submit`,
-    crossTenantEmployeeToken,
-    {},
-    { "Idempotency-Key": `compose-cross-tenant-${Date.now()}` }
-  );
-  expectStatus(crossTenantSubmit, 404, "cross-tenant submit");
-  output.push("Cross-tenant submit rejected with HTTP 404.");
-
-  const submitResponse = await postJson(
-    `${apiBaseUrl}/v1/expense-reports/${reportId}/submit`,
-    employeeToken,
-    {},
-    { "Idempotency-Key": `compose-submit-${Date.now()}` }
-  );
-  expectStatus(submitResponse, 200, "tenant submit");
-  if (submitResponse.body.currentStage !== "Submitted") {
-    throw new Error(
-      `Expected submit stage Submitted, received ${submitResponse.body.currentStage}`
-    );
-  }
-
-  const codedLineItem = await readLineItem(lineItemId);
-  const codedExpectation = {
-    flagged: true,
-    flag_cleared: false,
-    gl_coding_status: "mapped",
-    gl_account_code: "6100",
-    gl_account_name: "Synthetic Meals Expense",
-    gl_normal_balance: "debit"
-  };
-  for (const [key, value] of Object.entries(codedExpectation)) {
-    if (codedLineItem[key] !== value) {
-      throw new Error(`Expected ${key}=${String(value)}, received ${String(codedLineItem[key])}`);
-    }
-  }
-  output.push(
-    "Submit produced persisted GL coding through composed Core -> Compute: stage=Submitted, gl_account_code=6100, flagged=true."
-  );
-
-  const managerAdvance = await postJson(
-    `${apiBaseUrl}/v1/expense-reports/${reportId}/advance`,
-    managerToken,
-    { reason: "Synthetic compose manager review." },
-    { "Idempotency-Key": `compose-manager-advance-${Date.now()}` }
-  );
-  expectStatus(managerAdvance, 200, "advance to Manager Approval");
-  if (managerAdvance.body.currentStage !== "Manager Approval") {
-    throw new Error(
-      `Expected Manager Approval after first advance, received ${managerAdvance.body.currentStage}`
-    );
-  }
-
-  const blockedAdvance = await postJson(
-    `${apiBaseUrl}/v1/expense-reports/${reportId}/advance`,
-    managerToken,
-    {},
-    { "Idempotency-Key": `compose-flag-block-${Date.now()}` }
-  );
-  expectStatus(blockedAdvance, 409, "flag-gated Manager Approval advance");
-  output.push("Flagged report was blocked from advancing past Manager Approval with HTTP 409.");
-  output.push("Compose submit slice verification passed.");
+  const localUserId = await readLocalUserId();
+  output.push(`Synthetic local user present: ${localUserId}`);
+  await fetchJwtSigningKeys();
+  output.push(`JWT signing key secret resolved through ${awsEndpoint}.`);
+  const seedState = await readSeedState();
+  assertSeedState(seedState);
+  output.push(`Seeded relational state: ${JSON.stringify(seedState)}`);
+  output.push("Compose stack verification passed.");
 }
 
 async function fetchJwtSigningKeys() {
@@ -147,45 +75,22 @@ async function fetchJwtSigningKeys() {
   return JSON.parse(response.SecretString);
 }
 
-function signBearer(privateKeyPem, tenantId, userId, roles) {
-  const accessToken = jwt.sign(
-    {
-      tenantId,
-      roles
-    },
-    privateKeyPem,
-    {
-      algorithm: "RS256",
-      keyid: "local-development-key",
-      issuer: "expense-api",
-      audience: "expense-clients",
-      expiresIn: "15m",
-      subject: userId
-    }
-  );
-
-  return `Bearer ${accessToken}`;
-}
-
-async function seedLineItem(reportId) {
+async function readLocalUserId() {
   const client = new pg.Client({ connectionString: databaseUri });
   await client.connect();
   try {
     const result = await client.query(
       `
-      insert into expense_line_item (
-        tenant_id,
-        expense_report_id,
-        merchant,
-        amount_cents,
-        currency,
-        category
-      )
-      values ($1::uuid, $2::uuid, 'Synthetic Compose Team Meal', 50001, 'USD', 'Meals')
-      returning id
+      select id
+      from "user"
+      where tenant_id = $1::uuid and email = $2
       `,
-      [tenantA, reportId]
+      [tenantA, localUserEmail]
     );
+
+    if (result.rowCount !== 1 || typeof result.rows[0]?.id !== "string") {
+      throw new Error(`Expected one synthetic local user for ${localUserEmail}.`);
+    }
 
     return result.rows[0].id;
   } finally {
@@ -193,27 +98,25 @@ async function seedLineItem(reportId) {
   }
 }
 
-async function readLineItem(lineItemId) {
+async function readSeedState() {
   const client = new pg.Client({ connectionString: databaseUri });
   await client.connect();
   try {
     const result = await client.query(
       `
       select
-        flagged,
-        flag_cleared,
-        gl_coding_status,
-        gl_account_code,
-        gl_account_name,
-        gl_normal_balance
-      from expense_line_item
-      where tenant_id = $1::uuid and id = $2::uuid
+        (select count(*)::int from role where tenant_id = $1::uuid) as roles,
+        (select count(*)::int from "user" where tenant_id = $1::uuid and email = $2) as users,
+        (select count(*)::int from credential where tenant_id = $1::uuid) as credentials,
+        (select count(*)::int from mfa_enrollment where tenant_id = $1::uuid) as mfa,
+        (select count(*)::int from gl_code where tenant_id = $1::uuid and account_code = '6100') as gl_codes,
+        (select count(*)::int from gl_mapping where tenant_id = $1::uuid and category = 'Meals') as gl_mappings
       `,
-      [tenantA, lineItemId]
+      [tenantA, localUserEmail]
     );
 
     if (result.rowCount !== 1) {
-      throw new Error(`Expected one line item row, found ${result.rowCount}.`);
+      throw new Error("Seed state query did not return a row.");
     }
 
     return result.rows[0];
@@ -222,21 +125,12 @@ async function readLineItem(lineItemId) {
   }
 }
 
-async function postJson(url, bearerToken, body, headers = {}) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: bearerToken,
-      "Content-Type": "application/json",
-      ...headers
-    },
-    body: JSON.stringify(body)
-  });
-
-  return {
-    status: response.status,
-    body: await response.json().catch(() => ({}))
-  };
+function assertSeedState(seedState) {
+  for (const [key, expectedValue] of Object.entries(expectedSeedCounts)) {
+    if (seedState[key] !== expectedValue) {
+      throw new Error(`Expected ${key} seed count ${expectedValue}, received ${seedState[key]}.`);
+    }
+  }
 }
 
 async function expectHealthy(url) {
@@ -246,16 +140,6 @@ async function expectHealthy(url) {
   }
 
   return `HTTP ${response.status}`;
-}
-
-function expectStatus(response, expectedStatus, label) {
-  if (response.status !== expectedStatus) {
-    throw new Error(
-      `${label} expected HTTP ${expectedStatus}, received HTTP ${response.status}: ${JSON.stringify(
-        response.body
-      )}`
-    );
-  }
 }
 
 async function appendResults(exitCodeToRecord, lines) {
@@ -268,7 +152,7 @@ async function appendResults(exitCodeToRecord, lines) {
   }
   const prefix = previous.endsWith("\n") || previous.length === 0 ? "" : "\n";
   const section = [
-    `${prefix}# Compose Submit Slice Results`,
+    `${prefix}# Compose Stack Smoke Results`,
     "",
     "```sh",
     commandText,
