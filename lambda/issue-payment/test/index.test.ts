@@ -103,10 +103,29 @@ describe("Issue-Payment Lambda handler", () => {
   it("rejects requests missing the expenseReportId path parameter", async () => {
     const handler = createIssuePaymentHandler(makeInitState(client, logger));
 
-    const response = await handler(makeEvent({ pathParameters: {} }), makeContext());
+    const response = await handler(makeEvent({ pathParameters: {}, rawPath: "/v1/expense-reports/issue-payment" }), makeContext());
 
     expect(response.statusCode).toBe(400);
     expect(client.advanceExpenseReport).not.toHaveBeenCalled();
+  });
+
+  it("reads the expenseReportId from the raw proxy path when pathParameters are absent", async () => {
+    const handler = createIssuePaymentHandler(makeInitState(client, logger));
+
+    const response = await handler(
+      makeEvent({
+        pathParameters: {},
+        rawPath: `/v1/expense-reports/${expenseReportId}/issue-payment`
+      }),
+      makeContext()
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(client.advanceExpenseReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expenseReportId
+      })
+    );
   });
 
   it("rejects requests missing Authorization", async () => {

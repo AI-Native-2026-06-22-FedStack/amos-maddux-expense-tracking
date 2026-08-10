@@ -23,6 +23,10 @@ export AWS_REGION=us-east-1
 ## Verification checklist
 
 - Package from `lambda/issue-payment` with `npm run build`.
+- If the Lambda runtime container cannot call back to floci, start floci with
+  `lambda/issue-payment/floci/docker-compose.override.yml` so Lambda
+  containers join the local `expenseflow-local` network and use the `floci`
+  host override.
 - Create or update the Lambda using `lambda/issue-payment/floci/function.json`
   and the packaged `issue-payment.zip`.
   Replace `${lambda_execution_role}` with the local floci Lambda execution role
@@ -48,6 +52,30 @@ export AWS_REGION=us-east-1
 Runtime=nodejs24.x
 Architectures=arm64
 ```
+
+## Route verification on 2026-08-10
+
+- floci function configuration reported `Runtime=nodejs24.x`,
+  `Architectures=arm64`, and handler `index.handler`.
+- API Gateway v2 reported `ProtocolType=HTTP`.
+- The single route was
+  `POST /v1/expense-reports/{expenseReportId}/issue-payment`.
+- The integration reported `IntegrationType=AWS_PROXY` and
+  `PayloadFormatVersion=2.0`.
+- Two synthetic POST requests were sent through the local floci API Gateway URL:
+  - `/v1/expense-reports/erpt-synthetic-route-001/issue-payment`
+  - `/v1/expense-reports/erpt-synthetic-route-002/issue-payment`
+- Both requests reached the Lambda and returned handler responses:
+  `401 {"message":"Authorization header is required."}`.
+- Both responses echoed the per-request synthetic `X-Correlation-Id` header.
+- The Powertools log output was structured JSON with `issuePayment.rejected`,
+  the request `correlationId`, the parsed `expenseReportId`, and the same
+  synthetic init marker across the two warm route invocations.
+- The live route test intentionally omitted `Authorization` so it verified API
+  Gateway proxy routing without requiring the Core Case Service container. The
+  command-forwarding path is covered by the Lambda unit tests and forwards to
+  `/v1/expense-reports/:expenseReportId/advance` when `Authorization` is
+  present.
 
 ## Notes
 

@@ -15,6 +15,7 @@ export interface ApiGatewayHttpEvent {
   headers?: Record<string, string | undefined>;
   isBase64Encoded?: boolean;
   pathParameters?: Record<string, string | undefined>;
+  path?: string;
   rawPath?: string;
   rawQueryString?: string;
   routeKey?: string;
@@ -147,7 +148,7 @@ export function createIssuePaymentHandler(initState: IssuePaymentInitState) {
     initState.logger.addContext(context);
     initState.logger.appendKeys({ correlationId });
 
-    const expenseReportId = event.pathParameters?.expenseReportId?.trim();
+    const expenseReportId = readExpenseReportId(event);
     if (expenseReportId === undefined || expenseReportId.length === 0) {
       initState.logger.warn("issuePayment.rejected", {
         reason: "missing-expense-report-id",
@@ -219,6 +220,17 @@ export const handler = createIssuePaymentHandler(initState);
 function readHeader(headers: ApiGatewayHttpEvent["headers"], name: string): string | undefined {
   const match = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === name);
   return typeof match?.[1] === "string" ? match[1] : undefined;
+}
+
+function readExpenseReportId(event: ApiGatewayHttpEvent): string | undefined {
+  const pathParameter = event.pathParameters?.expenseReportId?.trim();
+  if (pathParameter !== undefined && pathParameter.length > 0) {
+    return pathParameter;
+  }
+
+  const path = event.rawPath ?? event.path;
+  const match = path?.match(/\/v1\/expense-reports\/([^/]+)\/issue-payment\/?$/);
+  return match?.[1] === undefined ? undefined : decodeURIComponent(match[1]).trim();
 }
 
 function parseIssuePaymentBody(
