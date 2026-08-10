@@ -1,0 +1,6 @@
+{
+  "IntegrationType": "AWS_PROXY",
+  "IntegrationMethod": "POST",
+  "IntegrationUri": "${issue_payment_function_uri}",
+  "PayloadFormatVersion": "2.0"
+}
