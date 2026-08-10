@@ -1,0 +1,80 @@
+{
+  "name": "expenseflow-vpc",
+  "cidrBlock": "10.42.0.0/16",
+  "internetGatewayName": "expenseflow-igw",
+  "natGatewayName": "expenseflow-nat",
+  "subnets": [
+    {
+      "name": "expenseflow-public-a",
+      "tier": "public",
+      "availabilityZone": "us-east-1a",
+      "cidrBlock": "10.42.0.0/24",
+      "mapPublicIpOnLaunch": true
+    },
+    {
+      "name": "expenseflow-public-b",
+      "tier": "public",
+      "availabilityZone": "us-east-1b",
+      "cidrBlock": "10.42.1.0/24",
+      "mapPublicIpOnLaunch": true
+    },
+    {
+      "name": "expenseflow-task-a",
+      "tier": "private-task",
+      "availabilityZone": "us-east-1a",
+      "cidrBlock": "10.42.10.0/24",
+      "mapPublicIpOnLaunch": false
+    },
+    {
+      "name": "expenseflow-task-b",
+      "tier": "private-task",
+      "availabilityZone": "us-east-1b",
+      "cidrBlock": "10.42.11.0/24",
+      "mapPublicIpOnLaunch": false
+    },
+    {
+      "name": "expenseflow-db-a",
+      "tier": "isolated-db",
+      "availabilityZone": "us-east-1a",
+      "cidrBlock": "10.42.20.0/24",
+      "mapPublicIpOnLaunch": false
+    },
+    {
+      "name": "expenseflow-db-b",
+      "tier": "isolated-db",
+      "availabilityZone": "us-east-1b",
+      "cidrBlock": "10.42.21.0/24",
+      "mapPublicIpOnLaunch": false
+    }
+  ],
+  "routeTables": [
+    {
+      "name": "expenseflow-public-rt",
+      "tier": "public",
+      "subnetNames": ["expenseflow-public-a", "expenseflow-public-b"],
+      "routes": [
+        {
+          "destinationCidrBlock": "0.0.0.0/0",
+          "target": "internet-gateway"
+        }
+      ]
+    },
+    {
+      "name": "expenseflow-task-rt",
+      "tier": "private-task",
+      "subnetNames": ["expenseflow-task-a", "expenseflow-task-b"],
+      "routes": [
+        {
+          "destinationCidrBlock": "0.0.0.0/0",
+          "target": "nat-gateway"
+        }
+      ]
+    },
+    {
+      "name": "expenseflow-db-rt",
+      "tier": "isolated-db",
+      "subnetNames": ["expenseflow-db-a", "expenseflow-db-b"],
+      "routes": []
+    }
+  ]
+}

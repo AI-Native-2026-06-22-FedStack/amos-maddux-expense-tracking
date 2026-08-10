@@ -1,0 +1,15 @@
+{
+  "Priority": 10,
+  "Conditions": [
+    {
+      "Field": "path-pattern",
+      "Values": ["/v1", "/v1/*"]
+    }
+  ],
+  "Actions": [
+    {
+      "Type": "forward",
+      "TargetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:000000000000:targetgroup/expenseflow-api-tg/445dcc7129904a93"
+    }
+  ]
+}

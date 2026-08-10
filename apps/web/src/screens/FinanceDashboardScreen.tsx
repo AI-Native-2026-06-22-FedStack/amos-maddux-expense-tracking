@@ -12,7 +12,7 @@ import {
 } from "chart.js";
 import { Bar } from "react-chartjs-2";
 import { EmptyState, ErrorState, LoadingState } from "../atoms/StateMessage";
-import { expenseReportStages, type ExpenseReportStage } from "../domain";
+import { expenseReportStages } from "../domain";
 import {
   useFinanceDashboardRollup,
   type FinanceDashboardStageSummary
@@ -22,14 +22,7 @@ import styles from "./FinanceDashboardScreen.module.css";
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
-const stageColors = [
-  "#2563eb",
-  "#0f766e",
-  "#b45309",
-  "#7c3aed",
-  "#15803d",
-  "#be123c"
-] as const;
+const stageColors = ["#2563eb", "#0f766e", "#b45309", "#7c3aed", "#15803d", "#be123c"] as const;
 
 export function FinanceDashboardScreen() {
   const { query } = useFinanceDashboardRollup();

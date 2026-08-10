@@ -45,10 +45,9 @@ describe("expenseReportStageTransitionedEventSchema", () => {
   it.each(requiredCloudEventAttributes)(
     "rejects an envelope missing required CloudEvents attribute %s",
     (attribute) => {
-      const eventMissingAttribute: Record<string, unknown> = {
-        ...completeStageTransitionedEvent
-      };
-      delete eventMissingAttribute[attribute];
+      const eventMissingAttribute = Object.fromEntries(
+        Object.entries(completeStageTransitionedEvent).filter(([key]) => key !== attribute)
+      );
 
       expect(() =>
         expenseReportStageTransitionedEventSchema.parse(eventMissingAttribute)
@@ -116,10 +115,9 @@ describe("expenseReportStageTransitionedEventSchema", () => {
   });
 
   it.each(requiredDataFields)("rejects an event missing required data field %s", (field) => {
-    const dataMissingField: Record<string, unknown> = {
-      ...completeStageTransitionedEvent.data
-    };
-    delete dataMissingField[field];
+    const dataMissingField = Object.fromEntries(
+      Object.entries(completeStageTransitionedEvent.data).filter(([key]) => key !== field)
+    );
     const eventMissingDataField = {
       ...completeStageTransitionedEvent,
       data: dataMissingField

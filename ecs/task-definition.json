@@ -1,0 +1,139 @@
+{
+  "taskDefinitions": [
+    {
+      "family": "expenseflow-core-case",
+      "requiresCompatibilities": ["FARGATE"],
+      "networkMode": "awsvpc",
+      "cpu": "512",
+      "memory": "1024",
+      "executionRoleArn": "arn:aws:iam::000000000000:role/expenseflow-ecs-execution-role",
+      "taskRoleArn": "arn:aws:iam::000000000000:role/expenseflow-app-task-role",
+      "containerDefinitions": [
+        {
+          "name": "core-case",
+          "image": "localhost:5100/000000000000/us-east-1/expenseflow/core-case-service:m7d3-20260807-r2",
+          "essential": true,
+          "portMappings": [
+            {
+              "containerPort": 3000,
+              "protocol": "tcp"
+            }
+          ],
+          "environment": [
+            { "name": "NODE_ENV", "value": "production" },
+            { "name": "PORT", "value": "3000" },
+            { "name": "AWS_ENDPOINT_URL", "value": "http://floci:4566" },
+            { "name": "AWS_ENDPOINT", "value": "http://floci:4566" },
+            { "name": "AWS_REGION", "value": "us-east-1" },
+            { "name": "AWS_ACCESS_KEY_ID", "value": "test" },
+            { "name": "AWS_SECRET_ACCESS_KEY", "value": "test" },
+            { "name": "DB_PASSWORD_SECRET_ID", "value": "expenseflow/local/db-password" },
+            { "name": "JWT_SIGNING_KEYS_SECRET_ID", "value": "expenseflow/local/jwt-signing-keys" },
+            { "name": "DATABASE_URI", "value": "postgres://expenseflow@postgres:5432/expenseflow" },
+            { "name": "REDIS_URL", "value": "redis://redis:6379" },
+            { "name": "COMPUTE_SERVICE_URL", "value": "http://expenseflow-compute-r2:8000" },
+            { "name": "GL_CODING_SERVICE_BASE_URL", "value": "http://expenseflow-compute-r2:8000" },
+            { "name": "TIVS_ACL_URL", "value": "http://tivs-acl:3015" },
+            { "name": "JWT_ISSUER", "value": "expense-api" },
+            { "name": "JWT_AUDIENCE", "value": "expense-clients" },
+            { "name": "JWT_KEY_ID", "value": "local-development-key" },
+            { "name": "JWT_ACCESS_TOKEN_TTL_SECONDS", "value": "900" },
+            { "name": "JWT_REFRESH_TOKEN_TTL_SECONDS", "value": "2592000" },
+            { "name": "SNS_STAGE_EVENTS_TOPIC", "value": "expenseflow-stage-events" },
+            { "name": "SQS_STAGE_EVENTS_QUEUE", "value": "expenseflow-stage-projection" },
+            { "name": "SQS_STAGE_EVENTS_DLQ", "value": "expenseflow-stage-projection-dlq" },
+            { "name": "EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS", "value": "60000" },
+            { "name": "EXPENSE_WRITE_RATE_LIMIT_MAX", "value": "120" },
+            { "name": "EXPENSE_WRITE_SLOW_DOWN_AFTER", "value": "80" },
+            { "name": "EXPENSE_WRITE_DELAY_INCREMENT_MS", "value": "250" },
+            { "name": "EXPENSE_WRITE_MAX_DELAY_MS", "value": "5000" },
+            {
+              "name": "TOTP_SECRET_ENCRYPTION_KEY",
+              "value": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+            }
+          ],
+          "healthCheck": {
+            "command": [
+              "CMD",
+              "node",
+              "-e",
+              "fetch('http://127.0.0.1:3000/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+            ],
+            "interval": 15,
+            "timeout": 5,
+            "retries": 3,
+            "startPeriod": 30
+          },
+          "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+              "awslogs-group": "/expenseflow/core-case",
+              "awslogs-region": "us-east-1",
+              "awslogs-stream-prefix": "ecs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "family": "expenseflow-gl-coding",
+      "requiresCompatibilities": ["FARGATE"],
+      "networkMode": "awsvpc",
+      "cpu": "256",
+      "memory": "512",
+      "executionRoleArn": "arn:aws:iam::000000000000:role/expenseflow-ecs-execution-role",
+      "taskRoleArn": "arn:aws:iam::000000000000:role/expenseflow-app-task-role",
+      "containerDefinitions": [
+        {
+          "name": "gl-coding",
+          "image": "localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807-r2",
+          "essential": true,
+          "portMappings": [
+            {
+              "containerPort": 8000,
+              "protocol": "tcp"
+            }
+          ],
+          "environment": [
+            {
+              "name": "DATABASE_URI",
+              "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+            },
+            {
+              "name": "DATABASE_URL",
+              "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+            },
+            {
+              "name": "JWT_PUBLIC_KEY_PEM",
+              "value": "-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsyntheticPublicKeyForLocalOnly\\n-----END PUBLIC KEY-----"
+            },
+            { "name": "JWT_ISSUER", "value": "expense-api" },
+            { "name": "JWT_AUDIENCE", "value": "expense-clients" },
+            { "name": "JWT_KEY_ID", "value": "local-development-key" },
+            { "name": "MILEAGE_REIMBURSEMENT_RATE", "value": "0.67" }
+          ],
+          "healthCheck": {
+            "command": [
+              "CMD",
+              "python",
+              "-c",
+              "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+            ],
+            "interval": 15,
+            "timeout": 5,
+            "retries": 3,
+            "startPeriod": 30
+          },
+          "logConfiguration": {
+            "logDriver": "awslogs",
+            "options": {
+              "awslogs-group": "/expenseflow/gl-coding",
+              "awslogs-region": "us-east-1",
+              "awslogs-stream-prefix": "ecs"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

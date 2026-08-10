@@ -3,7 +3,10 @@ import { useForm, type FieldError } from "react-hook-form";
 import { createExpenseDraftExpenseReportRequestSchema } from "@expenseflow/shared-schemas";
 import { Button } from "../atoms/Button";
 import { ApiProblemError } from "../api";
-import { type ExpenseDraftFormValues, useExpenseDraftMutations } from "../api/useExpenseDraftMutations";
+import {
+  type ExpenseDraftFormValues,
+  useExpenseDraftMutations
+} from "../api/useExpenseDraftMutations";
 import styles from "./ExpenseWriteForms.module.css";
 
 export function SubmitExpenseScreen() {
@@ -51,7 +54,7 @@ export function SubmitExpenseScreen() {
       <form
         className={styles.form}
         onSubmit={(event) => {
-          void handleSubmit((values) => createExpenseDraft.mutate(values))(event);
+          handleSubmit((values) => createExpenseDraft.mutate(values))(event).catch(() => undefined);
         }}
       >
         <input type="hidden" {...register("draftType")} />

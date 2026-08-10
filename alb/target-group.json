@@ -1,0 +1,24 @@
+{
+  "Name": "expenseflow-api-tg",
+  "Protocol": "HTTP",
+  "Port": 3000,
+  "VpcId": "vpc-78eac74c",
+  "TargetType": "ip",
+  "HealthCheckProtocol": "HTTP",
+  "HealthCheckPort": "traffic-port",
+  "HealthCheckEnabled": true,
+  "HealthCheckPath": "/ready",
+  "HealthCheckIntervalSeconds": 15,
+  "HealthCheckTimeoutSeconds": 5,
+  "HealthyThresholdCount": 2,
+  "UnhealthyThresholdCount": 2,
+  "Matcher": {
+    "HttpCode": "200"
+  },
+  "Tags": [
+    {
+      "Key": "Name",
+      "Value": "expenseflow-api-tg"
+    }
+  ]
+}

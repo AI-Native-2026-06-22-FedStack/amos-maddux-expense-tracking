@@ -1,0 +1,35 @@
+{
+  "roleName": "expenseflow-app-task-role",
+  "description": "Runtime task role for ExpenseFlow application code.",
+  "assumeRolePolicyDocument": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Service": "ecs-tasks.amazonaws.com"
+        },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  },
+  "inlinePolicies": [
+    {
+      "policyName": "expenseflow-runtime-secrets-read",
+      "policyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "ReadRuntimeSecrets",
+            "Effect": "Allow",
+            "Action": ["secretsmanager:GetSecretValue"],
+            "Resource": [
+              "arn:aws:secretsmanager:us-east-1:000000000000:secret:expenseflow/local/db-password",
+              "arn:aws:secretsmanager:us-east-1:000000000000:secret:expenseflow/local/jwt-signing-keys"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

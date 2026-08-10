@@ -1,0 +1,60 @@
+{
+  "family": "expenseflow-gl-coding",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::000000000000:role/expenseflow-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::000000000000:role/expenseflow-app-task-role",
+  "containerDefinitions": [
+    {
+      "name": "gl-coding",
+      "image": "localhost:5100/000000000000/us-east-1/expenseflow/gl-coding-engine:m7d3-20260807-r2",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "DATABASE_URI",
+          "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow"
+        },
+        {
+          "name": "JWT_PUBLIC_KEY_PEM",
+          "value": "-----BEGIN PUBLIC KEY-----\\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsyntheticPublicKeyForLocalOnly\\n-----END PUBLIC KEY-----"
+        },
+        { "name": "JWT_ISSUER", "value": "expense-api" },
+        { "name": "JWT_AUDIENCE", "value": "expense-clients" },
+        { "name": "JWT_KEY_ID", "value": "local-development-key" },
+        { "name": "MILEAGE_REIMBURSEMENT_RATE", "value": "0.67" }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+        ],
+        "interval": 15,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 30
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/expenseflow/gl-coding",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

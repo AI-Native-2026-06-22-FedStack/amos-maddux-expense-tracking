@@ -1,0 +1,14 @@
+{
+  "Name": "expenseflow-public-alb",
+  "Subnets": ["subnet-42ce98ee", "subnet-5c8c0d81"],
+  "SecurityGroups": ["sg-8fd0ef710c9071d28"],
+  "Scheme": "internet-facing",
+  "Type": "application",
+  "IpAddressType": "ipv4",
+  "Tags": [
+    {
+      "Key": "Name",
+      "Value": "expenseflow-public-alb"
+    }
+  ]
+}
