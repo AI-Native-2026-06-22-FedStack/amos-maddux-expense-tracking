@@ -77,6 +77,30 @@ Architectures=arm64
   `/v1/expense-reports/:expenseReportId/advance` when `Authorization` is
   present.
 
+## Warm invoke verification on 2026-08-10
+
+- A fresh local floci function was created from the packaged Lambda and reported
+  `Runtime=nodejs24.x`, `Architectures=arm64`, handler `index.handler`, and a
+  30-second timeout.
+- A fresh local floci HTTP API reported `ProtocolType=HTTP`.
+- `get-routes` for the verification API reported one route:
+  `POST /v1/expense-reports/{expenseReportId}/issue-payment`.
+- `get-integrations` for the verification API reported one `AWS_PROXY`
+  integration with payload format `2.0`.
+- The route was invoked twice with synthetic authorization and correlation
+  headers. The Core Case Service container was not started for this check, so
+  both responses were the handler's expected forwarding-failed JSON response:
+  `502 {"message":"Core Case Service command forwarding failed."}`.
+- Both responses included the per-request synthetic `X-Correlation-Id`.
+- The first invoke had JSON body `{"reason":"First synthetic verification
+  reason"}` and logged structured Powertools JSON with `hasReason=true`.
+- The second warm invoke had an empty request body. floci presented that proxy
+  event as `body: null`; the handler treated it as no reason and logged
+  structured Powertools JSON with `hasReason=false`.
+- The two post-fix invokes used the same synthetic `initInstanceId`, showing
+  the init-created config/client/logger state was reused for the warm second
+  invocation.
+
 ## Notes
 
 floci runs Lambda-shaped resources locally but does not reproduce production

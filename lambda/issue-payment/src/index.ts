@@ -11,7 +11,7 @@ export interface IssuePaymentConfig {
 }
 
 export interface ApiGatewayHttpEvent {
-  body?: string;
+  body?: string | null;
   headers?: Record<string, string | undefined>;
   isBase64Encoded?: boolean;
   pathParameters?: Record<string, string | undefined>;
@@ -238,7 +238,7 @@ function parseIssuePaymentBody(
 ):
   | { ok: true; reason?: string }
   | { ok: false; message: string } {
-  if (event.body === undefined || event.body.trim().length === 0) {
+  if (event.body === undefined || event.body === null || event.body.trim().length === 0) {
     return { ok: true };
   }
 

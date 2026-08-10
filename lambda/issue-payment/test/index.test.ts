@@ -148,7 +148,7 @@ describe("Issue-Payment Lambda handler", () => {
     const handler = createIssuePaymentHandler(makeInitState(client, logger));
 
     await handler(makeEvent({ body: JSON.stringify({ reason: "First synthetic reason." }) }), makeContext());
-    await handler(makeEvent(), makeContext());
+    await handler(makeEvent({ body: null }), makeContext());
 
     expect(client.advanceExpenseReport).toHaveBeenNthCalledWith(
       1,
