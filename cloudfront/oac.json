@@ -1,0 +1,7 @@
+{
+  "Name": "expenseflow-spa-oac",
+  "Description": "Origin Access Control for the private ExpenseFlow SPA bucket on floci.",
+  "SigningProtocol": "sigv4",
+  "SigningBehavior": "always",
+  "OriginAccessControlOriginType": "s3"
+}
