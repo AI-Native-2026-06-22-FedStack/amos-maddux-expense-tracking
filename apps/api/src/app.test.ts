@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
 import { setApiRuntimeConfigForTest } from "./config/runtime-config.js";
+import { setRuntimeSecretsForTest } from "./config/runtime-secrets.js";
 import { sensitiveLogCensor, sensitiveLogPaths } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_HEADER_LOWERCASE } from "./middleware/correlation.js";
 
@@ -24,6 +25,7 @@ interface CapturedRequestLog {
 describe("createApp", () => {
   const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
   const authenticatedUserId = "synthetic-submitter-00000000-0000-4000-8000-000000000302";
+  const allowedCorsOrigin = "http://expenseflow-spa.test";
   const validCreateRequest = {
     draftType: "mileage",
     dueDate: "2026-08-03",
@@ -146,6 +148,43 @@ describe("createApp", () => {
     expect(parsedLog.correlationId).toBe(response.headers[CORRELATION_ID_HEADER_LOWERCASE]);
   });
 
+  it("answers configured CORS preflight requests before auth middleware", async () => {
+    setSyntheticRuntimeSecrets();
+    const response = await inject(createApp(), {
+      method: "OPTIONS",
+      url: "/v1/expense-reports",
+      headers: {
+        origin: allowedCorsOrigin,
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "authorization,content-type"
+      }
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe(allowedCorsOrigin);
+    expect(response.headers["access-control-allow-methods"]).toBe("GET,POST,PATCH,OPTIONS");
+    expect(response.headers["access-control-allow-headers"]).toContain("Authorization");
+    expect(response.headers["access-control-allow-headers"]).toContain("Content-Type");
+    expect(response.headers["access-control-allow-headers"]).toContain("X-Correlation-Id");
+    expect(response.headers["access-control-allow-headers"]).toContain("Idempotency-Key");
+  });
+
+  it("does not emit an allow-origin header for unconfigured origins", async () => {
+    setSyntheticRuntimeSecrets();
+    const response = await inject(createApp(), {
+      method: "OPTIONS",
+      url: "/v1/expense-reports",
+      headers: {
+        origin: "http://synthetic-untrusted-spa.test",
+        "access-control-request-method": "POST",
+        "access-control-request-headers": "authorization,content-type"
+      }
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
   it("binds the correlation ID to downstream request logs", async () => {
     const { logLines, logger } = createCapturedLogger();
     const app = express();
@@ -266,7 +305,8 @@ describe("createApp", () => {
       method: "POST",
       url: "/v1/expense-reports",
       headers: {
-        authorization: createAuthorizationHeader()
+        authorization: createAuthorizationHeader(),
+        origin: allowedCorsOrigin
       },
       payload: validCreateRequest
     });
@@ -309,6 +349,7 @@ describe("createApp", () => {
     expect(response.headers.deprecation).toBeUndefined();
     expect(response.headers.sunset).toBeUndefined();
     expect(response.headers.link).toBeUndefined();
+    expect(response.headers["access-control-allow-origin"]).toBe(allowedCorsOrigin);
   });
 
   it("keeps legacy Expense Report routes reachable with deprecation headers", async () => {
@@ -528,6 +569,16 @@ function parseJsonLogs(logLines: readonly string[]): Record<string, unknown>[] {
     }
 
     return parsed;
+  });
+}
+
+function setSyntheticRuntimeSecrets(): void {
+  setRuntimeSecretsForTest({
+    dbPassword: "synthetic-test-db-password",
+    jwtSigningKeys: {
+      privateKeyPem: "synthetic-private-key",
+      publicKeyPem: "synthetic-public-key"
+    }
   });
 }
 

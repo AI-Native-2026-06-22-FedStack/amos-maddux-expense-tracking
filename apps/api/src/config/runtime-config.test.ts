@@ -13,6 +13,7 @@ const validEnvironment = {
   JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
   DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
   REDIS_URL: "redis://localhost:6379",
+  API_CORS_ALLOWED_ORIGIN: "http://expenseflow-spa.test",
   EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: "60000",
   EXPENSE_WRITE_RATE_LIMIT_MAX: "120",
   EXPENSE_WRITE_SLOW_DOWN_AFTER: "80",
@@ -32,6 +33,7 @@ describe("loadApiRuntimeConfig", () => {
       JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
       DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
       REDIS_URL: "redis://localhost:6379",
+      API_CORS_ALLOWED_ORIGIN: "http://expenseflow-spa.test",
       PORT: 3000,
       TIVS_ACL_URL: "http://localhost:3015",
       JWT_ACCESS_TOKEN_TTL_SECONDS: 900,
@@ -46,6 +48,7 @@ describe("loadApiRuntimeConfig", () => {
     ["SQS_STAGE_EVENTS_DLQ", ""],
     ["DATABASE_URI", "http://localhost:5432/expenseflow"],
     ["REDIS_URL", "http://localhost:6379"],
+    ["API_CORS_ALLOWED_ORIGIN", "not-a-url"],
     ["PORT", "70000"],
     ["JWT_ACCESS_TOKEN_TTL_SECONDS", "0"],
     ["JWT_REFRESH_TOKEN_TTL_SECONDS", "not-a-number"]
@@ -64,7 +67,8 @@ describe("loadApiRuntimeConfig", () => {
     "SQS_STAGE_EVENTS_QUEUE",
     "SQS_STAGE_EVENTS_DLQ",
     "DB_PASSWORD_SECRET_ID",
-    "JWT_SIGNING_KEYS_SECRET_ID"
+    "JWT_SIGNING_KEYS_SECRET_ID",
+    "API_CORS_ALLOWED_ORIGIN"
   ])("fails fast when %s is missing", (name) => {
     expect(() =>
       loadApiRuntimeConfig({

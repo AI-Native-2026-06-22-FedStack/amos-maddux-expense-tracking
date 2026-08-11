@@ -41,7 +41,7 @@ describe("Expense Report create and read end-to-end", () => {
       .set("Authorization", createBearerToken({ tenantId: tenantA, userId: submitterId }))
       .send({
         draftType: "mileage",
-        dueDate: "2026-08-03",
+        dueDate: "2999-01-01",
         mileageEntries: [
           {
             business_purpose: "Synthetic client support visit.",
