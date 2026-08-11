@@ -7,9 +7,14 @@ Accepted.
 ## Context
 
 [ADR-0020](0020-ecs-fargate-vs-alternatives.md) selected ECS Fargate for the
-long-lived ExpenseFlow backend runtime. Module 7 adds a second placement
-decision: the Issue-Payment stub from the Paid to Reconciled settlement path can
-run independently from the always-on Core Case Service.
+long-lived ExpenseFlow backend runtime. The Core Case Service and GL-coding
+engine remain appropriate for Fargate because they need steady readiness, warm
+database or service dependencies, and predictable availability behind the ALB.
+
+Module 7 adds a second placement decision: the Issue-Payment stub from the Paid
+to Reconciled settlement path can run independently from the always-on Core Case
+Service. It is a short command-forwarding workload, has no direct database
+ownership, and can scale to zero between settlement events.
 
 The decision needs to be per workload. The Core Case Service remains the
 database-owning HTTP API for Expense Reports. The Issue-Payment Lambda is a
@@ -24,6 +29,12 @@ HTTP API proxy route:
 `POST /v1/expense-reports/{expenseReportId}/issue-payment`
 
 Keep the Core Case Service on ECS Fargate behind the ALB `/v1/*` route.
+
+The Lambda forwards the command to the Core Case Service advance endpoint and
+does not write ExpenseFlow persistence directly. Initialization creates reusable
+configuration, the Powertools logger, and the Core Case Service client outside
+the handler. Each invocation reads all request data from the API Gateway event
+and carries the M6 `X-Correlation-Id` into structured Powertools logs.
 
 ## Criteria and Measurements
 
@@ -47,11 +58,15 @@ POSITIVE: The split is measurable: route count, observed local invokes, Lambda
 timeout, ECS desired/running counts, health-check configuration, and reserved
 Fargate task size are all recorded in version-controlled evidence.
 
+POSITIVE: The settlement command stub has a small, independently deployable
+runtime with structured, correlatable logs.
+
 NEGATIVE: The Lambda adds a second runtime and API Gateway integration to
 operate.
 
 NEGATIVE: floci cold-start measurements are modeled locally and indicative
-only. They must not be treated as production latency numbers.
+only. They must not be treated as production latency numbers; Module 8 must
+verify production latency and logging behavior in real AWS.
 
 ## Sources
 
