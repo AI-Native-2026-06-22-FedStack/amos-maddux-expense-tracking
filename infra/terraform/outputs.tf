@@ -26,6 +26,7 @@ output "ecs_execution_role_name" {
 output "ecs_execution_role_arn" {
   description = "ARN of the ECS task execution role."
   value       = module.iam.ecs_execution_role_arn
+  sensitive   = true
 }
 
 output "app_task_role_name" {
@@ -36,4 +37,5 @@ output "app_task_role_name" {
 output "app_task_role_arn" {
   description = "ARN of the ExpenseFlow application task role."
   value       = module.iam.app_task_role_arn
+  sensitive   = true
 }

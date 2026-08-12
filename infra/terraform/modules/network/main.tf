@@ -210,12 +210,10 @@ resource "terraform_data" "route_table_association" {
     EOT
 
     environment = {
-      AWS_ACCESS_KEY_ID     = "test"
-      AWS_SECRET_ACCESS_KEY = "test"
-      AWS_ENDPOINT_URL      = var.floci_endpoint_url
-      AWS_REGION            = var.aws_region
-      ROUTE_TABLE_ID        = each.value.route_table_id
-      SUBNET_ID             = each.value.subnet_id
+      AWS_ENDPOINT_URL = var.floci_endpoint_url
+      AWS_REGION       = var.aws_region
+      ROUTE_TABLE_ID   = each.value.route_table_id
+      SUBNET_ID        = each.value.subnet_id
     }
   }
 }
@@ -273,10 +271,8 @@ resource "terraform_data" "security_group_rule" {
     command = each.value
 
     environment = {
-      AWS_ACCESS_KEY_ID     = "test"
-      AWS_SECRET_ACCESS_KEY = "test"
-      AWS_ENDPOINT_URL      = var.floci_endpoint_url
-      AWS_REGION            = var.aws_region
+      AWS_ENDPOINT_URL = var.floci_endpoint_url
+      AWS_REGION       = var.aws_region
     }
   }
 }
