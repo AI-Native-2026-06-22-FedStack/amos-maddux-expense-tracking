@@ -11,8 +11,10 @@ AWS_REGION=us-east-1
 
 ## Reviewed Plan
 
-The first saved plan was captured locally at
-`artifacts/terraform/base-plan-reviewed.txt`.
+The first saved plan was reviewed before apply. The raw local plan text was not
+retained because Terraform refresh output includes provider-generated
+identifier strings; this committed note retains the symbol review without those
+values.
 
 Symbol review:
 
@@ -54,12 +56,35 @@ Apply complete! Resources: 0 added, 0 changed, 5 destroyed.
 
 ## No-Drift Re-plan
 
-The post-apply re-plan was captured locally at
-`artifacts/terraform/post-apply-no-drift-plan.txt` and reported:
+The post-apply re-plan reported:
 
 ```text
 No changes. Your infrastructure matches the configuration.
 ```
 
 The base outputs after apply included the VPC, subnet tiers, security groups,
-and IAM role ARNs needed by later modules.
+and IAM role references needed by later modules. Role reference outputs are
+marked sensitive so the normal Terraform output path redacts them.
+
+## Backend and Lock Evidence
+
+`terraform init` adopted the floci S3 backend without error.
+
+The state bucket controls were verified after bootstrap:
+
+| Control | Observed |
+| --- | --- |
+| Public access block | Enabled for public ACLs, public policies, and restricted public buckets. |
+| Versioning | Enabled. |
+| Default encryption | Enabled with SSE-S3. |
+
+S3-native locking was verified during a real `terraform apply -refresh-only`
+operation by polling the backend prefix and observing the Terraform lock object:
+
+```text
+observed terraform.tfstate.tflock during terraform apply -refresh-only
+```
+
+Stale-lock recovery is documented in `infra/terraform/README.md` as
+`terraform force-unlock LOCK_ID` after confirming no Terraform operation is
+active.
