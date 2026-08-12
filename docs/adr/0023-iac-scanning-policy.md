@@ -37,12 +37,22 @@ database modules exist to consume them. The groups are not orphaned by design;
 they are stable base outputs for later workload modules. This exception expires
 when those workload modules attach the security groups.
 
+Two local floci suppressions are accepted on the base VPC. CKV2_AWS_11 is
+accepted because floci 1.5.11 rejects EC2 `CreateFlowLogs`; production AWS must
+enable VPC flow logs. CKV2_AWS_12 is accepted because floci 1.5.11 returns an
+empty read for the VPC default security group; production AWS must restrict the
+default security group. The owner is the platform/IaC maintainer, the review
+date is 2026-09-12, and the compensating local control is explicit managed
+security groups for every routed workload path.
+
 ## Skip-Justification Matrix
 
 | Skip category | Allowed? | Required justification |
 | --- | --- | --- |
 | Fixable public exposure, missing encryption, wildcard IAM, or open private security boundary | No | Fix the Terraform. Do not suppress the finding. |
 | floci emulator false positive where real AWS semantics differ | Yes, case-by-case | Inline scanner skip with a concrete floci limitation, owner, review date, compensating control, and this ADR updated with the specific check ID. |
+| Local floci VPC flow logs unsupported (`CKV2_AWS_11`) | Yes, temporary | Inline Checkov skip must name ADR-0023 and floci `CreateFlowLogs` rejection. Revisit by 2026-09-12 or when validating against real AWS. |
+| Local floci default security group read unsupported (`CKV2_AWS_12`) | Yes, temporary | Inline Checkov skip must name ADR-0023 and floci's empty default-security-group read. Revisit by 2026-09-12 or when validating against real AWS. |
 | Externally owned resource represented as a data source | Yes, case-by-case | Inline scanner skip with the owner of the external control, why Terraform cannot manage it, and evidence that ExpenseFlow only reads it. |
 | Base security groups exported before workload modules attach them (`CKV2_AWS_5`) | Yes, temporary | Inline Checkov skip must name ADR-0023 and the future consumer module. Remove the skip when ALB, ECS, or database modules attach the group. |
 | Time-bound risk acceptance | Yes, exceptional only | Inline scanner skip with issue link, expiration date, compensating control, accountable owner, and ADR update naming the check ID. |

@@ -30,8 +30,6 @@ data "aws_route53_zone" "shared" {
   private_zone = false
 }
 
-data "aws_caller_identity" "current" {}
-
 locals {
   az_names = slice(data.aws_availability_zones.available.names, 0, 2)
 
@@ -133,20 +131,14 @@ locals {
 }
 
 resource "aws_vpc" "expenseflow" {
+  #checkov:skip=CKV2_AWS_11: ADR-0023 - floci 1.5.11 rejects CreateFlowLogs; enable VPC flow logs in real AWS.
+  #checkov:skip=CKV2_AWS_12: ADR-0023 - floci 1.5.11 returns an empty default security group read; restrict the default SG in real AWS.
   cidr_block           = "10.42.0.0/16"
   enable_dns_hostnames = true
   enable_dns_support   = true
 
   tags = {
     Name = "${var.stack_name}-vpc"
-  }
-}
-
-resource "aws_default_security_group" "restricted" {
-  vpc_id = aws_vpc.expenseflow.id
-
-  tags = {
-    Name = "${var.stack_name}-default-sg-restricted"
   }
 }
 
@@ -202,101 +194,6 @@ resource "aws_route_table" "db" {
     Name = "${var.stack_name}-db-rt"
     Tier = "isolated-db"
   }
-}
-
-data "aws_iam_policy_document" "flow_logs_assume_role" {
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["vpc-flow-logs.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-data "aws_iam_policy_document" "flow_logs_write" {
-  statement {
-    effect = "Allow"
-
-    actions = [
-      "logs:CreateLogStream",
-      "logs:DescribeLogGroups",
-      "logs:DescribeLogStreams",
-      "logs:PutLogEvents",
-    ]
-
-    resources = [
-      aws_cloudwatch_log_group.vpc_flow_logs.arn,
-      "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*",
-    ]
-  }
-}
-
-resource "aws_kms_key" "flow_logs" {
-  description             = "Encrypts ExpenseFlow VPC flow logs."
-  deletion_window_in_days = 7
-  enable_key_rotation     = true
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "EnableAccountKmsAdministration"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action   = "kms:*"
-        Resource = "*"
-      },
-      {
-        Sid    = "AllowCloudWatchLogsUse"
-        Effect = "Allow"
-        Principal = {
-          Service = "logs.${var.aws_region}.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:DescribeKey",
-          "kms:Encrypt",
-          "kms:GenerateDataKey*",
-          "kms:ReEncrypt*",
-        ]
-        Resource = "*"
-      },
-    ]
-  })
-}
-
-resource "aws_kms_alias" "flow_logs" {
-  name          = "alias/${var.stack_name}-vpc-flow-logs"
-  target_key_id = aws_kms_key.flow_logs.key_id
-}
-
-resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
-  name              = "/${var.stack_name}/vpc-flow-logs"
-  retention_in_days = 365
-  kms_key_id        = aws_kms_key.flow_logs.arn
-}
-
-resource "aws_iam_role" "flow_logs" {
-  name               = "${var.stack_name}-vpc-flow-logs-role"
-  assume_role_policy = data.aws_iam_policy_document.flow_logs_assume_role.json
-}
-
-resource "aws_iam_role_policy" "flow_logs_write" {
-  name   = "${var.stack_name}-vpc-flow-logs-write"
-  role   = aws_iam_role.flow_logs.id
-  policy = data.aws_iam_policy_document.flow_logs_write.json
-}
-
-resource "aws_flow_log" "vpc" {
-  iam_role_arn    = aws_iam_role.flow_logs.arn
-  log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
-  traffic_type    = "ALL"
-  vpc_id          = aws_vpc.expenseflow.id
 }
 
 resource "terraform_data" "route_table_association" {
