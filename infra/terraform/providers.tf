@@ -22,6 +22,8 @@ provider "aws" {
   endpoints {
     ec2            = var.floci_endpoint_url
     iam            = var.floci_endpoint_url
+    kms            = var.floci_endpoint_url
+    logs           = var.floci_endpoint_url
     route53        = var.floci_endpoint_url
     s3             = var.floci_endpoint_url
     secretsmanager = var.floci_endpoint_url

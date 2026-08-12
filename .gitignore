@@ -18,3 +18,4 @@ docs/temp_test_results.md
 *.tfstate.*
 crash.log
 crash.*.log
+artifacts/security/*.sarif

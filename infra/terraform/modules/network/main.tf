@@ -30,6 +30,8 @@ data "aws_route53_zone" "shared" {
   private_zone = false
 }
 
+data "aws_caller_identity" "current" {}
+
 locals {
   az_names = slice(data.aws_availability_zones.available.names, 0, 2)
 
@@ -39,14 +41,14 @@ locals {
       cidr_block              = "10.42.0.0/24"
       availability_zone       = local.az_names[0]
       tier                    = "public"
-      map_public_ip_on_launch = true
+      map_public_ip_on_launch = false
     }
     public_b = {
       name                    = "${var.stack_name}-public-b"
       cidr_block              = "10.42.1.0/24"
       availability_zone       = local.az_names[1]
       tier                    = "public"
-      map_public_ip_on_launch = true
+      map_public_ip_on_launch = false
     }
     task_a = {
       name                    = "${var.stack_name}-task-a"
@@ -140,6 +142,14 @@ resource "aws_vpc" "expenseflow" {
   }
 }
 
+resource "aws_default_security_group" "restricted" {
+  vpc_id = aws_vpc.expenseflow.id
+
+  tags = {
+    Name = "${var.stack_name}-default-sg-restricted"
+  }
+}
+
 resource "aws_subnet" "expenseflow" {
   for_each = local.subnets
 
@@ -194,6 +204,101 @@ resource "aws_route_table" "db" {
   }
 }
 
+data "aws_iam_policy_document" "flow_logs_assume_role" {
+  statement {
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["vpc-flow-logs.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+data "aws_iam_policy_document" "flow_logs_write" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "logs:CreateLogStream",
+      "logs:DescribeLogGroups",
+      "logs:DescribeLogStreams",
+      "logs:PutLogEvents",
+    ]
+
+    resources = [
+      aws_cloudwatch_log_group.vpc_flow_logs.arn,
+      "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*",
+    ]
+  }
+}
+
+resource "aws_kms_key" "flow_logs" {
+  description             = "Encrypts ExpenseFlow VPC flow logs."
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableAccountKmsAdministration"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogsUse"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${var.aws_region}.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:ReEncrypt*",
+        ]
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+resource "aws_kms_alias" "flow_logs" {
+  name          = "alias/${var.stack_name}-vpc-flow-logs"
+  target_key_id = aws_kms_key.flow_logs.key_id
+}
+
+resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+  name              = "/${var.stack_name}/vpc-flow-logs"
+  retention_in_days = 365
+  kms_key_id        = aws_kms_key.flow_logs.arn
+}
+
+resource "aws_iam_role" "flow_logs" {
+  name               = "${var.stack_name}-vpc-flow-logs-role"
+  assume_role_policy = data.aws_iam_policy_document.flow_logs_assume_role.json
+}
+
+resource "aws_iam_role_policy" "flow_logs_write" {
+  name   = "${var.stack_name}-vpc-flow-logs-write"
+  role   = aws_iam_role.flow_logs.id
+  policy = data.aws_iam_policy_document.flow_logs_write.json
+}
+
+resource "aws_flow_log" "vpc" {
+  iam_role_arn    = aws_iam_role.flow_logs.arn
+  log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.expenseflow.id
+}
+
 resource "terraform_data" "route_table_association" {
   for_each = local.route_table_associations
 
@@ -219,6 +324,7 @@ resource "terraform_data" "route_table_association" {
 }
 
 resource "aws_security_group" "alb" {
+  #checkov:skip=CKV2_AWS_5: ADR-0023 - base module exports this SG before the ALB module consumes it; attach in workload modules.
   name        = "${var.stack_name}-alb-sg"
   description = "Internet-facing ALB entry point for ExpenseFlow"
   vpc_id      = aws_vpc.expenseflow.id
@@ -229,6 +335,7 @@ resource "aws_security_group" "alb" {
 }
 
 resource "aws_security_group" "api_task" {
+  #checkov:skip=CKV2_AWS_5: ADR-0023 - base module exports this SG before the ECS service module consumes it; attach in workload modules.
   name        = "${var.stack_name}-api-task-sg"
   description = "Private Core Case Service task ingress from the ALB only"
   vpc_id      = aws_vpc.expenseflow.id
@@ -239,6 +346,7 @@ resource "aws_security_group" "api_task" {
 }
 
 resource "aws_security_group" "compute_task" {
+  #checkov:skip=CKV2_AWS_5: ADR-0023 - base module exports this SG before the ECS service module consumes it; attach in workload modules.
   name        = "${var.stack_name}-compute-task-sg"
   description = "Private GL-coding engine ingress from the API task only"
   vpc_id      = aws_vpc.expenseflow.id
@@ -249,6 +357,7 @@ resource "aws_security_group" "compute_task" {
 }
 
 resource "aws_security_group" "db" {
+  #checkov:skip=CKV2_AWS_5: ADR-0023 - base module exports this SG before the database module consumes it; attach in workload modules.
   name        = "${var.stack_name}-db-sg"
   description = "Private Postgres ingress from application tasks only"
   vpc_id      = aws_vpc.expenseflow.id
