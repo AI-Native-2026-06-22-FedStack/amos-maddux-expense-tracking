@@ -13,3 +13,8 @@ node_modules/
 __pycache__/
 .coverage
 docs/temp_test_results.md
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
