@@ -1,6 +1,6 @@
 import { mapProblemResponse } from "./errors";
+import { getExpenseFlowApiBaseUrl } from "./config";
 
-const defaultBaseUrl = "/v1";
 const correlationIdHeader = "X-Correlation-Id";
 
 export interface ApiClient {
@@ -30,7 +30,7 @@ interface RequestAttemptOptions extends ApiRequestOptions {
 }
 
 export function createApiClient(options: ApiClientOptions = {}): ApiClient {
-  const baseUrl = options.baseUrl ?? defaultBaseUrl;
+  const baseUrl = options.baseUrl ?? getExpenseFlowApiBaseUrl();
   let refreshInFlight: Promise<string | null> | undefined;
 
   const refreshOnce = async (): Promise<string | null> => {

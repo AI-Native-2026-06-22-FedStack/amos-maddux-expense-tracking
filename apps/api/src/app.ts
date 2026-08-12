@@ -9,6 +9,7 @@ import { logger as rootLogger } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_LOG_FIELD } from "./middleware/correlation.js";
 import { attachAiAssistUsageHeader } from "./middleware/cost-header.js";
 import { generateOpenApiDocument } from "./openapi/openapi.js";
+import { createApiCorsMiddleware } from "./config/cors.js";
 import { createAuthRouter } from "./routes/auth-routes.js";
 import { createExpenseReportRouter } from "./routes/expense-report-routes.js";
 import { createHealthRouter } from "./routes/health-routes.js";
@@ -44,6 +45,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   );
   app.use(bindCorrelationId);
   app.use(attachAiAssistUsageHeader);
+  app.use(createApiCorsMiddleware());
   app.use(express.json());
 
   app.get("/openapi.json", (_request, response) => {

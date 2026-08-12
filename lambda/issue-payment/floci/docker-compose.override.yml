@@ -1,0 +1,5 @@
+services:
+  floci:
+    environment:
+      FLOCI_SERVICES_LAMBDA_DOCKER_NETWORK: expenseflow-local
+      FLOCI_SERVICES_LAMBDA_DOCKER_HOST_OVERRIDE: floci

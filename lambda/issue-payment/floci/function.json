@@ -1,0 +1,15 @@
+{
+  "FunctionName": "expenseflow-issue-payment",
+  "Runtime": "nodejs24.x",
+  "Role": "${lambda_execution_role}",
+  "Handler": "index.handler",
+  "Architectures": ["arm64"],
+  "Timeout": 30,
+  "MemorySize": 256,
+  "Environment": {
+    "Variables": {
+      "CORE_CASE_SERVICE_URL": "http://api:3000",
+      "POWERTOOLS_SERVICE_NAME": "expenseflow-issue-payment"
+    }
+  }
+}

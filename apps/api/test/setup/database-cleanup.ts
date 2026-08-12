@@ -50,6 +50,7 @@ beforeEach(() => {
   process.env.DB_PASSWORD_SECRET_ID ??= "expenseflow/test/db-password";
   process.env.JWT_SIGNING_KEYS_SECRET_ID ??= "expenseflow/test/jwt-signing-keys";
   process.env.REDIS_URL ??= "redis://localhost:6379";
+  process.env.API_CORS_ALLOWED_ORIGIN ??= "http://expenseflow-spa.test";
   process.env.EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS ??= "60000";
   process.env.EXPENSE_WRITE_RATE_LIMIT_MAX ??= "120";
   process.env.EXPENSE_WRITE_SLOW_DOWN_AFTER ??= "80";

@@ -1,0 +1,10 @@
+{
+  "Name": "expenseflow-issue-payment-http-api",
+  "ProtocolType": "HTTP",
+  "CorsConfiguration": {
+    "AllowCredentials": false,
+    "AllowHeaders": ["Authorization", "Content-Type", "X-Correlation-Id", "Idempotency-Key"],
+    "AllowMethods": ["GET", "POST", "PATCH", "OPTIONS"],
+    "AllowOrigins": ["${api_cors_allowed_origin}"]
+  }
+}

@@ -28,6 +28,7 @@ const config = loadApiRuntimeConfig({
   JWT_SIGNING_KEYS_SECRET_ID: "expenseflow/local/jwt-signing-keys",
   DATABASE_URI: "postgres://expenseflow@localhost:5432/expenseflow",
   REDIS_URL: "redis://localhost:6379",
+  API_CORS_ALLOWED_ORIGIN: "http://expenseflow-spa.test",
   EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS: "60000",
   EXPENSE_WRITE_RATE_LIMIT_MAX: "120",
   EXPENSE_WRITE_SLOW_DOWN_AFTER: "80",

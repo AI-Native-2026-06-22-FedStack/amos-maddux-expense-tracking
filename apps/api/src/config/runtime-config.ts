@@ -20,6 +20,7 @@ const runtimeConfigSchema = z
     JWT_SIGNING_KEYS_SECRET_ID: z.string().trim().min(1),
     DATABASE_URI: z.url(),
     REDIS_URL: z.url(),
+    API_CORS_ALLOWED_ORIGIN: z.url(),
     COMPUTE_SERVICE_URL: z.url().default("http://localhost:8000"),
     TIVS_ACL_URL: z.url().default("http://localhost:3015"),
     JWT_ISSUER: z.string().trim().min(1).default("expense-api"),

@@ -1,5 +1,6 @@
 import type { UserRole } from "../domain";
 import { createApiClient } from "../api/client";
+import { getExpenseFlowApiBaseUrl } from "../api/config";
 
 export interface LoginCredentials {
   tenantId: string;
@@ -45,7 +46,7 @@ export interface AuthClient {
   refreshSession(session: AuthSession, signal: AbortSignal): Promise<AuthSession>;
 }
 
-export function createHttpAuthClient(baseUrl = "/v1"): AuthClient {
+export function createHttpAuthClient(baseUrl = getExpenseFlowApiBaseUrl()): AuthClient {
   const apiClient = createApiClient({ baseUrl });
 
   return {

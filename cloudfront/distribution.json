@@ -1,0 +1,73 @@
+{
+  "CallerReference": "__CALLER_REFERENCE__",
+  "Aliases": {
+    "Quantity": 0
+  },
+  "Comment": "expenseflow-spa-cloudfront-floci",
+  "Enabled": true,
+  "DefaultRootObject": "index.html",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "expenseflow-spa-s3-origin",
+        "DomainName": "__SPA_BUCKET_NAME__.s3.__AWS_REGION__.amazonaws.com",
+        "OriginAccessControlId": "__ORIGIN_ACCESS_CONTROL_ID__",
+        "S3OriginConfig": {
+          "OriginAccessIdentity": ""
+        }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "expenseflow-spa-s3-origin",
+    "ViewerProtocolPolicy": "allow-all",
+    "AllowedMethods": {
+      "Quantity": 2,
+      "Items": ["GET", "HEAD"],
+      "CachedMethods": {
+        "Quantity": 2,
+        "Items": ["GET", "HEAD"]
+      }
+    },
+    "ForwardedValues": {
+      "QueryString": false,
+      "Cookies": {
+        "Forward": "none"
+      }
+    },
+    "MinTTL": 0,
+    "DefaultTTL": 300,
+    "MaxTTL": 31536000,
+    "Compress": true
+  },
+  "CustomErrorResponses": {
+    "Quantity": 2,
+    "Items": [
+      {
+        "ErrorCode": 403,
+        "ResponsePagePath": "/index.html",
+        "ResponseCode": "200",
+        "ErrorCachingMinTTL": 0
+      },
+      {
+        "ErrorCode": 404,
+        "ResponsePagePath": "/index.html",
+        "ResponseCode": "200",
+        "ErrorCachingMinTTL": 0
+      }
+    ]
+  },
+  "PriceClass": "PriceClass_100",
+  "Restrictions": {
+    "GeoRestriction": {
+      "RestrictionType": "none",
+      "Quantity": 0
+    }
+  },
+  "ViewerCertificate": {
+    "CloudFrontDefaultCertificate": true
+  },
+  "HttpVersion": "http2",
+  "IsIPV6Enabled": true
+}

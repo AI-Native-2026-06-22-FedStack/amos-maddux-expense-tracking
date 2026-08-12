@@ -1,0 +1,21 @@
+{
+  "name": "@expenseflow/issue-payment-lambda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "package": "npm run build && rm -f issue-payment.zip && rm -rf dist/node_modules && cp package.json dist/package.json && mkdir -p dist/node_modules/@aws && cp -R node_modules/@aws-lambda-powertools dist/node_modules/ && cp -R node_modules/@aws/lambda-invoke-store dist/node_modules/@aws/ && cd dist && zip -r ../issue-payment.zip index.js package.json node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.29.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.4"
+  }
+}

@@ -6,6 +6,37 @@ const userId = "00000000-0000-4000-8000-000000000601";
 describe("auth client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the configured deployed API base URL for auth requests", async () => {
+    vi.stubEnv("VITE_EXPENSEFLOW_API_BASE_URL", "http://expenseflow-api.test/v1");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      createFetchResponse({
+        status: "authenticated",
+        tenantId,
+        userId,
+        roles: ["Employee"],
+        accessToken: createSyntheticJwt(300_000),
+        refreshToken: "synthetic-refresh-token"
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const authClient = createHttpAuthClient();
+    await authClient.login(
+      {
+        tenantId,
+        email: "synthetic.employee@example.test",
+        password: "synthetic-password"
+      },
+      new AbortController().signal
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://expenseflow-api.test/v1/auth/login",
+      expect.objectContaining({ method: "POST" })
+    );
   });
 
   it("posts credentials and MFA inputs to the configured auth API", async () => {

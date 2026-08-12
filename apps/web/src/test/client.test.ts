@@ -3,6 +3,36 @@ import { ApiProblemError, createApiClient } from "../api";
 describe("api client", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the local /v1 API base URL when deploy config is unset", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(createJsonResponse({ ok: true }));
+    const client = createApiClient({
+      fetchImpl: fetchMock
+    });
+
+    await client.requestJson<{ ok: boolean }>("/expense-reports");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/v1/expense-reports",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("uses the configured deployed API base URL", async () => {
+    vi.stubEnv("VITE_EXPENSEFLOW_API_BASE_URL", "http://expenseflow-api.test/v1");
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(createJsonResponse({ ok: true }));
+    const client = createApiClient({
+      fetchImpl: fetchMock
+    });
+
+    await client.requestJson<{ ok: boolean }>("/expense-reports");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://expenseflow-api.test/v1/expense-reports",
+      expect.objectContaining({ method: "GET" })
+    );
   });
 
   it("attaches bearer and correlation headers on every request", async () => {
