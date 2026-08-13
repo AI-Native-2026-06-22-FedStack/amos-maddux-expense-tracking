@@ -18,13 +18,22 @@ provider "aws" {
   s3_use_path_style           = true
 
   endpoints {
-    ec2            = var.floci_endpoint_url
-    iam            = var.floci_endpoint_url
-    kms            = var.floci_endpoint_url
-    logs           = var.floci_endpoint_url
-    route53        = var.floci_endpoint_url
-    s3             = var.floci_endpoint_url
-    secretsmanager = var.floci_endpoint_url
-    sts            = var.floci_endpoint_url
+    dynamodb             = var.floci_endpoint_url
+    ec2                  = var.floci_endpoint_url
+    ecs                  = var.floci_endpoint_url
+    elasticache          = var.floci_endpoint_url
+    elasticloadbalancing = var.floci_endpoint_url
+    elbv2                = var.floci_endpoint_url
+    iam                  = var.floci_endpoint_url
+    kms                  = var.floci_endpoint_url
+    lambda               = var.floci_endpoint_url
+    logs                 = var.floci_endpoint_url
+    rds                  = var.floci_endpoint_url
+    route53              = var.floci_endpoint_url
+    s3                   = var.floci_endpoint_url
+    secretsmanager       = var.floci_endpoint_url
+    sns                  = var.floci_endpoint_url
+    sqs                  = var.floci_endpoint_url
+    sts                  = var.floci_endpoint_url
   }
 }
