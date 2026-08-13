@@ -17,6 +17,14 @@ provider "aws" {
   skip_requesting_account_id  = true
   s3_use_path_style           = true
 
+  default_tags {
+    tags = {
+      Name        = var.stack_name
+      Owner       = var.owner
+      Environment = var.environment
+    }
+  }
+
   endpoints {
     dynamodb             = var.floci_endpoint_url
     ec2                  = var.floci_endpoint_url

@@ -2,54 +2,45 @@ data "aws_caller_identity" "current" {}
 
 data "aws_partition" "current" {}
 
-locals {
-  default_tags = {
-    Stack = var.stack_name
-    Layer = "data"
-  }
-}
-
 # ====== RDS ======
 
 resource "aws_db_subnet_group" "expenseflow" {
   name       = "${var.stack_name}-db-subnet-group"
   subnet_ids = var.subnet_ids_isolated_db
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-db-subnet-group" }
-  )
+  tags = { Name = "${var.stack_name}-db-subnet-group" }
 }
 
 resource "aws_rds_cluster" "expenseflow" {
-  cluster_identifier              = "${var.stack_name}-db"
-  engine                          = "aurora-postgresql"
-  engine_version                  = "15.3"
-  database_name                   = "expenseflow"
-  master_username                 = "expenseflow"
-  manage_master_user_password     = true
-  master_user_secret_kms_key_id   = aws_kms_key.rds_secret.arn
-  db_subnet_group_name            = aws_db_subnet_group.expenseflow.name
-  vpc_security_group_ids          = [var.security_group_id_db]
-  backup_retention_period         = 7
-  preferred_backup_window         = "03:00-04:00"
-  preferred_maintenance_window    = "mon:04:00-mon:05:00"
-  deletion_protection             = true
-  skip_final_snapshot             = false
-  final_snapshot_identifier       = "${var.stack_name}-db-final-snapshot"
-  enable_http_endpoint            = false
-  storage_encrypted               = true
-  kms_key_id                      = aws_kms_key.rds.arn
-  db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.expenseflow.name
+  #checkov:skip=CKV2_AWS_8: ADR-0023 - an AWS Backup vault/plan is not yet owned by this stack; deferred follow-up infrastructure work alongside RDS operational hardening.
+  cluster_identifier                  = "${var.stack_name}-db"
+  engine                              = "aurora-postgresql"
+  engine_version                      = "15.3"
+  database_name                       = "expenseflow"
+  master_username                     = "expenseflow"
+  manage_master_user_password         = true
+  master_user_secret_kms_key_id       = aws_kms_key.rds_secret.arn
+  db_subnet_group_name                = aws_db_subnet_group.expenseflow.name
+  vpc_security_group_ids              = [var.security_group_id_db]
+  backup_retention_period             = 7
+  preferred_backup_window             = "03:00-04:00"
+  preferred_maintenance_window        = "mon:04:00-mon:05:00"
+  deletion_protection                 = true
+  skip_final_snapshot                 = false
+  final_snapshot_identifier           = "${var.stack_name}-db-final-snapshot"
+  enable_http_endpoint                = false
+  storage_encrypted                   = true
+  kms_key_id                          = aws_kms_key.rds.arn
+  db_cluster_parameter_group_name     = aws_rds_cluster_parameter_group.expenseflow.name
+  copy_tags_to_snapshot               = true
+  iam_database_authentication_enabled = true
+  enabled_cloudwatch_logs_exports     = ["postgresql"]
 
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-aurora-cluster" }
-  )
+  tags = { Name = "${var.stack_name}-aurora-cluster" }
 }
 
 resource "aws_rds_cluster_parameter_group" "expenseflow" {
@@ -57,59 +48,101 @@ resource "aws_rds_cluster_parameter_group" "expenseflow" {
   name        = "${var.stack_name}-aurora-pg15"
   description = "Aurora PostgreSQL 15 parameter group for ExpenseFlow"
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-aurora-pg15-params" }
-  )
+  parameter {
+    name  = "log_statement"
+    value = "ddl"
+  }
+
+  parameter {
+    name  = "log_min_duration_statement"
+    value = "1000"
+  }
+
+  tags = { Name = "${var.stack_name}-aurora-pg15-params" }
 }
 
 resource "aws_rds_cluster_instance" "primary" {
-  cluster_identifier           = aws_rds_cluster.expenseflow.id
-  instance_class               = "db.t4g.small"
-  engine                       = aws_rds_cluster.expenseflow.engine
-  engine_version               = aws_rds_cluster.expenseflow.engine_version
-  publicly_accessible          = false
-  performance_insights_enabled = false
+  #checkov:skip=CKV_AWS_118: ADR-0023 - enhanced monitoring needs a dedicated IAM monitoring role wired through the iam module; deferred follow-up infrastructure work.
+  cluster_identifier              = aws_rds_cluster.expenseflow.id
+  instance_class                  = "db.t4g.small"
+  engine                          = aws_rds_cluster.expenseflow.engine
+  engine_version                  = aws_rds_cluster.expenseflow.engine_version
+  publicly_accessible             = false
+  auto_minor_version_upgrade      = true
+  performance_insights_enabled    = true
+  performance_insights_kms_key_id = aws_kms_key.rds.arn
 
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-db-instance-1" }
-  )
+  tags = { Name = "${var.stack_name}-db-instance-1" }
 }
 
 resource "aws_rds_cluster_instance" "secondary" {
-  cluster_identifier           = aws_rds_cluster.expenseflow.id
-  instance_class               = "db.t4g.small"
-  engine                       = aws_rds_cluster.expenseflow.engine
-  engine_version               = aws_rds_cluster.expenseflow.engine_version
-  publicly_accessible          = false
-  performance_insights_enabled = false
+  #checkov:skip=CKV_AWS_118: ADR-0023 - enhanced monitoring needs a dedicated IAM monitoring role wired through the iam module; deferred follow-up infrastructure work.
+  cluster_identifier              = aws_rds_cluster.expenseflow.id
+  instance_class                  = "db.t4g.small"
+  engine                          = aws_rds_cluster.expenseflow.engine
+  engine_version                  = aws_rds_cluster.expenseflow.engine_version
+  publicly_accessible             = false
+  auto_minor_version_upgrade      = true
+  performance_insights_enabled    = true
+  performance_insights_kms_key_id = aws_kms_key.rds.arn
 
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-db-instance-2" }
-  )
+  tags = { Name = "${var.stack_name}-db-instance-2" }
 }
 
 # ====== KMS Keys for RDS ======
+
+data "aws_iam_policy_document" "rds_key" {
+  statement {
+    sid    = "AllowAccountRootFullAccess"
+    effect = "Allow"
+
+    #checkov:skip=CKV_AWS_356: ADR-0023 - KMS key policy "Resource: *" is self-referential to this key per AWS's documented default key policy pattern, not an unconstrained grant; there is no key ARN to reference without a policy/key cycle.
+    #checkov:skip=CKV_AWS_109: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+    #checkov:skip=CKV_AWS_111: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowRDSUseOfKey"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["rds.amazonaws.com"]
+    }
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+      "kms:CreateGrant",
+      "kms:DescribeKey",
+    ]
+
+    resources = ["*"]
+  }
+}
 
 resource "aws_kms_key" "rds" {
   description             = "KMS key for RDS storage encryption in ExpenseFlow."
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.rds_key.json
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-rds-key" }
-  )
+  tags = { Name = "${var.stack_name}-rds-key" }
 }
 
 resource "aws_kms_alias" "rds" {
@@ -121,11 +154,9 @@ resource "aws_kms_key" "rds_secret" {
   description             = "KMS key for RDS secret encryption in ExpenseFlow."
   deletion_window_in_days = 7
   enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.rds_key.json
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-rds-secret-key" }
-  )
+  tags = { Name = "${var.stack_name}-rds-secret-key" }
 }
 
 resource "aws_kms_alias" "rds_secret" {
@@ -136,14 +167,65 @@ resource "aws_kms_alias" "rds_secret" {
 # ====== Secrets Manager Secrets ======
 
 resource "aws_secretsmanager_secret" "db_password" {
+  #checkov:skip=CKV2_AWS_57: ADR-0023 - automatic rotation needs a rotation Lambda this stack does not yet own; deferred follow-up infrastructure work.
   name        = "${var.stack_name}/local/db-password"
   description = "Managed database password container for ExpenseFlow."
   kms_key_id  = aws_kms_key.rds_secret.arn
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-db-password" }
-  )
+  tags = { Name = "${var.stack_name}-db-password" }
+}
+
+# ====== KMS Key for DynamoDB ======
+
+data "aws_iam_policy_document" "dynamodb_key" {
+  #checkov:skip=CKV_AWS_356: ADR-0023 - KMS key policy "Resource: *" is self-referential to this key per AWS's documented default key policy pattern, not an unconstrained grant; there is no key ARN to reference without a policy/key cycle.
+  #checkov:skip=CKV_AWS_109: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+  #checkov:skip=CKV_AWS_111: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+  statement {
+    sid    = "AllowAccountRootFullAccess"
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowDynamoDBUseOfKey"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["dynamodb.amazonaws.com"]
+    }
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+      "kms:CreateGrant",
+      "kms:DescribeKey",
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_kms_key" "dynamodb" {
+  description             = "KMS key for DynamoDB table encryption in ExpenseFlow."
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.dynamodb_key.json
+
+  tags = { Name = "${var.stack_name}-dynamodb-key" }
+}
+
+resource "aws_kms_alias" "dynamodb" {
+  name          = "alias/${var.stack_name}-dynamodb"
+  target_key_id = aws_kms_key.dynamodb.key_id
 }
 
 # ====== DynamoDB ======
@@ -175,14 +257,16 @@ resource "aws_dynamodb_table" "case_queue_rollup" {
     enabled        = true
   }
 
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.dynamodb.arn
+  }
+
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-case-queue-rollup" }
-  )
+  tags = { Name = "${var.stack_name}-case-queue-rollup" }
 }
 
 resource "aws_dynamodb_table" "idempotency" {
@@ -206,14 +290,16 @@ resource "aws_dynamodb_table" "idempotency" {
     enabled        = true
   }
 
+  server_side_encryption {
+    enabled     = true
+    kms_key_arn = aws_kms_key.dynamodb.arn
+  }
+
   lifecycle {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-idempotency" }
-  )
+  tags = { Name = "${var.stack_name}-idempotency" }
 }
 
 # ====== ElastiCache Redis ======
@@ -223,18 +309,16 @@ resource "aws_security_group" "cache" {
   description = "Security group for Redis ElastiCache in ExpenseFlow"
   vpc_id      = var.vpc_id
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-cache-sg" }
-  )
+  tags = { Name = "${var.stack_name}-cache-sg" }
 }
 
 resource "aws_security_group_rule" "cache_egress" {
+  description       = "Redis cache egress scoped to in-VPC traffic only"
   type              = "egress"
   from_port         = 0
   to_port           = 65535
   protocol          = "-1"
-  cidr_blocks       = ["0.0.0.0/0"]
+  cidr_blocks       = [var.vpc_cidr_block]
   security_group_id = aws_security_group.cache.id
 }
 
@@ -242,10 +326,7 @@ resource "aws_elasticache_subnet_group" "expenseflow" {
   name       = "${var.stack_name}-cache-subnet-group"
   subnet_ids = var.subnet_ids_isolated_db
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-cache-subnet-group" }
-  )
+  tags = { Name = "${var.stack_name}-cache-subnet-group" }
 }
 
 resource "aws_elasticache_cluster" "expenseflow" {
@@ -266,22 +347,67 @@ resource "aws_elasticache_cluster" "expenseflow" {
     prevent_destroy = true
   }
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-redis-cluster" }
-  )
+  tags = { Name = "${var.stack_name}-redis-cluster" }
+}
+
+# ====== KMS Key for SNS ======
+
+data "aws_iam_policy_document" "sns_key" {
+  statement {
+    sid    = "AllowAccountRootFullAccess"
+    effect = "Allow"
+
+    #checkov:skip=CKV_AWS_356: ADR-0023 - KMS key policy "Resource: *" is self-referential to this key per AWS's documented default key policy pattern, not an unconstrained grant; there is no key ARN to reference without a policy/key cycle.
+    #checkov:skip=CKV_AWS_109: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+    #checkov:skip=CKV_AWS_111: ADR-0023 - see CKV_AWS_356 justification above; principal is the account root, not a wildcard identity.
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+
+    actions   = ["kms:*"]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "AllowSNSUseOfKey"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["sns.amazonaws.com"]
+    }
+
+    actions = [
+      "kms:Decrypt",
+      "kms:GenerateDataKey*",
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_kms_key" "sns" {
+  description             = "KMS key for SNS topic encryption in ExpenseFlow."
+  deletion_window_in_days = 7
+  enable_key_rotation     = true
+  policy                  = data.aws_iam_policy_document.sns_key.json
+
+  tags = { Name = "${var.stack_name}-sns-key" }
+}
+
+resource "aws_kms_alias" "sns" {
+  name          = "alias/${var.stack_name}-sns"
+  target_key_id = aws_kms_key.sns.key_id
 }
 
 # ====== SNS ======
 
 resource "aws_sns_topic" "stage_events" {
   name              = "${var.stack_name}-stage-events"
-  kms_master_key_id = "alias/aws/sns"
+  kms_master_key_id = aws_kms_key.sns.key_id
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-stage-events-topic" }
-  )
+  tags = { Name = "${var.stack_name}-stage-events-topic" }
 }
 
 # ====== SQS ======
@@ -291,10 +417,7 @@ resource "aws_sqs_queue" "stage_projection_dlq" {
   message_retention_seconds = 1209600 # 14 days
   sqs_managed_sse_enabled   = true
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-stage-projection-dlq" }
-  )
+  tags = { Name = "${var.stack_name}-stage-projection-dlq" }
 }
 
 resource "aws_sqs_queue" "stage_projection" {
@@ -308,8 +431,5 @@ resource "aws_sqs_queue" "stage_projection" {
     maxReceiveCount     = 3
   })
 
-  tags = merge(
-    local.default_tags,
-    { Name = "${var.stack_name}-stage-projection-queue" }
-  )
+  tags = { Name = "${var.stack_name}-stage-projection-queue" }
 }

@@ -13,6 +13,11 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr_block" {
+  description = "CIDR block of the VPC, used to scope security group egress to in-VPC traffic."
+  type        = string
+}
+
 variable "subnet_ids_isolated_db" {
   description = "Isolated DB tier subnet IDs for RDS and database resources."
   type        = list(string)

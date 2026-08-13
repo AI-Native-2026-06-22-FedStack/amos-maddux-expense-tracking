@@ -20,6 +20,7 @@ module "data" {
   stack_name             = var.stack_name
   aws_region             = var.aws_region
   vpc_id                 = module.network.vpc_id
+  vpc_cidr_block         = module.network.vpc_cidr_block
   subnet_ids_isolated_db = module.network.subnet_ids_by_tier["isolated_db"]
   security_group_id_db   = module.network.security_group_ids["db"]
 }
