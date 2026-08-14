@@ -1,0 +1,80 @@
+name: IaC scan
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  iac-scan:
+    name: Checkov and Trivy config
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare SARIF evidence sink
+        run: mkdir -p artifacts/security
+
+      - name: Run Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        continue-on-error: true
+        with:
+          directory: infra/terraform
+          framework: terraform
+          soft_fail: false
+          output_format: cli,sarif
+          output_file_path: console,artifacts/security/checkov.sarif
+
+      - name: Run Trivy config
+        id: trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        continue-on-error: true
+        with:
+          scan-type: config
+          scan-ref: infra/terraform
+          hide-progress: true
+          format: sarif
+          output: artifacts/security/trivy-config.sarif
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+
+      - name: Upload IaC scan SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iac-scan-sarif
+          path: artifacts/security/*.sarif
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce IaC scan gate
+        if: always()
+        env:
+          CHECKOV_OUTCOME: ${{ steps.checkov.outcome }}
+          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
+        run: |
+          failed=0
+
+          if [ "$CHECKOV_OUTCOME" = "failure" ]; then
+            echo "Checkov reported Terraform policy violations."
+            failed=1
+          fi
+
+          if [ "$TRIVY_OUTCOME" = "failure" ]; then
+            echo "Trivy config reported Terraform policy violations."
+            failed=1
+          fi
+
+          exit "$failed"
