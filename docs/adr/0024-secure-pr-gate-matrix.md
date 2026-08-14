@@ -37,9 +37,12 @@ check green. The planted commit is still reachable in git history —
 `fetch-depth: 0` means a fresh full-history scan still finds the old
 hardcoded key there — so the check only went green because of the
 recorded suppression, not because the secret left the repository. This is
-the proof that a red required check is load-bearing: there is no path
-that clears it except fixing the underlying issue or recording a
-justified exception.
+proof that the `Secret scan` _check itself_ is load-bearing: there is no
+path that clears its red state except fixing the underlying issue or
+recording a justified exception. It is not, by itself, proof that GitHub
+refuses to merge a PR while that check is red — that mechanical
+enforcement is a separate, currently-unmet piece; see the
+branch-protection NEGATIVE under Consequences.
 
 ## Decision
 
@@ -57,13 +60,19 @@ justified exception.
 | `AWS OIDC exchange`                       | `secure-pr.yml` / `oidc-verify`       | **Warn-only (not required)** | Proves the OIDC-to-AWS credential exchange works (see the workflow's inline documentation on the `sub` claim). This verifies CI/AWS infrastructure, not the pull request's own diff. A transient AWS-side issue, an expired role trust policy, or `AWS_ROLE_ARN` not yet being configured (this repository's current state) would block every unrelated PR if required. Failures here are investigated as an infrastructure issue, not treated as a reason to hold a code change. |
 | `PR checklist acknowledgement`            | `pr-checklist.yml` / `validate`       | **Warn-only (not required)** | A process/documentation check (Jira link, ADR link, tenant-isolation self-attestation), not a scanner. Pre-dates this ADR and is unchanged by it; listed here only so the full set of checks that run on a PR is visible in one place.                                                                                                                                                                                                                                            |
 
-Everything in the **Required** column is enforced by GitHub branch
-protection on `main`: `required_status_checks` lists exactly those seven
-contexts with `strict: true` (a PR branch must be up to date with `main`
-before merging, so a required check can't pass against stale code), plus
-`enforce_admins: true` so the rule applies to repository admins too, not
-only ordinary contributors. See `scripts/apply-branch-protection.sh` for
-the exact configuration.
+Everything in the **Required** column is _intended_ to be enforced by
+GitHub branch protection on `main`: `required_status_checks` should list
+exactly those seven contexts with `strict: true` (a PR branch must be up
+to date with `main` before merging, so a required check can't pass
+against stale code), plus `enforce_admins: true` so the rule applies to
+repository admins too, not only ordinary contributors.
+`scripts/apply-branch-protection.sh` applies exactly this configuration —
+but as of this ADR's landing commit it has not been successfully applied
+(GitHub's plan gate on this private repository blocks it; see the
+NEGATIVE under Consequences). Until it is applied, "Required" in this
+table describes the intended policy, not a currently-enforced GitHub
+setting — nothing today stops a reviewer from merging a PR with any of
+these checks red.
 
 ### Suppression discipline (generalizing ADR-0023)
 
@@ -162,9 +171,13 @@ different from no check at all — this is the concrete version of the
 
 ## Consequences
 
-POSITIVE: A PR with a red required check mechanically cannot be merged —
-verified end to end with a real planted-secret regression, not just
-asserted.
+POSITIVE: the secret-scan job's block-then-clear behavior (red on a
+planted secret, green only via a documented `.gitleaksignore`
+suppression) was verified end to end at the job level with a real
+regression, not just asserted. This proves the _check_ is load-bearing.
+Whether GitHub's branch protection actually refuses to merge a PR with
+that check red is a separate claim — see the branch-protection NEGATIVE
+below, which is not yet true in this repository.
 
 POSITIVE: `strict: true` plus `enforce_admins: true` means the required
 checks apply uniformly, including to administrators, and against
@@ -182,16 +195,32 @@ landing commit.
 
 NEGATIVE: `AWS_ROLE_ARN` is not yet configured as a repository variable,
 so `AWS OIDC exchange` currently fails on every PR. This is expected and
-intentionally non-blocking (see the matrix above) until the IAM role and
-its trust policy are provisioned.
+intentionally non-blocking (see the matrix above). The GitHub OIDC
+provider (`arn:aws:iam::208096650110:oidc-provider/token.actions.githubusercontent.com`)
+was created in the target AWS account, but the IAM role itself
+(`expenseflow-secure-pr-gate-oidc`, trust policy scoped to
+`repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request`
+via the `sub` claim) could not be created: the available IAM user has
+permission to create an OIDC provider but not `iam:CreateRole`
+(`AccessDenied` on `CreateRole`). Creating the role requires a
+higher-privileged IAM identity than was available while this ADR was
+written. Once created, set its ARN as the `AWS_ROLE_ARN` repository
+variable and this check will pass.
 
-NEGATIVE: This repository is currently private without GitHub Pro/Team,
-which gates required-status-checks branch protection behind a paid plan
-(`403: Upgrade to GitHub Pro or make this repository public to enable
-this feature`, confirmed against both the branch-protection and
-repository-rulesets APIs). `scripts/apply-branch-protection.sh` is
-written and verified to reach the API correctly, but has not yet been
-successfully applied; it must be run once the plan allows it.
+NEGATIVE (unresolved): This repository is currently private without
+GitHub Pro/Team, which gates required-status-checks branch protection —
+and repository rulesets — behind a paid plan (`403: Upgrade to GitHub Pro
+or make this repository public to enable this feature`, confirmed
+directly against both APIs). **As a direct consequence, none of the
+"Required" checks in the matrix above are actually enforced by GitHub
+today** — a reviewer can currently merge a PR with any of them red; only
+the check itself turning red is verified, not GitHub's refusal to allow
+the merge. `scripts/apply-branch-protection.sh` is written and verified
+to reach the API correctly (it fails with the same 403, not a bug in the
+request), but has not been successfully applied. Making the repository
+public or upgrading its plan, then running that script, is required
+before the "non-bypassable gate" half of this ADR's title is actually
+true rather than aspirational.
 
 NEGATIVE: Required checks add merge latency — the full matrix runs in
 parallel, but a PR cannot merge until its slowest required job finishes,

@@ -196,6 +196,17 @@ jobs:
   #     "token.actions.githubusercontent.com:sub":
   #       "repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request"
   #   }
+  #
+  # Current state: the OIDC provider
+  # (arn:aws:iam::208096650110:oidc-provider/token.actions.githubusercontent.com)
+  # exists in the target AWS account. The IAM role itself does not yet
+  # exist — creating it requires iam:CreateRole, which the available IAM
+  # identity does not have. Until the role is created and its ARN is set
+  # as the AWS_ROLE_ARN repository variable, this job fails at the
+  # configure-aws-credentials step with "Credentials could not be loaded"
+  # (empty role-to-assume input), which is expected and does not indicate
+  # a workflow bug. See docs/adr/0024-secure-pr-gate-matrix.md for the
+  # full record.
   # ---------------------------------------------------------------------
   oidc-verify:
     name: AWS OIDC exchange
