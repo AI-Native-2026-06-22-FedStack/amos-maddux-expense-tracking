@@ -1,0 +1,198 @@
+name: Secure PR gate
+
+# Runs on every pull request into the ExpenseFlow monorepo. Scanner jobs
+# (SAST, SCA, secret scanning) and the OIDC proof job all run in parallel —
+# none of them declare `needs:` on another, so GitHub schedules them
+# concurrently rather than as one long sequential pipeline.
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+# Repository-default permissions are read-only. Any job that needs more
+# (the OIDC job needs `id-token: write` to mint a federated token) declares
+# its own `permissions:` block, scoped to only that job.
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------
+  # SAST — Semgrep, matrixed per language leg so the Node and Python
+  # rulesets run concurrently instead of one big scan of the whole tree.
+  # ---------------------------------------------------------------------
+  sast:
+    name: SAST (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: node
+            semgrep_config: p/javascript
+            semgrep_target: apps/api apps/web packages lambda services/tivs-acl
+          - language: python
+            semgrep_config: p/python
+            semgrep_target: services/compute
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for semgrep)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Run Semgrep (${{ matrix.language }})
+        run: >
+          semgrep scan --config ${{ matrix.semgrep_config }} --config p/security-audit
+          --error --sarif --output semgrep-${{ matrix.language }}.sarif
+          ${{ matrix.semgrep_target }}
+
+      - name: Upload SAST SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-${{ matrix.language }}-sarif
+          path: semgrep-${{ matrix.language }}.sarif
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # SCA — dependency vulnerability scanning, matrixed per package
+  # ecosystem so the npm and uv lockfiles are scanned concurrently.
+  # Each leg caches its own dependency store.
+  # ---------------------------------------------------------------------
+  sca:
+    name: SCA (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [node, python]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        if: matrix.language == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install root dependencies
+        if: matrix.language == 'node'
+        run: npm ci
+
+      - name: Install API dependencies
+        if: matrix.language == 'node'
+        working-directory: apps/api
+        run: npm ci
+
+      - name: Set up uv (for Python dependency resolution)
+        if: matrix.language == 'python'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/compute/uv.lock
+
+      - name: Sync Python dependencies
+        if: matrix.language == 'python'
+        working-directory: services/compute
+        run: uv sync --locked
+
+      - name: Run Trivy filesystem scan (node)
+        if: matrix.language == 'node'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          skip-dirs: services/compute
+          format: sarif
+          output: sca-node.sarif
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Run Trivy filesystem scan (python)
+        if: matrix.language == 'python'
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: services/compute
+          format: sarif
+          output: sca-python.sarif
+          exit-code: "1"
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload SCA SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-${{ matrix.language }}-sarif
+          path: sca-${{ matrix.language }}.sarif
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # Secret scanning — language-agnostic, so it runs once against the
+  # full PR diff range rather than as a matrix leg.
+  # ---------------------------------------------------------------------
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+
+  # ---------------------------------------------------------------------
+  # OIDC exchange proof — no long-lived AWS keys anywhere in this job or
+  # the repo. `id-token: write` is what lets GitHub mint the short-lived
+  # OIDC JWT that AWS STS exchanges for temporary credentials; without it
+  # the exchange has nothing to fall back to and simply fails closed.
+  #
+  # The IAM role's trust policy restricts which repo/trigger can assume it
+  # via the token's `sub` claim. For this job (trigger: pull_request) that
+  # claim is:
+  #
+  #   repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request
+  #
+  # NOT a branch ref (":ref:refs/heads/...") — pull_request-triggered runs
+  # do not carry a ref-based sub claim, and a trust policy written for
+  # ":ref:refs/heads/main" will reject this job with an unhelpful
+  # "Not authorized to perform sts:AssumeRoleWithWebIdentity". The example
+  # trust policy condition is:
+  #
+  #   "StringEquals": {
+  #     "token.actions.githubusercontent.com:sub":
+  #       "repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request"
+  #   }
+  # ---------------------------------------------------------------------
+  oidc-verify:
+    name: AWS OIDC exchange
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Prove the exchange (assumed-role identity)
+        run: aws sts get-caller-identity
