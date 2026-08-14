@@ -21,3 +21,15 @@
 # Rotated: this key was never used outside test fixtures and no runtime
 # path references it.
 1b60a0c868337bf342ac6b3fb486b270bf1356a9:services/compute/tests/fixtures/jwt_keys/SYNTHETIC-jwt-private.pem:private-key:1
+
+# scripts/debug-s3-receipt-upload.mjs @ 36ae649b: hardcoded AWS access key
+# (AKIAHBRPOIGF3CBFNOBM) and secret key in an ad-hoc local debug script,
+# committed in place of the standard AWS SDK env/credential-chain lookup
+# every other host-side AWS call in this repo already uses. This key pair
+# was never provisioned in any real AWS account (confirmed with the
+# engineer who committed it); rotated by fixing the script to read
+# AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY from the environment the same way
+# .env.example documents for every other host-side AWS client, and removing
+# the hardcoded pair outright. The commit stays in history — this fingerprint
+# is a recorded, justified suppression, not a deletion.
+36ae649b38a29bb4946c912cd3d8af835c47947e:scripts/debug-s3-receipt-upload.mjs:aws-access-token:8
