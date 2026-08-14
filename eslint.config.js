@@ -31,7 +31,8 @@ export default tseslint.config(
             "scripts/*.mjs",
             "apps/api/healthcheck.js",
             "packages/shared-schemas/*.test.ts"
-          ]
+          ],
+          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 9
         },
         tsconfigRootDir: import.meta.dirname
       }
