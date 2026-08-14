@@ -49,6 +49,11 @@ jobs:
           output: artifacts/security/trivy-config.sarif
           exit-code: "1"
           severity: HIGH,CRITICAL
+          # trivy-action silently drops the `severity` filter for SARIF output
+          # (both the report contents and the exit-code check) unless this is
+          # set to "true" — otherwise every severity, including LOW/MEDIUM,
+          # is included and can fail the job.
+          limit-severities-for-sarif: "true"
 
       - name: Upload IaC scan SARIF
         if: always()
