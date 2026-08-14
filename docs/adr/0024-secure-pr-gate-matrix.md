@@ -99,6 +99,42 @@ itself treated as a failure). This is downloadable from the workflow run
 page and via `gh run download` for the audit packet, matching the pattern
 ADR-0023 established for `checkov.sarif`/`trivy-config.sarif`.
 
+### What making these checks required actually surfaced
+
+Turning `Build` and `Tests` into checks worth gating on is itself the
+reason this ADR's block-versus-warn matrix is trustworthy: verifying them
+end to end (not just wiring the YAML) surfaced two real, previously
+invisible defects in `api-checks.yml`, confirmed via the Actions API
+against this repository's full run history:
+
+- **`Build` had never run.** No workflow in this repository ever executed
+  `npm run build` before this branch. `apps/api`'s workspace-scoped
+  `npm ci` step (present in the job before this branch) silently pruned
+  root-hoisted dependencies — verified locally that it deletes
+  `node_modules/vitest` and `node_modules/@eslint/js` after a clean root
+  install — which would have broken both `npm run build` and
+  `secure-pr.yml`'s ESLint-based SAST step (the latter was silently
+  falling back to an unpinned, network-installed ESLint instead of the
+  repo's configured one with the security plugins). Fixed by dropping the
+  redundant workspace-scoped install; a single root `npm ci` already
+  installs every npm workspace's dependencies correctly.
+- **`API checks` had failed on every run in this repository's history.**
+  Confirmed via `gh api .../actions/workflows/314555078/runs` across every
+  milestone PR back to `m7d4-implementation`: every prior run failed at
+  `npm run lint` with `sh: 1: eslint: not found` (a symptom of the same
+  workspace-hoisting bug above), which meant `npm test` never ran and a
+  second, independent bug — the Node test suite spawning
+  `services/compute` via `uv run uvicorn` with no Python/`uv` set up in
+  this job — was never reached or noticed. Fixing the first bug let the
+  job progress far enough to expose the second, which is fixed here by
+  adding an `astral-sh/setup-uv` step to the `Tests` job.
+
+Neither defect is hypothetical: both were caught only because this task
+required actually running these jobs to green, not just adding YAML that
+looked plausible. A check nobody has ever seen pass is not meaningfully
+different from no check at all — this is the concrete version of the
+"convention versus control" distinction this ADR opened with.
+
 ## Alternatives Considered
 
 - Marking every job required, including `AWS OIDC exchange`: Rejected.
@@ -136,6 +172,13 @@ up-to-date code, not a stale PR branch that passed before `main` moved.
 
 POSITIVE: SARIF/JSON evidence for every blocking check is retained as
 downloadable workflow evidence for 30 days, supporting the audit packet.
+
+POSITIVE: making `Build` and `Tests` real, required checks surfaced and
+fixed two defects that had made `Build` a check nobody had ever seen run
+and `Tests` a check that had failed on every prior run in this
+repository's history — see "What making these checks required actually
+surfaced" above. All seven required checks are green as of this ADR's
+landing commit.
 
 NEGATIVE: `AWS_ROLE_ARN` is not yet configured as a repository variable,
 so `AWS OIDC exchange` currently fails on every PR. This is expected and
