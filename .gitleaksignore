@@ -23,13 +23,24 @@
 1b60a0c868337bf342ac6b3fb486b270bf1356a9:services/compute/tests/fixtures/jwt_keys/SYNTHETIC-jwt-private.pem:private-key:1
 
 # scripts/debug-s3-receipt-upload.mjs @ 36ae649b: hardcoded AWS access key
-# (AKIAHBRPOIGF3CBFNOBM) and secret key in an ad-hoc local debug script,
-# committed in place of the standard AWS SDK env/credential-chain lookup
-# every other host-side AWS call in this repo already uses. This key pair
-# was never provisioned in any real AWS account (confirmed with the
-# engineer who committed it); rotated by fixing the script to read
-# AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY from the environment the same way
-# .env.example documents for every other host-side AWS client, and removing
-# the hardcoded pair outright. The commit stays in history — this fingerprint
-# is a recorded, justified suppression, not a deletion.
+# and secret key in an ad-hoc local debug script, committed in place of the
+# standard AWS SDK env/credential-chain lookup every other host-side AWS
+# call in this repo already uses. This key pair was never provisioned in
+# any real AWS account (confirmed with the engineer who committed it);
+# rotated by fixing the script to read AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY
+# from the environment the same way .env.example documents for every other
+# host-side AWS client, and removing the hardcoded pair outright. The commit
+# stays in history — this fingerprint is a recorded, justified suppression,
+# not a deletion. See docs/security/disposition-log.md for the full record.
 36ae649b38a29bb4946c912cd3d8af835c47947e:scripts/debug-s3-receipt-upload.mjs:aws-access-token:8
+
+# The initial fix commit (5d869223) quoted the same rotated key's literal
+# value in .gitleaksignore's own comment and in disposition-log.md prose
+# while explaining the finding above — which itself re-triggered the
+# aws-access-token rule against that commit. Same disposition as the entry
+# above: never provisioned in a real AWS account, already rotated. Later
+# revised to stop quoting the raw value in prose (see the current comment
+# text), but that revision is a new commit, not a rewrite of this one, so
+# these two historical fingerprints are suppressed here too.
+5d869223895e47232375bf91821890b90041c021:docs/security/disposition-log.md:aws-access-token:28
+5d869223895e47232375bf91821890b90041c021:.gitleaksignore:aws-access-token:26
