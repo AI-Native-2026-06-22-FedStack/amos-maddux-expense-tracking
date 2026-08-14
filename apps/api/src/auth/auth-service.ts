@@ -424,7 +424,7 @@ function createDefaultTotpSecretProtector(): TotpSecretProtector {
   return {
     async protect(secret: string): Promise<string> {
       const iv = randomBytes(12);
-      const cipher = createCipheriv("aes-256-gcm", key, iv);
+      const cipher = createCipheriv("aes-256-gcm", key, iv, { authTagLength: 16 });
       const ciphertext = Buffer.concat([cipher.update(secret, "utf8"), cipher.final()]);
       const tag = cipher.getAuthTag();
 
@@ -449,7 +449,9 @@ function createDefaultTotpSecretProtector(): TotpSecretProtector {
         throw new Error("Unsupported TOTP secret envelope.");
       }
 
-      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
+      const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"), {
+        authTagLength: 16
+      });
       decipher.setAuthTag(Buffer.from(tag, "base64url"));
       const plaintext = Buffer.concat([
         decipher.update(Buffer.from(ciphertext, "base64url")),
@@ -495,6 +497,7 @@ function loadTotpSecretEncryptionKey(): Buffer {
 }
 
 function readOptionalStringEnv(name: string): string | undefined {
+  // eslint-disable-next-line security/detect-object-injection -- `name` is always a fixed literal env var name from this module's own call sites, not attacker-controlled input.
   const value = process.env[name];
 
   if (value === undefined || value.trim() === "") {
@@ -511,5 +514,6 @@ function readOptionalFileEnv(name: string): string | undefined {
     return undefined;
   }
 
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- `path` comes from a deploy-time secret-file env var (TOTP_SECRET_ENCRYPTION_KEY_FILE), not request input.
   return readFileSync(path, "utf8").trim();
 }

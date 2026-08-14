@@ -7,6 +7,7 @@ export const CORRELATION_ID_HEADER_LOWERCASE = "x-correlation-id";
 export const CORRELATION_ID_LOG_FIELD = "correlationId";
 
 export const bindCorrelationId: RequestHandler = (request, response, next) => {
+  // eslint-disable-next-line security/detect-object-injection -- computed key is the fixed module-level constant CORRELATION_ID_HEADER_LOWERCASE, not attacker-controlled input.
   const correlationId = readCorrelationId(request.headers[CORRELATION_ID_HEADER_LOWERCASE]);
   const requestCorrelationId = correlationId ?? randomUUID();
   const childLogger = request.log.child({

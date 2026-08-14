@@ -19,6 +19,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "bandit>=1.9.4",
     "mypy>=2.3.0",
     "pact-python>=3.4.0",
     "pytest",
@@ -46,3 +47,6 @@ select = ["E", "F", "I"]
 python_version = "3.13"
 strict = true
 files = ["app"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]

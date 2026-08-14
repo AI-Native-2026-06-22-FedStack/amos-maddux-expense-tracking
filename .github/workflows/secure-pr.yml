@@ -20,8 +20,10 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------------
-  # SAST — Semgrep, matrixed per language leg so the Node and Python
-  # rulesets run concurrently instead of one big scan of the whole tree.
+  # SAST — matrixed per language leg so Node and Python run concurrently.
+  # Each leg runs Semgrep (p/ci + p/owasp-top-ten + the custom ExpenseFlow
+  # PII-in-logs rule under .semgrep/) plus the language-native linter
+  # (eslint-plugin-security/no-secrets for node, Bandit for python).
   # ---------------------------------------------------------------------
   sast:
     name: SAST (${{ matrix.language }})
@@ -31,16 +33,14 @@ jobs:
       matrix:
         include:
           - language: node
-            semgrep_config: p/javascript
             semgrep_target: apps/api apps/web packages lambda services/tivs-acl
           - language: python
-            semgrep_config: p/python
             semgrep_target: services/compute
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python (for semgrep)
+      - name: Set up Python (for Semgrep)
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -49,36 +49,17 @@ jobs:
       - name: Install Semgrep
         run: pip install semgrep
 
+      - name: Validate custom Semgrep rules
+        run: semgrep --validate --config .semgrep/
+
       - name: Run Semgrep (${{ matrix.language }})
-        run: >
-          semgrep scan --config ${{ matrix.semgrep_config }} --config p/security-audit
-          --error --sarif --output semgrep-${{ matrix.language }}.sarif
-          ${{ matrix.semgrep_target }}
-
-      - name: Upload SAST SARIF
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: sast-${{ matrix.language }}-sarif
-          path: semgrep-${{ matrix.language }}.sarif
-          if-no-files-found: error
-          retention-days: 30
-
-  # ---------------------------------------------------------------------
-  # SCA — dependency vulnerability scanning, matrixed per package
-  # ecosystem so the npm and uv lockfiles are scanned concurrently.
-  # Each leg caches its own dependency store.
-  # ---------------------------------------------------------------------
-  sca:
-    name: SCA (${{ matrix.language }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [node, python]
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+        run: |
+          mkdir -p artifacts/security
+          semgrep scan \
+            --config p/ci --config p/owasp-top-ten --config .semgrep/ \
+            --severity ERROR \
+            --sarif --output artifacts/security/semgrep-${{ matrix.language }}.sarif \
+            ${{ matrix.semgrep_target }}
 
       - name: Set up Node
         if: matrix.language == 'node'
@@ -96,7 +77,13 @@ jobs:
         working-directory: apps/api
         run: npm ci
 
-      - name: Set up uv (for Python dependency resolution)
+      - name: Run ESLint (security + no-secrets rules)
+        if: matrix.language == 'node'
+        run: |
+          mkdir -p artifacts/security
+          npx eslint . --format json --output-file artifacts/security/eslint-security.json
+
+      - name: Set up uv (for Bandit)
         if: matrix.language == 'python'
         uses: astral-sh/setup-uv@v3
         with:
@@ -108,43 +95,60 @@ jobs:
         working-directory: services/compute
         run: uv sync --locked
 
-      - name: Run Trivy filesystem scan (node)
-        if: matrix.language == 'node'
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          skip-dirs: services/compute
-          format: sarif
-          output: sca-node.sarif
-          exit-code: "1"
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-
-      - name: Run Trivy filesystem scan (python)
+      - name: Run Bandit
         if: matrix.language == 'python'
-        uses: aquasecurity/trivy-action@v0.36.0
+        working-directory: services/compute
+        run: |
+          mkdir -p ../../artifacts/security
+          uv run bandit -r app -c pyproject.toml -f json -o ../../artifacts/security/bandit.json
+
+      - name: Upload SAST results
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          scan-type: fs
-          scan-ref: services/compute
-          format: sarif
-          output: sca-python.sarif
-          exit-code: "1"
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
+          name: sast-${{ matrix.language }}
+          path: artifacts/security/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # SCA — OSV-Scanner over every lockfile in the monorepo (npm + uv) in a
+  # single pass; fails the job on any known-exploited HIGH/CRITICAL CVE.
+  # ---------------------------------------------------------------------
+  sca:
+    name: SCA (OSV-Scanner)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare SARIF evidence sink
+        run: mkdir -p artifacts/security
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --recursive
+            --config=osv-scanner.toml
+            --format=sarif
+            --output-file=artifacts/security/osv-scanner.sarif
+            ./
 
       - name: Upload SCA SARIF
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sca-${{ matrix.language }}-sarif
-          path: sca-${{ matrix.language }}.sarif
+          name: sca-osv-scanner
+          path: artifacts/security/osv-scanner.sarif
           if-no-files-found: error
           retention-days: 30
 
   # ---------------------------------------------------------------------
-  # Secret scanning — language-agnostic, so it runs once against the
-  # full PR diff range rather than as a matrix leg.
+  # Secret scanning — language-agnostic, full git history (fetch-depth: 0)
+  # so a secret committed and later deleted is still caught. A finding
+  # only clears the gate via a recorded .gitleaksignore suppression with a
+  # reason, never by the secret merely dropping out of the working tree.
   # ---------------------------------------------------------------------
   secret-scan:
     name: Secret scan
@@ -155,8 +159,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+      - name: Run Gitleaks (full history)
+        run: |
+          mkdir -p artifacts/security
+          docker run --rm \
+            -v "$(pwd):/repo" \
+            zricethezav/gitleaks:v8.30.0 \
+            detect --source=/repo --log-opts="--all" \
+              --report-format=sarif \
+              --report-path=/repo/artifacts/security/gitleaks.sarif \
+              --exit-code=1
+
+      - name: Upload secret-scan SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-scan-gitleaks
+          path: artifacts/security/gitleaks.sarif
+          if-no-files-found: error
+          retention-days: 30
 
   # ---------------------------------------------------------------------
   # OIDC exchange proof — no long-lived AWS keys anywhere in this job or

@@ -1,0 +1,16 @@
+# OSV-Scanner ignore list for ExpenseFlow. Every entry here must also have a
+# row in docs/security/disposition-log.md explaining the accepted risk.
+# HIGH/CRITICAL findings must be fixed, not ignored here.
+
+[[IgnoredVulns]]
+id = "GHSA-67mh-4wv8-2f99"
+reason = """
+esbuild <=0.24.2 dev-server CORS/websocket request-forwarding issue, CVSS 5.3 \
+(MEDIUM), reachable only through a locally running esbuild dev server plus \
+victim interaction. Pulled in transitively by drizzle-kit (a CLI migration \
+tool, not a long-running dev server) via the deprecated @esbuild-kit/esm-loader. \
+No newer stable drizzle-kit release avoids this dependency; the only fix \
+available is an unstable 1.0.0-rc.x prerelease, which is a worse risk for a \
+tool that runs real database migrations. Tracked in \
+docs/security/disposition-log.md.
+"""

@@ -1,0 +1,23 @@
+# Gitleaks suppressions. Every fingerprint below is a historical git-history
+# finding that cannot be cleared by deleting the file in a later commit — the
+# commit that introduced it is still reachable. Each entry must have a
+# corresponding row in docs/security/disposition-log.md explaining why it is
+# accepted (rotated-and-dead, not merely deleted) rather than a true positive
+# requiring further action.
+
+# docker-compose.yml @ 686505d: hardcoded local-dev TOTP_SECRET_ENCRYPTION_KEY
+# placeholder ("expenseflow-local-dev-totp-key!!", base64). Superseded by the
+# current TOTP_SECRET_ENCRYPTION_KEY_FILE indirection (docker-compose.yml);
+# the literal value does not appear anywhere in the current tree. Rotated:
+# any real deployment that ever copied this placeholder value must generate
+# a new key via the documented secrets flow.
+686505d185a7933fc6e850e1fa740e2d043d3059:docker-compose.yml:generic-api-key:51
+686505d185a7933fc6e850e1fa740e2d043d3059:docker-compose.yml:generic-api-key:151
+
+# services/compute/tests/fixtures/jwt_keys/SYNTHETIC-jwt-private.pem @
+# 1b60a0c8: committed synthetic RS256 test private key. Removed from the
+# tree; compute service tests now generate synthetic RS256 key pairs at
+# runtime instead (see services/compute/tests/fixtures/jwt_keys/README.md).
+# Rotated: this key was never used outside test fixtures and no runtime
+# path references it.
+1b60a0c868337bf342ac6b3fb486b270bf1356a9:services/compute/tests/fixtures/jwt_keys/SYNTHETIC-jwt-private.pem:private-key:1

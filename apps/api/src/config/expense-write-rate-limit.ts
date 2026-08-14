@@ -50,6 +50,7 @@ export function loadExpenseWriteRateLimitConfig(
 }
 
 function readRequiredString(environment: Environment, name: string): string {
+  // eslint-disable-next-line security/detect-object-injection -- `name` is always a fixed literal env var name from this module's own call sites, not attacker-controlled input.
   const value = environment[name];
 
   if (value === undefined || value.trim() === "") {
