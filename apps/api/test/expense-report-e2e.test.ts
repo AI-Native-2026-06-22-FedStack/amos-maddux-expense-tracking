@@ -95,7 +95,9 @@ describe("Expense Report create and read end-to-end", () => {
     const mileageRows = await db
       .select()
       .from(mileageEntry)
-      .where(and(eq(mileageEntry.tenant_id, tenantA), eq(mileageEntry.expense_report_id, reportId)));
+      .where(
+        and(eq(mileageEntry.tenant_id, tenantA), eq(mileageEntry.expense_report_id, reportId))
+      );
     const auditRows = await db
       .select()
       .from(auditEntry)
@@ -413,7 +415,10 @@ describe("Expense Report create and read end-to-end", () => {
 
     const response = await request(createApp())
       .get("/v1/expense-reports/approval-line-items")
-      .set("Authorization", createBearerToken({ tenantId: tenantA, roles: ["Department Manager"] }));
+      .set(
+        "Authorization",
+        createBearerToken({ tenantId: tenantA, roles: ["Department Manager"] })
+      );
 
     expect(response.status).toBe(200);
     expect(response.body.lineItems).toEqual([
@@ -784,8 +789,7 @@ async function seedReportWithLineItem(
     category: "Meals",
     flagged: options.flagged ?? false,
     gl_coding_status: options.glAccountCode === undefined ? null : "mapped",
-    gl_code_id:
-      options.glAccountCode === undefined ? null : "00000000-0000-4000-8000-000000000799",
+    gl_code_id: options.glAccountCode === undefined ? null : "00000000-0000-4000-8000-000000000799",
     gl_account_code: options.glAccountCode ?? null,
     gl_account_name: options.glAccountName ?? null,
     gl_normal_balance: options.glAccountCode === undefined ? null : "debit"

@@ -46,8 +46,7 @@ const jwtSigningKeysSecretId =
 const databaseUri =
   process.env.DATABASE_URI ??
   "postgres://expenseflow:synthetic-compose-db-password@postgres:5432/expenseflow";
-const awsEndpoint =
-  process.env.AWS_ENDPOINT_URL ?? process.env.AWS_ENDPOINT ?? "http://floci:4566";
+const awsEndpoint = process.env.AWS_ENDPOINT_URL ?? process.env.AWS_ENDPOINT ?? "http://floci:4566";
 const dynamodbEndpoint = process.env.DYNAMODB_ENDPOINT ?? awsEndpoint;
 const awsRegion = process.env.AWS_REGION ?? "us-east-1";
 const stageEventsTopicName = process.env.SNS_STAGE_EVENTS_TOPIC ?? "expenseflow-stage-events";
@@ -176,7 +175,9 @@ async function upsertSecret(secretId, secretString) {
       return;
     }
 
-    await secretsManager.send(new PutSecretValueCommand({ SecretId: secretId, SecretString: secretString }));
+    await secretsManager.send(
+      new PutSecretValueCommand({ SecretId: secretId, SecretString: secretString })
+    );
     return;
   } catch (error) {
     if (error?.name !== "ResourceNotFoundException") {
@@ -185,7 +186,9 @@ async function upsertSecret(secretId, secretString) {
   }
 
   try {
-    await secretsManager.send(new CreateSecretCommand({ Name: secretId, SecretString: secretString }));
+    await secretsManager.send(
+      new CreateSecretCommand({ Name: secretId, SecretString: secretString })
+    );
   } catch (error) {
     if (error?.name !== "ResourceExistsException") {
       throw error;

@@ -45,7 +45,10 @@ export type CreateExpenseReportRequest =
   | CreateExpenseDraftExpenseReportRequest;
 
 export declare const mileageEntryDraftSchema: z.ZodType<MileageEntryDraft, MileageEntryDraft>;
-export declare const expenseLineItemDraftSchema: z.ZodType<ExpenseLineItemDraft, ExpenseLineItemDraft>;
+export declare const expenseLineItemDraftSchema: z.ZodType<
+  ExpenseLineItemDraft,
+  ExpenseLineItemDraft
+>;
 export declare const createMileageDraftExpenseReportRequestSchema: z.ZodType<
   CreateMileageDraftExpenseReportRequest,
   CreateMileageDraftExpenseReportRequest

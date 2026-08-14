@@ -103,12 +103,12 @@ Use the root Makefile for the canonical local ExpenseFlow stack. It runs the
 pinned m7d1 API and compute images with Postgres, Redis, and floci. floci hosts
 the AWS-shaped local services; no cloud account is needed.
 
-| Command | Purpose | Expected local timing |
-| --- | --- | --- |
-| `make up` | Seed synthetic local data, then bring the core stack up healthy. | About 1 minute on a warm machine. |
-| `make down` | Stop containers and remove Compose volumes. | Usually under 30 seconds. |
-| `make seed` | Re-run the idempotent synthetic seed only. | Usually under 30 seconds once images are warm. |
-| `make test` | Run the stack-backed Compose smoke test. | A few minutes, depending on local npm/DB speed. |
+| Command     | Purpose                                                          | Expected local timing                           |
+| ----------- | ---------------------------------------------------------------- | ----------------------------------------------- |
+| `make up`   | Seed synthetic local data, then bring the core stack up healthy. | About 1 minute on a warm machine.               |
+| `make down` | Stop containers and remove Compose volumes.                      | Usually under 30 seconds.                       |
+| `make seed` | Re-run the idempotent synthetic seed only.                       | Usually under 30 seconds once images are warm.  |
+| `make test` | Run the stack-backed Compose smoke test.                         | A few minutes, depending on local npm/DB speed. |
 
 All host-side AWS SDK and CLI calls must use the local floci endpoint:
 

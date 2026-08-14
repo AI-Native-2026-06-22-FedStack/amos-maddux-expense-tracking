@@ -57,19 +57,22 @@ class FetchTivsAclClient implements TivsAclClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const response = await this.fetchImpl(new URL("/v1/taxpayer-verifications", this.getBaseUrl()), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-correlation-id": request.correlationId
-        },
-        body: JSON.stringify({
-          legalName: request.employerLegalName,
-          taxIdentifier: request.employerEin,
-          taxIdentifierType: "ein"
-        }),
-        signal: controller.signal
-      });
+      const response = await this.fetchImpl(
+        new URL("/v1/taxpayer-verifications", this.getBaseUrl()),
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-correlation-id": request.correlationId
+          },
+          body: JSON.stringify({
+            legalName: request.employerLegalName,
+            taxIdentifier: request.employerEin,
+            taxIdentifierType: "ein"
+          }),
+          signal: controller.signal
+        }
+      );
 
       if (!response.ok) {
         return {

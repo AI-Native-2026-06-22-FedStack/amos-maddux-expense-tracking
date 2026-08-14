@@ -42,9 +42,7 @@ export interface TivsSoapOperations {
   ): Promise<RawSoapResponse<VerifyTaxpayerSoapResult>>;
 }
 
-type SoapAsyncMethod<TRequest, TResult> = (
-  request: TRequest
-) => Promise<SoapAsyncTuple<TResult>>;
+type SoapAsyncMethod<TRequest, TResult> = (request: TRequest) => Promise<SoapAsyncTuple<TResult>>;
 
 type SoapAsyncTuple<TResult> = [
   body: TResult,
@@ -127,9 +125,7 @@ function requireSoapAsyncMethod<TRequest, TResult>(
   return method as SoapAsyncMethod<TRequest, TResult>;
 }
 
-function toRawSoapResponse<TResult>(
-  response: SoapAsyncTuple<TResult>
-): RawSoapResponse<TResult> {
+function toRawSoapResponse<TResult>(response: SoapAsyncTuple<TResult>): RawSoapResponse<TResult> {
   const [body, rawResponseXml, soapHeader, rawRequestXml] = response;
 
   return {

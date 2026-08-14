@@ -22,7 +22,10 @@ export const expenseReportPrioritySchema = z.enum(expenseReportPriorities);
 export const managerReviewStatusSchema = z.enum(managerReviewStatuses);
 
 export { createExpenseReportRequestSchema };
-export { createExpenseDraftExpenseReportRequestSchema, createMileageDraftExpenseReportRequestSchema };
+export {
+  createExpenseDraftExpenseReportRequestSchema,
+  createMileageDraftExpenseReportRequestSchema
+};
 
 export const expenseReportIdParamSchema = z.object({
   id: z.uuid()
@@ -42,9 +45,7 @@ export const submitExpenseReportRequestSchema = z
   })
   .strict()
   .superRefine((request, context) => {
-    if (
-      (request.employerEin === undefined) !== (request.employerLegalName === undefined)
-    ) {
+    if ((request.employerEin === undefined) !== (request.employerLegalName === undefined)) {
       context.addIssue({
         code: "custom",
         message: "employerEin and employerLegalName must be provided together."

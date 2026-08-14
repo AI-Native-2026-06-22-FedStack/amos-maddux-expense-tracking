@@ -93,7 +93,7 @@ Architectures=arm64
   `502 {"message":"Core Case Service command forwarding failed."}`.
 - Both responses included the per-request synthetic `X-Correlation-Id`.
 - The first invoke had JSON body `{"reason":"First synthetic verification
-  reason"}` and logged structured Powertools JSON with `hasReason=true`.
+reason"}` and logged structured Powertools JSON with `hasReason=true`.
 - The second warm invoke had an empty request body. floci presented that proxy
   event as `body: null`; the handler treated it as no reason and logged
   structured Powertools JSON with `hasReason=false`.

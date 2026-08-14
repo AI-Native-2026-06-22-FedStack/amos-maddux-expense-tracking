@@ -56,11 +56,26 @@ export interface SendBackInput {
 }
 
 export interface UseApprovalQueueResult {
-  approveLineItem: UseMutationResult<ApprovalQueueLineItem, Error, LineItemActionInput, QueueSnapshot>;
-  clearLineItemFlag: UseMutationResult<ApprovalQueueLineItem, Error, LineItemActionInput, QueueSnapshot>;
+  approveLineItem: UseMutationResult<
+    ApprovalQueueLineItem,
+    Error,
+    LineItemActionInput,
+    QueueSnapshot
+  >;
+  clearLineItemFlag: UseMutationResult<
+    ApprovalQueueLineItem,
+    Error,
+    LineItemActionInput,
+    QueueSnapshot
+  >;
   query: UseQueryResult<ApprovalQueueResponse, Error>;
   queryKey: ApprovalQueueQueryKey;
-  rejectLineItem: UseMutationResult<ApprovalQueueLineItem, Error, LineItemActionInput, QueueSnapshot>;
+  rejectLineItem: UseMutationResult<
+    ApprovalQueueLineItem,
+    Error,
+    LineItemActionInput,
+    QueueSnapshot
+  >;
   sendBackReport: UseMutationResult<unknown, Error, SendBackInput, QueueSnapshot>;
   updateDeductible: UseMutationResult<ApprovalQueueLineItem, Error, DeductibleInput, QueueSnapshot>;
 }
@@ -69,10 +84,7 @@ interface QueueSnapshot {
   previousQueue: ApprovalQueueResponse | undefined;
 }
 
-export function approvalQueueQueryKey(
-  tenantId: string,
-  role: UserRole
-): ApprovalQueueQueryKey {
+export function approvalQueueQueryKey(tenantId: string, role: UserRole): ApprovalQueueQueryKey {
   return ["approvalQueue", { tenantId, role }];
 }
 

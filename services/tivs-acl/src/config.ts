@@ -10,9 +10,7 @@ export interface TivsRuntimeConfig {
   wsdlUrl: string;
 }
 
-export function loadTivsRuntimeConfig(
-  env: NodeJS.ProcessEnv = process.env
-): TivsRuntimeConfig {
+export function loadTivsRuntimeConfig(env: NodeJS.ProcessEnv = process.env): TivsRuntimeConfig {
   const wsdlUrl = requireUrl(env.TIVS_WSDL_URL, "TIVS_WSDL_URL");
   const endpointUrl =
     env.TIVS_ENDPOINT_URL === undefined || env.TIVS_ENDPOINT_URL.trim() === ""

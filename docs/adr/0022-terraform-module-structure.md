@@ -96,11 +96,13 @@ resources in real AWS.
 ### Layer 1: Foundation (Network + IAM)
 
 **Module: `network`**
+
 - Owns: VPC, subnets (public / private-task / isolated-db tiers), route tables, internet gateway, security groups
 - Outputs: `vpc_id`, `subnet_ids_by_tier`, `security_group_ids`, `shared_zone`
 - Isolation: Network topology changes do not affect IAM; security groups are named and indexed by purpose, not consumed directly as resource references
 
 **Module: `iam`**
+
 - Owns: ECS execution role, application task role, deduction-scan Lambda execution role, managed policy attachments, runtime secrets-read policy
 - Outputs: `ecs_execution_role_arn`, `ecs_execution_role_name`, `app_task_role_arn`, `app_task_role_name`, `lambda_deduction_scan_role_arn`, `lambda_deduction_scan_role_name`
 - Isolation: IAM roles are independent of network topology; roles accept only `stack_name` and `aws_region`
@@ -119,6 +121,7 @@ No dependencies between network and IAM; both compute independently and expose s
 ### Layer 2: Data (RDS, DynamoDB, Redis, SNS/SQS)
 
 **Module: `data`**
+
 - Owns: Aurora RDS cluster, RDS parameter groups, KMS keys for encryption, DynamoDB tables (case-queue rollup, idempotency), ElastiCache Redis, SNS stage-events topic, SQS stage-projection queue + DLQ
 - Receives through typed variables:
   - `vpc_id` (from `module.network`)
@@ -144,6 +147,7 @@ All VPC, subnet, and security group IDs flow through root invocation; data modul
 ### Layer 3: Application (ECS, ALB, Lambda)
 
 **Module: `app`**
+
 - Owns: ECS cluster (Fargate + Spot capacity), ALB, target groups, listeners, ECS task definitions (API and compute), ECS services, CloudWatch log groups, Lambda for deduction scan
 - Receives through typed variables (43 inputs):
   - Network: VPC ID, public/private-task subnet IDs, ALB/API/compute security group IDs
@@ -161,11 +165,11 @@ module "app" {
   vpc_id                 = module.network.vpc_id
   subnet_ids_public      = module.network.subnet_ids_by_tier["public"]
   # ... (security group IDs from module.network)
-  
+
   # IAM outputs
   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
   # ... (role names from module.iam)
-  
+
   # Data outputs
   rds_cluster_endpoint = module.data.rds_cluster_endpoint
   # ... (all DB, cache, queue/topic values from module.data)
@@ -179,6 +183,7 @@ App module never contains references to `aws_rds_cluster.expenseflow` or `aws_lb
 ### Layer 4: Observability (Interface)
 
 **Module: `observability`**
+
 - Owns: Nothing (interface-only, no resources created yet)
 - Receives through typed variables (11 inputs from app layer):
   - ECS cluster name/ARN, API/compute service names/ARNs, ALB ARN, CloudWatch log group names
@@ -230,6 +235,7 @@ module "app" {
 ```
 
 **Rationale:**
+
 - Copied IDs break when resources are recreated or renamed
 - Direct resource references create hidden dependencies not captured in Terraform's module interface
 - Centralized composition at root allows single-point review of cross-module dependencies
@@ -242,15 +248,16 @@ module "app" {
 
 Each module declares typed inputs and outputs forming explicit seams:
 
-| Layer | Module | Inputs | Outputs | Seam Type |
-|-------|--------|--------|---------|-----------|
-| Base | network | `stack_name`, `aws_region`, `floci_endpoint_url`, `shared_zone_name` | `vpc_id`, `subnet_ids_by_tier`, `security_group_ids`, `shared_zone` | Topology boundary |
-| Base | iam | `stack_name`, `aws_region` | `ecs_execution_role_arn`, `app_task_role_arn`, `lambda_deduction_scan_role_arn`, role names | Identity boundary |
-| Data | data | `vpc_id`, `subnet_ids_isolated_db`, `security_group_id_db`, `stack_name`, `aws_region` | RDS/DynamoDB/Redis/SNS/SQS endpoints, arns, names | Storage boundary |
-| App | app | 43 typed inputs from network, IAM, data, plus container images | ECS services, ALB, Lambda, log groups | Workload boundary |
-| Observability | observability | 11 typed inputs from app, `stack_name`, `aws_region` | None yet | Monitoring boundary |
+| Layer         | Module        | Inputs                                                                                 | Outputs                                                                                     | Seam Type           |
+| ------------- | ------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------- |
+| Base          | network       | `stack_name`, `aws_region`, `floci_endpoint_url`, `shared_zone_name`                   | `vpc_id`, `subnet_ids_by_tier`, `security_group_ids`, `shared_zone`                         | Topology boundary   |
+| Base          | iam           | `stack_name`, `aws_region`                                                             | `ecs_execution_role_arn`, `app_task_role_arn`, `lambda_deduction_scan_role_arn`, role names | Identity boundary   |
+| Data          | data          | `vpc_id`, `subnet_ids_isolated_db`, `security_group_id_db`, `stack_name`, `aws_region` | RDS/DynamoDB/Redis/SNS/SQS endpoints, arns, names                                           | Storage boundary    |
+| App           | app           | 43 typed inputs from network, IAM, data, plus container images                         | ECS services, ALB, Lambda, log groups                                                       | Workload boundary   |
+| Observability | observability | 11 typed inputs from app, `stack_name`, `aws_region`                                   | None yet                                                                                    | Monitoring boundary |
 
 Each seam is:
+
 1. **Declared:** Inputs listed in `variables.tf`, outputs in `outputs.tf`
 2. **Typed:** Strings, numbers, lists, or objects with known structure
 3. **Named:** Purpose-driven names (e.g., `rds_cluster_endpoint`, not `db_host`)
@@ -261,29 +268,35 @@ Each seam is:
 ## Tradeoffs
 
 **POSITIVE: Composition at root is centralized and reviewable**
+
 - All cross-module dependencies visible in one file (`main.tf`)
 - Adding a new module or changing a dependency requires a single point of change
 - Git review of `main.tf` captures the full dependency graph
 
 **POSITIVE: Modules remain independently testable**
+
 - Each module accepts only typed inputs; no hidden dependencies on Terraform registry or shared state
 - A module can be tested by passing mock values; no need to run other modules first
 - Tests can validate that each module produces expected outputs given inputs
 
 **POSITIVE: Output/input seams are stable contracts**
+
 - A module can add new outputs without breaking existing consumers (additive)
 - A module can add optional inputs without breaking existing invocations (with defaults)
 - Removing an output or changing an input type is a breaking change, caught immediately by root main.tf compilation
 
 **NEGATIVE: Composition complexity grows with module count**
+
 - Root main.tf becomes longer as each layer adds a module
 - Mitigation: Keep root main.tf focused on composition; move configuration to variables.tf
 
 **NEGATIVE: No automatic dependency ordering between layers**
+
 - Terraform infers dependencies from `module.x.output` references; if a module forgets a reference, the dependency is missed
 - Mitigation: Use explicit `depends_on` in root main.tf when needed; tests validate dependency DAG
 
 **NEGATIVE: Output explosion if every internal resource is exported**
+
 - Over-exporting outputs creates coupling: if a module exports an internal resource ID, consumers may use it
 - Mitigation: Export only stable, typed outputs; mark sensitive outputs; document ownership
 
@@ -292,6 +305,7 @@ Each seam is:
 ## Summary
 
 The module structure enforces a composition model where:
+
 1. **Network and IAM are the foundation:** Horizontal, independent, shared by all layers
 2. **Data owns stateful infrastructure:** Receives network and security policies from foundation; exports endpoints and ARNs
 3. **App owns compute and workload logic:** Consumes all foundation and data outputs; exports cluster, service, and ALB identifiers
