@@ -126,7 +126,7 @@ jobs:
         run: mkdir -p artifacts/security
 
       - name: Run OSV-Scanner
-        uses: google/osv-scanner-action/osv-scanner-action@v2
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |-
             --recursive
