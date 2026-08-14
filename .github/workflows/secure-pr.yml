@@ -68,13 +68,8 @@ jobs:
           node-version: "24"
           cache: npm
 
-      - name: Install root dependencies
+      - name: Install dependencies
         if: matrix.language == 'node'
-        run: npm ci
-
-      - name: Install API dependencies
-        if: matrix.language == 'node'
-        working-directory: apps/api
         run: npm ci
 
       - name: Run ESLint (security + no-secrets rules)
