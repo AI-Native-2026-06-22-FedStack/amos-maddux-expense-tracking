@@ -22,15 +22,9 @@
           "encoded": false
         },
         "headers": {
-          "Content-Type": [
-            "application/json"
-          ],
-          "content-type": [
-            "application/json"
-          ],
-          "x-correlation-id": [
-            "synthetic-tivs-acl-pact-correlation-id"
-          ]
+          "Content-Type": ["application/json"],
+          "content-type": ["application/json"],
+          "x-correlation-id": ["synthetic-tivs-acl-pact-correlation-id"]
         },
         "matchingRules": {
           "body": {
@@ -86,12 +80,8 @@
           "encoded": false
         },
         "headers": {
-          "Content-Type": [
-            "application/json"
-          ],
-          "content-type": [
-            "application/json; charset=utf-8"
-          ]
+          "Content-Type": ["application/json"],
+          "content-type": ["application/json; charset=utf-8"]
         },
         "matchingRules": {
           "body": {

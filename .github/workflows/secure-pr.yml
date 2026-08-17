@@ -1,0 +1,225 @@
+name: Secure PR gate
+
+# Runs on every pull request into the ExpenseFlow monorepo. Scanner jobs
+# (SAST, SCA, secret scanning) and the OIDC proof job all run in parallel —
+# none of them declare `needs:` on another, so GitHub schedules them
+# concurrently rather than as one long sequential pipeline.
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+# Repository-default permissions are read-only. Any job that needs more
+# (the OIDC job needs `id-token: write` to mint a federated token) declares
+# its own `permissions:` block, scoped to only that job.
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------
+  # SAST — matrixed per language leg so Node and Python run concurrently.
+  # Each leg runs Semgrep (p/ci + p/owasp-top-ten + the custom ExpenseFlow
+  # PII-in-logs rule under .semgrep/) plus the language-native linter
+  # (eslint-plugin-security/no-secrets for node, Bandit for python).
+  # ---------------------------------------------------------------------
+  sast:
+    name: SAST (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: node
+            semgrep_target: apps/api apps/web packages lambda services/tivs-acl
+          - language: python
+            semgrep_target: services/compute
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for Semgrep)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install Semgrep
+        run: pip install semgrep
+
+      - name: Validate custom Semgrep rules
+        run: semgrep --validate --config .semgrep/
+
+      - name: Run Semgrep (${{ matrix.language }})
+        run: |
+          mkdir -p artifacts/security
+          semgrep scan \
+            --config p/ci --config p/owasp-top-ten --config .semgrep/ \
+            --severity ERROR \
+            --sarif --output artifacts/security/semgrep-${{ matrix.language }}.sarif \
+            ${{ matrix.semgrep_target }}
+
+      - name: Set up Node
+        if: matrix.language == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        if: matrix.language == 'node'
+        run: npm ci
+
+      - name: Run ESLint (security + no-secrets rules)
+        if: matrix.language == 'node'
+        run: |
+          mkdir -p artifacts/security
+          npx eslint . --format json --output-file artifacts/security/eslint-security.json
+
+      - name: Set up uv (for Bandit)
+        if: matrix.language == 'python'
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/compute/uv.lock
+
+      - name: Sync Python dependencies
+        if: matrix.language == 'python'
+        working-directory: services/compute
+        run: uv sync --locked
+
+      - name: Run Bandit
+        if: matrix.language == 'python'
+        working-directory: services/compute
+        run: |
+          mkdir -p ../../artifacts/security
+          uv run bandit -r app -c pyproject.toml -f json -o ../../artifacts/security/bandit.json
+
+      - name: Upload SAST results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sast-${{ matrix.language }}
+          path: artifacts/security/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # SCA — OSV-Scanner over every lockfile in the monorepo (npm + uv) in a
+  # single pass; fails the job on any known-exploited HIGH/CRITICAL CVE.
+  # ---------------------------------------------------------------------
+  sca:
+    name: SCA (OSV-Scanner)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare SARIF evidence sink
+        run: mkdir -p artifacts/security
+
+      - name: Run OSV-Scanner
+        uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+        with:
+          scan-args: |-
+            --recursive
+            --config=osv-scanner.toml
+            --format=sarif
+            --output-file=artifacts/security/osv-scanner.sarif
+            ./
+
+      - name: Upload SCA SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sca-osv-scanner
+          path: artifacts/security/osv-scanner.sarif
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # Secret scanning — language-agnostic, full git history (fetch-depth: 0)
+  # so a secret committed and later deleted is still caught. A finding
+  # only clears the gate via a recorded .gitleaksignore suppression with a
+  # reason, never by the secret merely dropping out of the working tree.
+  # ---------------------------------------------------------------------
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (full history)
+        run: |
+          mkdir -p artifacts/security
+          docker run --rm \
+            -v "$(pwd):/repo" \
+            zricethezav/gitleaks:v8.30.0 \
+            detect --source=/repo --log-opts="--all" \
+              --report-format=sarif \
+              --report-path=/repo/artifacts/security/gitleaks.sarif \
+              --exit-code=1
+
+      - name: Upload secret-scan SARIF
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: secret-scan-gitleaks
+          path: artifacts/security/gitleaks.sarif
+          if-no-files-found: error
+          retention-days: 30
+
+  # ---------------------------------------------------------------------
+  # OIDC exchange proof — no long-lived AWS keys anywhere in this job or
+  # the repo. `id-token: write` is what lets GitHub mint the short-lived
+  # OIDC JWT that AWS STS exchanges for temporary credentials; without it
+  # the exchange has nothing to fall back to and simply fails closed.
+  #
+  # The IAM role's trust policy restricts which repo/trigger can assume it
+  # via the token's `sub` claim. For this job (trigger: pull_request) that
+  # claim is:
+  #
+  #   repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request
+  #
+  # NOT a branch ref (":ref:refs/heads/...") — pull_request-triggered runs
+  # do not carry a ref-based sub claim, and a trust policy written for
+  # ":ref:refs/heads/main" will reject this job with an unhelpful
+  # "Not authorized to perform sts:AssumeRoleWithWebIdentity". The example
+  # trust policy condition is:
+  #
+  #   "StringEquals": {
+  #     "token.actions.githubusercontent.com:sub":
+  #       "repo:AI-Native-2026-06-22-FedStack/amos-maddux-expense-tracking:pull_request"
+  #   }
+  #
+  # Current state: the OIDC provider
+  # (arn:aws:iam::208096650110:oidc-provider/token.actions.githubusercontent.com)
+  # exists in the target AWS account. The IAM role itself does not yet
+  # exist — creating it requires iam:CreateRole, which the available IAM
+  # identity does not have. Until the role is created and its ARN is set
+  # as the AWS_ROLE_ARN repository variable, this job fails at the
+  # configure-aws-credentials step with "Credentials could not be loaded"
+  # (empty role-to-assume input), which is expected and does not indicate
+  # a workflow bug. See docs/adr/0024-secure-pr-gate-matrix.md for the
+  # full record.
+  # ---------------------------------------------------------------------
+  oidc-verify:
+    name: AWS OIDC exchange
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Prove the exchange (assumed-role identity)
+        run: aws sts get-caller-identity

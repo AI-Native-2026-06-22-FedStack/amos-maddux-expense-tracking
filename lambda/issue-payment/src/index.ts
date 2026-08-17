@@ -82,7 +82,10 @@ class FetchCoreCaseServiceClient implements CoreCaseServiceClient {
   public async advanceExpenseReport(
     request: AdvanceExpenseReportCommand
   ): Promise<CoreCaseServiceResponse> {
-    const url = new URL(`/v1/expense-reports/${request.expenseReportId}/advance`, this.config.coreCaseServiceUrl);
+    const url = new URL(
+      `/v1/expense-reports/${request.expenseReportId}/advance`,
+      this.config.coreCaseServiceUrl
+    );
     const response = await this.fetcher(url, {
       method: "POST",
       headers: {
@@ -154,7 +157,11 @@ export function createIssuePaymentHandler(initState: IssuePaymentInitState) {
         reason: "missing-expense-report-id",
         initInstanceId: initState.initInstanceId
       });
-      return jsonResponse(400, { message: "expenseReportId path parameter is required." }, correlationId);
+      return jsonResponse(
+        400,
+        { message: "expenseReportId path parameter is required." },
+        correlationId
+      );
     }
 
     const authorization = readHeader(event.headers, authorizationHeader);
@@ -208,7 +215,11 @@ export function createIssuePaymentHandler(initState: IssuePaymentInitState) {
         initInstanceId: initState.initInstanceId,
         error: error instanceof Error ? error.message : String(error)
       });
-      return jsonResponse(502, { message: "Core Case Service command forwarding failed." }, correlationId);
+      return jsonResponse(
+        502,
+        { message: "Core Case Service command forwarding failed." },
+        correlationId
+      );
     }
   };
 }
@@ -235,9 +246,7 @@ function readExpenseReportId(event: ApiGatewayHttpEvent): string | undefined {
 
 function parseIssuePaymentBody(
   event: Pick<ApiGatewayHttpEvent, "body" | "isBase64Encoded">
-):
-  | { ok: true; reason?: string }
-  | { ok: false; message: string } {
+): { ok: true; reason?: string } | { ok: false; message: string } {
   if (event.body === undefined || event.body === null || event.body.trim().length === 0) {
     return { ok: true };
   }
@@ -263,7 +272,10 @@ function parseIssuePaymentBody(
   }
 
   if (typeof reason !== "string" || reason.trim().length === 0 || reason.length > 500) {
-    return { ok: false, message: "reason must be a non-empty string no longer than 500 characters." };
+    return {
+      ok: false,
+      message: "reason must be a non-empty string no longer than 500 characters."
+    };
   }
 
   return { ok: true, reason: reason.trim() };
@@ -281,7 +293,10 @@ function jsonResponse(
   };
 }
 
-function responseHeaders(correlationId: string, contentType = "application/json"): Record<string, string> {
+function responseHeaders(
+  correlationId: string,
+  contentType = "application/json"
+): Record<string, string> {
   return {
     "content-type": contentType,
     "x-correlation-id": correlationId

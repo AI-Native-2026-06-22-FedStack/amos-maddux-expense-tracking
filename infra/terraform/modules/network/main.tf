@@ -282,6 +282,11 @@ output "vpc_id" {
   value       = aws_vpc.expenseflow.id
 }
 
+output "vpc_cidr_block" {
+  description = "CIDR block of the ExpenseFlow VPC."
+  value       = aws_vpc.expenseflow.cidr_block
+}
+
 output "subnet_ids_by_tier" {
   description = "Subnet IDs grouped by network tier."
   value = {

@@ -21,3 +21,15 @@ variable "shared_zone_name" {
   type        = string
   default     = null
 }
+
+variable "owner" {
+  description = "Accountable owner tagged on every provider-managed resource."
+  type        = string
+  default     = "platform-iac@expenseflow.internal"
+}
+
+variable "environment" {
+  description = "Deployment environment tagged on every provider-managed resource."
+  type        = string
+  default     = "local"
+}

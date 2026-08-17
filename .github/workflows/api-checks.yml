@@ -12,8 +12,27 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run build
+        run: npm run build
+
   test:
-    name: API checks
+    name: Tests
     runs-on: ubuntu-latest
     services:
       redis:
@@ -46,12 +65,18 @@ jobs:
           node-version: "24"
           cache: npm
 
-      - name: Install root dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Install API dependencies
-        working-directory: apps/api
-        run: npm ci
+      - name: Set up uv (apps/api's test suite spawns services/compute)
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/compute/uv.lock
+
+      - name: Sync Python dependencies
+        working-directory: services/compute
+        run: uv sync --locked
 
       - name: Run lint
         run: npm run lint

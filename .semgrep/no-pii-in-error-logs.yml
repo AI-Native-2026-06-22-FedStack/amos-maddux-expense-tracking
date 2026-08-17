@@ -1,0 +1,49 @@
+rules:
+  - id: no-taxpayer-id-in-error-log-ts
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A taxpayer identifier (TIN/SSN/EIN) is being passed directly to an
+      ERROR-level log call. Taxpayer identifiers are ExpenseFlow controlled
+      PII (see docs/data-classification.md) and must never reach logs in
+      plaintext. Redact with redactTaxIdentifierForLog()
+      (services/tivs-acl/src/redaction.ts) or an equivalent redaction helper
+      before logging, or log only a non-identifying reason code.
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      references:
+        - docs/data-classification.md
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: console.error(..., $PARAM, ...)
+          - pattern: $LOGGER.error(..., $PARAM, ...)
+      - metavariable-regex:
+          metavariable: $PARAM
+          regex: (?i)^(taxIdentifier|taxpayerId|ssn|tin|einOrSsn)$
+
+  - id: no-taxpayer-id-in-error-log-py
+    languages: [python]
+    severity: ERROR
+    message: >-
+      A taxpayer identifier (TIN/SSN/EIN) is being passed directly to an
+      ERROR-level log call. Taxpayer identifiers are ExpenseFlow controlled
+      PII (see docs/data-classification.md) and must never reach logs in
+      plaintext. Redact the value before logging, or log only a
+      non-identifying reason code.
+    metadata:
+      category: security
+      cwe: "CWE-532: Insertion of Sensitive Information into Log File"
+      references:
+        - docs/data-classification.md
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: logger.error(..., $PARAM, ...)
+          - pattern: logging.error(..., $PARAM, ...)
+          - pattern: logger.error(..., $KEY=$PARAM, ...)
+          - pattern: logging.error(..., $KEY=$PARAM, ...)
+      - metavariable-regex:
+          metavariable: $PARAM
+          regex: (?i)^(tax_identifier|taxpayer_id|ssn|tin|ein_or_ssn)$

@@ -73,12 +73,15 @@ export function CaseQueue() {
       },
       {
         accessorKey: "managerReviewStatus",
-        cell: (info) => reviewStatusLabel(info.getValue<ApprovalQueueLineItem["managerReviewStatus"]>()),
+        cell: (info) =>
+          reviewStatusLabel(info.getValue<ApprovalQueueLineItem["managerReviewStatus"]>()),
         header: "Review Status"
       },
       {
         accessorKey: "reportStage",
-        cell: (info) => <Badge kind="status" stage={info.getValue<ApprovalQueueLineItem["reportStage"]>()} />,
+        cell: (info) => (
+          <Badge kind="status" stage={info.getValue<ApprovalQueueLineItem["reportStage"]>()} />
+        ),
         header: "Stage"
       },
       {
@@ -103,9 +106,7 @@ export function CaseQueue() {
                 }
                 type="checkbox"
               />
-              <label htmlFor={checkboxId}>
-                {canEdit ? "Deductible" : "Deductible, read-only"}
-              </label>
+              <label htmlFor={checkboxId}>{canEdit ? "Deductible" : "Deductible, read-only"}</label>
             </div>
           );
         },
@@ -322,9 +323,7 @@ export function CaseQueue() {
         </div>
 
         <table className={styles.table}>
-          <caption className={styles.tableCaption}>
-            Approval Queue line items
-          </caption>
+          <caption className={styles.tableCaption}>Approval Queue line items</caption>
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
@@ -414,7 +413,9 @@ function approvalQueueGlobalFilter(
   return haystack.includes(filter);
 }
 
-function sortStateForHeader(sortState: false | "asc" | "desc"): "ascending" | "descending" | "none" {
+function sortStateForHeader(
+  sortState: false | "asc" | "desc"
+): "ascending" | "descending" | "none" {
   if (sortState === "asc") {
     return "ascending";
   }

@@ -89,7 +89,7 @@ re-resolving if the lockfile and manifest disagree).
 ### Secrets never touch a layer
 
 Neither build currently needs a credential — both `npm ci` and `uv sync`
-pull from public registries. But the gate requires the *mechanism* to exist
+pull from public registries. But the gate requires the _mechanism_ to exist
 correctly for the day a private registry token is needed, so both
 Dockerfiles wire an optional BuildKit secret mount on every install step:
 
@@ -188,13 +188,13 @@ was checked against what `services/compute/app` actually imports and does
 at runtime (grepped for `tarfile`, `xml`, `html.parser`, `curses`, `uuid`)
 and none of the vulnerable code paths are reachable:
 
-| CVE | Package | Why it does not apply |
-| --- | --- | --- |
-| CVE-2025-69720 | libncursesw6, libtinfo6 | ncurses terminal-UI buffer overflow; the service is a headless uvicorn process, no curses import anywhere in `app/` |
-| CVE-2026-11940 | libpython3.13-\* | `tarfile.extractall()` filter bypass; `app/` never imports `tarfile` |
-| CVE-2026-15308 | libpython3.13-\* | stdlib `html.parser` CPU DoS; `app/` never imports `html.parser`, serves JSON only |
-| CVE-2026-7210 | libpython3.13-\* | expat XML parser DoS; `app/` never imports `xml`/expat, accepts no XML input |
-| CVE-2026-53615 | libuuid1 | integer overflow in libblkid's partition-table parser; `app/` only uses Python's pure-Python `uuid.UUID()` string parsing, which does not call into libblkid |
+| CVE            | Package                 | Why it does not apply                                                                                                                                        |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| CVE-2025-69720 | libncursesw6, libtinfo6 | ncurses terminal-UI buffer overflow; the service is a headless uvicorn process, no curses import anywhere in `app/`                                          |
+| CVE-2026-11940 | libpython3.13-\*        | `tarfile.extractall()` filter bypass; `app/` never imports `tarfile`                                                                                         |
+| CVE-2026-15308 | libpython3.13-\*        | stdlib `html.parser` CPU DoS; `app/` never imports `html.parser`, serves JSON only                                                                           |
+| CVE-2026-7210  | libpython3.13-\*        | expat XML parser DoS; `app/` never imports `xml`/expat, accepts no XML input                                                                                 |
+| CVE-2026-53615 | libuuid1                | integer overflow in libblkid's partition-table parser; `app/` only uses Python's pure-Python `uuid.UUID()` string parsing, which does not call into libblkid |
 
 Each CVE is recorded by ID in
 [services/compute/.trivyignore](../../services/compute/.trivyignore), with
@@ -215,21 +215,21 @@ not disappear quietly.
 
 **`apps/api` final image — 306MB, `gcr.io/distroless/nodejs24-debian13`:**
 
-| Layer | Size | Why it belongs in production |
-| --- | --- | --- |
+| Layer                                                                                    | Size   | Why it belongs in production                                                                                                                   |
+| ---------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | distroless base (glibc, Node 24 runtime, CA certs, `/etc/passwd` with `nonroot`, tzdata) | ~155MB | The minimum needed to execute compiled JavaScript as a non-root OS user with working TLS trust; no shell, package manager, or extra OS tooling |
-| `WORKDIR /app` | 8.19kB | Metadata only |
-| `ENV NODE_ENV=production` | 0B | Metadata only; enables framework production code paths (Express, etc.) |
-| `COPY node_modules` (production-deps stage) | 83.4MB | Runtime dependencies resolved by `npm ci --omit=dev` from the locked manifest — no dev dependencies, no npm cache |
-| `COPY dist/apps/api/src` (build stage) | 397kB | The compiled JS the service actually runs; no `.ts` source, no test files |
-| `COPY apps/api/package.json` | 12.3kB | Read by Node's ESM loader for `"type": "module"` resolution; not the workspace root manifest |
-| `COPY apps/api/healthcheck.js` | 12.3kB | The `HEALTHCHECK` probe script, invoked in exec form by the Node interpreter |
-| `COPY packages/shared-schemas` | 53.2kB | The GL-coding contract schema the API validates against at runtime |
-| `COPY config` → `dist/config` | 20.5kB | `sensitive-log-fields.json`, read by the compiled log-redaction module at the exact relative path `tsc`'s output layout expects |
-| `USER nonroot` | 0B | Drops root; the process cannot write outside its own working directory or bind privileged ports |
-| `EXPOSE 3000` | 0B | Documentation of the listening port |
-| `HEALTHCHECK` | 0B | Exec-form readiness probe with a 30s start-period |
-| `CMD ["dist/apps/api/src/server.js"]` | 0B | Exec form; the compiled entrypoint is PID 1 and receives `SIGTERM` directly |
+| `WORKDIR /app`                                                                           | 8.19kB | Metadata only                                                                                                                                  |
+| `ENV NODE_ENV=production`                                                                | 0B     | Metadata only; enables framework production code paths (Express, etc.)                                                                         |
+| `COPY node_modules` (production-deps stage)                                              | 83.4MB | Runtime dependencies resolved by `npm ci --omit=dev` from the locked manifest — no dev dependencies, no npm cache                              |
+| `COPY dist/apps/api/src` (build stage)                                                   | 397kB  | The compiled JS the service actually runs; no `.ts` source, no test files                                                                      |
+| `COPY apps/api/package.json`                                                             | 12.3kB | Read by Node's ESM loader for `"type": "module"` resolution; not the workspace root manifest                                                   |
+| `COPY apps/api/healthcheck.js`                                                           | 12.3kB | The `HEALTHCHECK` probe script, invoked in exec form by the Node interpreter                                                                   |
+| `COPY packages/shared-schemas`                                                           | 53.2kB | The GL-coding contract schema the API validates against at runtime                                                                             |
+| `COPY config` → `dist/config`                                                            | 20.5kB | `sensitive-log-fields.json`, read by the compiled log-redaction module at the exact relative path `tsc`'s output layout expects                |
+| `USER nonroot`                                                                           | 0B     | Drops root; the process cannot write outside its own working directory or bind privileged ports                                                |
+| `EXPOSE 3000`                                                                            | 0B     | Documentation of the listening port                                                                                                            |
+| `HEALTHCHECK`                                                                            | 0B     | Exec-form readiness probe with a 30s start-period                                                                                              |
+| `CMD ["dist/apps/api/src/server.js"]`                                                    | 0B     | Exec form; the compiled entrypoint is PID 1 and receives `SIGTERM` directly                                                                    |
 
 Nothing from the `build` stage's `npm ci` (full, with dev dependencies),
 `tsc` compiler, or workspace source tree for `apps/web`/`services/tivs-acl`
@@ -238,20 +238,20 @@ is present — only the four explicit `COPY --from=build`/`COPY
 
 **`services/compute` final image — 157MB, `gcr.io/distroless/python3-debian13`:**
 
-| Layer | Size | Why it belongs in production |
-| --- | --- | --- |
-| distroless base (glibc, Python 3.13 interpreter, CA certs, `/etc/passwd` with `nonroot`, tzdata) | ~57MB | The minimum needed to execute Python 3.13 bytecode as a non-root OS user; no shell, no pip |
-| `WORKDIR /app` | 8.19kB | Metadata only |
-| `ENV PATH=/opt/venv/bin:...` `PYTHONPATH=/opt/venv/lib/python3.13/site-packages` | 0B | Points the runtime's own interpreter at the copied virtual environment's installed packages |
-| `COPY /opt/venv` | 52.2MB | The venv `uv sync --locked --no-dev --no-install-project` produced — FastAPI, uvicorn, pyjwt, pwdlib, httpx, jsonschema, psycopg-binary, structlog, and their resolved dependencies; no `uv`, no pip cache, no dev-group packages (mypy, pytest, ruff, pact-python) |
-| `COPY services/compute/app` | 131kB | The application code that is actually imported and run |
-| `COPY config` | 16.4kB | `sensitive-log-fields.json`, read by `app/log_redaction.py` |
-| `COPY packages/shared-schemas` | 53.2kB | The GL-coding contract schema `app/shared_schema.py` validates against |
-| `USER nonroot` | 0B | Drops root |
-| `EXPOSE 8000` | 0B | Documentation of the listening port |
-| `ENTRYPOINT ["/usr/bin/python3.13"]` | 0B | The runtime image's own interpreter — deliberately not the build stage's venv-relative `python3` symlink, which points at a path (`/usr/local/bin/python3`) that does not exist in the distroless filesystem |
-| `HEALTHCHECK` | 0B | Exec-form readiness probe with a 30s start-period |
-| `CMD ["-m", "uvicorn", ...]` | 0B | Exec form; `python3.13 -m uvicorn` is PID 1, so uvicorn's own `SIGTERM` handling runs in that process directly, no wrapper shell |
+| Layer                                                                                            | Size   | Why it belongs in production                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| distroless base (glibc, Python 3.13 interpreter, CA certs, `/etc/passwd` with `nonroot`, tzdata) | ~57MB  | The minimum needed to execute Python 3.13 bytecode as a non-root OS user; no shell, no pip                                                                                                                                                                          |
+| `WORKDIR /app`                                                                                   | 8.19kB | Metadata only                                                                                                                                                                                                                                                       |
+| `ENV PATH=/opt/venv/bin:...` `PYTHONPATH=/opt/venv/lib/python3.13/site-packages`                 | 0B     | Points the runtime's own interpreter at the copied virtual environment's installed packages                                                                                                                                                                         |
+| `COPY /opt/venv`                                                                                 | 52.2MB | The venv `uv sync --locked --no-dev --no-install-project` produced — FastAPI, uvicorn, pyjwt, pwdlib, httpx, jsonschema, psycopg-binary, structlog, and their resolved dependencies; no `uv`, no pip cache, no dev-group packages (mypy, pytest, ruff, pact-python) |
+| `COPY services/compute/app`                                                                      | 131kB  | The application code that is actually imported and run                                                                                                                                                                                                              |
+| `COPY config`                                                                                    | 16.4kB | `sensitive-log-fields.json`, read by `app/log_redaction.py`                                                                                                                                                                                                         |
+| `COPY packages/shared-schemas`                                                                   | 53.2kB | The GL-coding contract schema `app/shared_schema.py` validates against                                                                                                                                                                                              |
+| `USER nonroot`                                                                                   | 0B     | Drops root                                                                                                                                                                                                                                                          |
+| `EXPOSE 8000`                                                                                    | 0B     | Documentation of the listening port                                                                                                                                                                                                                                 |
+| `ENTRYPOINT ["/usr/bin/python3.13"]`                                                             | 0B     | The runtime image's own interpreter — deliberately not the build stage's venv-relative `python3` symlink, which points at a path (`/usr/local/bin/python3`) that does not exist in the distroless filesystem                                                        |
+| `HEALTHCHECK`                                                                                    | 0B     | Exec-form readiness probe with a 30s start-period                                                                                                                                                                                                                   |
+| `CMD ["-m", "uvicorn", ...]`                                                                     | 0B     | Exec form; `python3.13 -m uvicorn` is PID 1, so uvicorn's own `SIGTERM` handling runs in that process directly, no wrapper shell                                                                                                                                    |
 
 Nothing from the build stage's `uv` binary, `uv` build cache, or dev
 dependency group is present — only the three explicit `COPY --from=build`
@@ -260,7 +260,7 @@ lines above cross the stage boundary.
 ## Alternatives Considered
 
 - **Alpine/musl runtime base for smaller images:** Rejected. `argon2-cffi-
-  bindings`, `cryptography`, `psycopg[binary]`, and `pydantic-core` all ship
+bindings`, `cryptography`, `psycopg[binary]`, and `pydantic-core` all ship
   manylinux (glibc) wheels; loading them against a musl libc either fails
   outright or requires rebuilding from source with a full musl toolchain in
   the final image, which reintroduces the compiler surface the multi-stage
@@ -275,7 +275,7 @@ lines above cross the stage boundary.
 - **Silencing or downgrading the 15 unfixed distroless OS-package
   findings:** Rejected in favor of a per-finding documented exception.
   Suppressing the scanner or lowering `--severity` would also hide any
-  *future* HIGH/CRITICAL finding in the same package, not just today's
+  _future_ HIGH/CRITICAL finding in the same package, not just today's
   unreachable ones.
 - **Adding `cryptography` as a direct dependency to force a version bump:**
   Rejected in favor of `[tool.uv].override-dependencies`. `cryptography` is

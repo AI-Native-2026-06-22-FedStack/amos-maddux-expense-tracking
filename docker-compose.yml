@@ -51,11 +51,7 @@ services:
       - floci-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "exec 3<>/dev/tcp/127.0.0.1/4566"
-        ]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/4566"]
       interval: 5s
       timeout: 5s
       start_period: 10s

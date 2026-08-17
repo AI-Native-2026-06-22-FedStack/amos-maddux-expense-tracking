@@ -245,13 +245,17 @@ describe("CaseQueue Approval Queue table", () => {
     render(<CaseQueue />, { wrapper });
 
     expect(await screen.findByText("Synthetic Bravo Cafe")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: `Send report ${managerReportId.slice(0, 8)} back` }));
+    await user.click(
+      screen.getByRole("button", { name: `Send report ${managerReportId.slice(0, 8)} back` })
+    );
     await user.click(screen.getByRole("button", { name: "Send back to Drafted" }));
 
     expect(screen.getByText("Enter a reason before sending this report back.")).toBeInTheDocument();
 
     await user.type(
-      screen.getByLabelText(`Reason for sending report ${managerReportId.slice(0, 8)} back to Drafted`),
+      screen.getByLabelText(
+        `Reason for sending report ${managerReportId.slice(0, 8)} back to Drafted`
+      ),
       "Synthetic receipt needs detail."
     );
     await user.click(screen.getByRole("button", { name: "Send back to Drafted" }));

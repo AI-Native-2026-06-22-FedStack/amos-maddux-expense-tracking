@@ -19,4 +19,5 @@ docs/temp_test_results.md
 crash.log
 crash.*.log
 artifacts/security/*.sarif
+artifacts/security/*.json
 artifacts/terraform/

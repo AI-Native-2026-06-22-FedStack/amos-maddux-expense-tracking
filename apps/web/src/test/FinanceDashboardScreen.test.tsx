@@ -2,10 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { render, screen, within } from "@testing-library/react";
 import { FinanceDashboardScreen } from "../screens/FinanceDashboardScreen";
-import {
-  createFetchResponse,
-  createQueryAuthWrapper
-} from "./query-test-utils";
+import { createFetchResponse, createQueryAuthWrapper } from "./query-test-utils";
 
 interface MockBarProps {
   "aria-label"?: string;
@@ -53,7 +50,10 @@ describe("FinanceDashboardScreen", () => {
   });
 
   it("renders a loading state while the real rollup query is pending", () => {
-    vi.stubGlobal("fetch", vi.fn<typeof fetch>(() => new Promise<Response>(() => undefined)));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => new Promise<Response>(() => undefined))
+    );
     const { wrapper } = createQueryAuthWrapper();
 
     render(<FinanceDashboardScreen />, { wrapper });
@@ -80,8 +80,12 @@ describe("FinanceDashboardScreen", () => {
 
     render(<FinanceDashboardScreen />, { wrapper });
 
-    expect(await screen.findByRole("heading", { name: "Finance Dashboard unavailable" })).toBeInTheDocument();
-    expect(screen.getByText("Employee cannot read the Finance Dashboard rollup.")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Finance Dashboard unavailable" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Employee cannot read the Finance Dashboard rollup.")
+    ).toBeInTheDocument();
   });
 
   it("maps KPI cards, chart data, and the data table from the API rollup response", async () => {
@@ -99,7 +103,9 @@ describe("FinanceDashboardScreen", () => {
       expect.objectContaining({ method: "GET" })
     );
 
-    expect(within(screen.getByLabelText("Drafted Expense Reports")).getByText("2")).toBeInTheDocument();
+    expect(
+      within(screen.getByLabelText("Drafted Expense Reports")).getByText("2")
+    ).toBeInTheDocument();
     expect(
       within(screen.getByLabelText("Manager Approval Expense Reports")).getByText("3")
     ).toBeInTheDocument();
@@ -169,7 +175,9 @@ describe("FinanceDashboardScreen", () => {
 
     render(<FinanceDashboardScreen />, { wrapper });
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Finance Dashboard" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Finance Dashboard" })
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "No Expense Reports yet" })).toBeInTheDocument();
     expect(screen.queryByTestId("finance-dashboard-chart")).not.toBeInTheDocument();
   });

@@ -122,15 +122,12 @@ async function shutdownApiServer({
   closeDbPool: () => Promise<void>;
   graceMs: number;
 }): Promise<void> {
-  await withShutdownDeadline(
-    async () => {
-      stopSecretRefresh();
-      await closeHttpServer(server);
-      await redisClient.quit();
-      await closeDbPool();
-    },
-    graceMs
-  );
+  await withShutdownDeadline(async () => {
+    stopSecretRefresh();
+    await closeHttpServer(server);
+    await redisClient.quit();
+    await closeDbPool();
+  }, graceMs);
 }
 
 function closeHttpServer(server: HttpServer): Promise<void> {

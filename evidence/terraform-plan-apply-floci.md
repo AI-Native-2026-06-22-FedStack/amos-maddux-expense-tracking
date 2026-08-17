@@ -18,12 +18,12 @@ values.
 
 Symbol review:
 
-| Symbol | Count | Review |
-| --- | ---: | --- |
-| `+` create | 7 | VPC flow-log support resources: CloudWatch log group, IAM role, IAM role policy, KMS key, KMS alias, VPC flow log, and default security group restriction. |
-| `~` update in place | 2 | Public subnets `public_a` and `public_b` changed `map_public_ip_on_launch` from `true` to `false`. |
-| `-` destroy | 0 | No destroys in the first reviewed plan. |
-| `-/+` replace | 0 | No replacements. No stateful destroy-before-create action was present. |
+| Symbol              | Count | Review                                                                                                                                                     |
+| ------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `+` create          |     7 | VPC flow-log support resources: CloudWatch log group, IAM role, IAM role policy, KMS key, KMS alias, VPC flow log, and default security group restriction. |
+| `~` update in place |     2 | Public subnets `public_a` and `public_b` changed `map_public_ip_on_launch` from `true` to `false`.                                                         |
+| `-` destroy         |     0 | No destroys in the first reviewed plan.                                                                                                                    |
+| `-/+` replace       |     0 | No replacements. No stateful destroy-before-create action was present.                                                                                     |
 
 Applying the reviewed plan proved two floci 1.5.11 limitations:
 
@@ -41,12 +41,12 @@ The recovery plan was captured locally at
 
 Symbol review:
 
-| Symbol | Count | Review |
-| --- | ---: | --- |
-| `+` create | 0 | No creates. |
-| `~` update in place | 0 | No updates. |
-| `-` destroy | 5 | Cleanup of floci-only logging support resources created during the failed apply: CloudWatch log group, IAM role, IAM role policy, KMS alias, and KMS key. |
-| `-/+` replace | 0 | No replacements. The KMS key destroy was local floci cleanup for unsupported flow-log evidence, not application state. |
+| Symbol              | Count | Review                                                                                                                                                    |
+| ------------------- | ----: | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `+` create          |     0 | No creates.                                                                                                                                               |
+| `~` update in place |     0 | No updates.                                                                                                                                               |
+| `-` destroy         |     5 | Cleanup of floci-only logging support resources created during the failed apply: CloudWatch log group, IAM role, IAM role policy, KMS alias, and KMS key. |
+| `-/+` replace       |     0 | No replacements. The KMS key destroy was local floci cleanup for unsupported flow-log evidence, not application state.                                    |
 
 The reviewed recovery plan applied successfully:
 
@@ -72,11 +72,11 @@ marked sensitive so the normal Terraform output path redacts them.
 
 The state bucket controls were verified after bootstrap:
 
-| Control | Observed |
-| --- | --- |
+| Control             | Observed                                                                 |
+| ------------------- | ------------------------------------------------------------------------ |
 | Public access block | Enabled for public ACLs, public policies, and restricted public buckets. |
-| Versioning | Enabled. |
-| Default encryption | Enabled with SSE-S3. |
+| Versioning          | Enabled.                                                                 |
+| Default encryption  | Enabled with SSE-S3.                                                     |
 
 S3-native locking was verified during a real `terraform apply -refresh-only`
 operation by polling the backend prefix and observing the Terraform lock object:

@@ -38,10 +38,10 @@ Fault check, performed first:
 
 Operation verification:
 
-| Operation | WSDL message declarations | Element declarations confirmed |
-| --- | --- | --- |
-| `VerifyTaxpayer` | Request message part `parameters` points to `tns:VerifyTaxpayer`; response message part `parameters` points to `tns:VerifyTaxpayerResponse`. | Request element contains `TIN` as `xsd:string`, `TINType` as `tns:TINTypeCode`, and `LegalName` as `xsd:string`. Response element contains `MatchCode` as `tns:MatchCodeType`, optional `VerifiedName` as `xsd:string` with `minOccurs="0"`, and `TINType` as `tns:TINTypeCode`. |
-| `GetTaxpayerStatus` | Request message part `parameters` points to `tns:GetTaxpayerStatus`; response message part `parameters` points to `tns:GetTaxpayerStatusResponse`. | Request element contains `TIN` as `xsd:string` and `TINType` as `tns:TINTypeCode`. Response element contains `Standing` as `tns:StandingCode` and `AsOfDate` as `xsd:string`. |
+| Operation           | WSDL message declarations                                                                                                                          | Element declarations confirmed                                                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VerifyTaxpayer`    | Request message part `parameters` points to `tns:VerifyTaxpayer`; response message part `parameters` points to `tns:VerifyTaxpayerResponse`.       | Request element contains `TIN` as `xsd:string`, `TINType` as `tns:TINTypeCode`, and `LegalName` as `xsd:string`. Response element contains `MatchCode` as `tns:MatchCodeType`, optional `VerifiedName` as `xsd:string` with `minOccurs="0"`, and `TINType` as `tns:TINTypeCode`. |
+| `GetTaxpayerStatus` | Request message part `parameters` points to `tns:GetTaxpayerStatus`; response message part `parameters` points to `tns:GetTaxpayerStatusResponse`. | Request element contains `TIN` as `xsd:string` and `TINType` as `tns:TINTypeCode`. Response element contains `Standing` as `tns:StandingCode` and `AsOfDate` as `xsd:string`.                                                                                                    |
 
 Type verification:
 
