@@ -1,5 +1,6 @@
 import { CORRELATION_ID_HEADER } from "../middleware/correlation.js";
 import { getApiRuntimeConfig } from "../config/runtime-config.js";
+import { injectActiveTraceContext } from "../telemetry/trace-context.js";
 import type { ReadinessRequestContext } from "../repository/health-repository.js";
 
 export interface ComputeHealthClient {
@@ -16,11 +17,12 @@ class FetchComputeHealthClient implements ComputeHealthClient {
 
   public async isReady(context: ReadinessRequestContext): Promise<boolean> {
     try {
+      const headers = injectActiveTraceContext({
+        [CORRELATION_ID_HEADER]: context.correlationId
+      });
       const response = await this.fetchImpl(new URL("/health", this.baseUrl), {
         method: "GET",
-        headers: {
-          [CORRELATION_ID_HEADER]: context.correlationId
-        }
+        headers
       });
 
       if (!response.ok) {

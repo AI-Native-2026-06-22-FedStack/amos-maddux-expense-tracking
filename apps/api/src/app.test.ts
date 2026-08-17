@@ -1,8 +1,10 @@
+import { generateKeyPairSync } from "node:crypto";
+
 import express from "express";
 import inject from "light-my-request";
 import pino, { type Logger } from "pino";
 import { pinoHttp } from "pino-http";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { createApp } from "./app.js";
 import { issueTokenPair } from "./auth/tokens.js";
@@ -20,7 +22,20 @@ interface CapturedRequestLog {
   };
   res: unknown;
   correlationId?: unknown;
+  traceId?: unknown;
 }
+
+const syntheticJwtKeyPair = generateKeyPairSync("rsa", {
+  modulusLength: 2048,
+  privateKeyEncoding: {
+    type: "pkcs8",
+    format: "pem"
+  },
+  publicKeyEncoding: {
+    type: "spki",
+    format: "pem"
+  }
+});
 
 describe("createApp", () => {
   const authenticatedTenantId = "00000000-0000-4000-8000-000000000301";
@@ -40,6 +55,27 @@ describe("createApp", () => {
     ],
     priority: "Normal"
   };
+
+  beforeEach(() => {
+    process.env.NODE_ENV = "test";
+    process.env.AWS_ENDPOINT = "http://localhost:4566";
+    process.env.AWS_REGION = "us-east-1";
+    process.env.SNS_STAGE_EVENTS_TOPIC = "expenseflow-stage-events";
+    process.env.SQS_STAGE_EVENTS_QUEUE = "expenseflow-stage-projection";
+    process.env.SQS_STAGE_EVENTS_DLQ = "expenseflow-stage-projection-dlq";
+    process.env.DB_PASSWORD_SECRET_ID = "expenseflow/test/db-password";
+    process.env.JWT_SIGNING_KEYS_SECRET_ID = "expenseflow/test/jwt-signing-keys";
+    process.env.DATABASE_URI = "postgres://expenseflow@localhost:5432/expenseflow";
+    process.env.REDIS_URL = "redis://localhost:6379";
+    process.env.API_CORS_ALLOWED_ORIGIN = allowedCorsOrigin;
+    process.env.EXPENSE_WRITE_RATE_LIMIT_WINDOW_MS = "60000";
+    process.env.EXPENSE_WRITE_RATE_LIMIT_MAX = "120";
+    process.env.EXPENSE_WRITE_SLOW_DOWN_AFTER = "80";
+    process.env.EXPENSE_WRITE_DELAY_INCREMENT_MS = "250";
+    process.env.EXPENSE_WRITE_MAX_DELAY_MS = "5000";
+    setApiRuntimeConfigForTest(undefined);
+    setSyntheticRuntimeSecrets();
+  });
 
   it("returns the service status body from GET /health", async () => {
     const response = await inject(createApp(), {
@@ -61,6 +97,35 @@ describe("createApp", () => {
     });
 
     expect(response.headers["ai-assist-usage"]).toBe("cost=0; remaining=0");
+  });
+
+  it("sets browser-facing security headers on live routes", async () => {
+    const response = await inject(createApp(), {
+      method: "GET",
+      url: "/health"
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(response.headers["x-frame-options"]).toBe("DENY");
+    expect(response.headers["x-content-type-options"]).toBe("nosniff");
+    expect(response.headers["referrer-policy"]).toBe("no-referrer");
+    expect(response.headers["permissions-policy"]).toContain("camera=()");
+    expect(response.headers["cache-control"]).toBe("no-store");
+    expect(response.headers["x-powered-by"]).toBeUndefined();
+  });
+
+  it("sets security headers on clean error responses", async () => {
+    const response = await inject(createApp(), {
+      method: "GET",
+      url: "/health/error"
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.headers["content-security-policy"]).toContain("default-src 'none'");
+    expect(response.headers["x-frame-options"]).toBe("DENY");
+    expect(response.body).not.toContain("Synthetic health route failure.");
+    expect(response.body).not.toContain("stack");
   });
 
   it("emits parseable JSON request logs without sensitive headers", async () => {
@@ -101,6 +166,22 @@ describe("createApp", () => {
     expect(response.statusCode).toBe(200);
     expect(response.headers[CORRELATION_ID_HEADER_LOWERCASE]).toBe(suppliedCorrelationId);
     expect(parsedLog.correlationId).toBe(suppliedCorrelationId);
+  });
+
+  it("enriches request logs with the incoming OpenTelemetry trace ID", async () => {
+    const { logLines, logger } = createCapturedLogger();
+    const traceId = "1234567890abcdef1234567890abcdef";
+    const response = await inject(createApp({ logger }), {
+      method: "GET",
+      url: "/health",
+      headers: {
+        traceparent: `00-${traceId}-1234567890abcdef-01`
+      }
+    });
+    const parsedLog = parseLatestRequestLog(logLines);
+
+    expect(response.statusCode).toBe(200);
+    expect(parsedLog.traceId).toBe(traceId);
   });
 
   it("generates a correlation ID when the request does not provide one", async () => {
@@ -576,8 +657,8 @@ function setSyntheticRuntimeSecrets(): void {
   setRuntimeSecretsForTest({
     dbPassword: "synthetic-test-db-password",
     jwtSigningKeys: {
-      privateKeyPem: "synthetic-private-key",
-      publicKeyPem: "synthetic-public-key"
+      privateKeyPem: syntheticJwtKeyPair.privateKey,
+      publicKeyPem: syntheticJwtKeyPair.publicKey
     }
   });
 }

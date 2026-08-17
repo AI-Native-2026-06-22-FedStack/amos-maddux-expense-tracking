@@ -1,0 +1,2 @@
+
+aws: [ERROR]: An error occurred (UnrecognizedClientException) when calling the GetTraceSummaries operation: The security token included in the request is invalid.
