@@ -167,11 +167,12 @@ aws_floci elbv2 register-targets \
 
 for attempt in $(seq 1 30); do
   if docker run --rm --network "${network_name}" "${curl_image}" -fsS "${target_url}" \
-    | tee "${artifact_dir}/zap-target-curl.json" >/dev/null; then
+    >"${artifact_dir}/zap-target-curl.json"; then
     break
   fi
 
   if [ "${attempt}" -eq 30 ]; then
+    rm -f "${artifact_dir}/zap-target-curl.json"
     echo "DAST target did not answer before ZAP scan: ${target_url}"
     exit 1
   fi

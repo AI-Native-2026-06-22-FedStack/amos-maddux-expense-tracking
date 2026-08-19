@@ -14,8 +14,15 @@ floci_region="${AWS_REGION:-us-east-1}"
 real_xray_region="${REAL_AWS_REGION:-${AWS_REGION:-us-east-1}}"
 account_id="000000000000"
 target_url="${FLOCI_TRACE_TARGET_URL:-http://floci/ready}"
-trace_id_seed="${FLOCI_TRACE_ID:-1234567890abcdef1234567890abcdef}"
-span_id_seed="${FLOCI_SPAN_ID:-1234567890abcdef}"
+# Default to a fresh random trace ID per run rather than a fixed constant.
+# A reused trace ID was observed to make X-Ray's get-trace-summaries never
+# surface the trace even though PutTraceSegments accepted every segment
+# (UnprocessedTraceSegments: [] each time) -- most likely X-Ray's server-side
+# trace merge getting confused by repeated, non-monotonic segment data under
+# the same ID across script runs. FLOCI_TRACE_ID can still override this for
+# reproducible debugging.
+trace_id_seed="${FLOCI_TRACE_ID:-$(printf '%08x%s' "$(date -u +%s)" "$(openssl rand -hex 12)")}"
+span_id_seed="${FLOCI_SPAN_ID:-$(openssl rand -hex 8)}"
 correlation_id="${FLOCI_TRACE_CORRELATION_ID:-synthetic-floci-trace-correlation-id}"
 run_id="${FLOCI_TRACE_RUN_ID:-$(date -u +%H%M%S)}"
 resource_prefix="${FLOCI_TRACE_RESOURCE_PREFIX:-ef-trace-${run_id}}"
@@ -240,35 +247,69 @@ fi
 
 printf '%s\n' "${trace_id_seed}" >"${artifact_dir}/xray-trace-id.txt"
 
+# X-Ray derives its trace ID from the same 32 hex chars as the W3C trace ID:
+# "1-<first 8 hex>-<remaining 24 hex>". Compute the expected X-Ray ID so the
+# proof can confirm this run's trace specifically reached X-Ray, rather than
+# treating any trace present in the account/region during the time window as
+# sufficient evidence of a successful export.
+expected_xray_trace_id="1-${trace_id_seed:0:8}-${trace_id_seed:8:24}"
+
 xray_error_file="${artifact_dir}/xray-fetch-error.txt"
 xray_summaries_tmp="${artifact_dir}/xray-trace-summaries.json.tmp"
 xray_traces_tmp="${artifact_dir}/xray-batch-get-traces.json.tmp"
 rm -f "${xray_error_file}" "${xray_summaries_tmp}" "${xray_traces_tmp}"
 
-if ! aws_real_xray get-trace-summaries \
-  --start-time "${start_epoch}" \
-  --end-time "${end_epoch}" \
-  >"${xray_summaries_tmp}" 2>"${xray_error_file}"; then
-  rm -f "${xray_summaries_tmp}"
-  echo "Real AWS X-Ray trace summary pull failed; see ${xray_error_file}." >&2
-  exit 1
-fi
-mv "${xray_summaries_tmp}" "${artifact_dir}/xray-trace-summaries.json"
+# X-Ray indexing can lag a few seconds behind export, so poll with backoff
+# instead of a single query. A bounded number of attempts still fails the
+# script hard if the trace never lands, rather than hanging indefinitely.
+xray_poll_attempts="${FLOCI_XRAY_POLL_ATTEMPTS:-6}"
+xray_poll_interval_seconds="${FLOCI_XRAY_POLL_INTERVAL_SECONDS:-10}"
+xray_trace_found=0
 
-trace_ids="$(jq -r '.TraceSummaries[].Id' "${artifact_dir}/xray-trace-summaries.json" | head -n 5 | tr '\n' ' ')"
-if [ -n "${trace_ids}" ]; then
-  # shellcheck disable=SC2086
-  if ! aws_real_xray batch-get-traces \
-    --trace-ids ${trace_ids} \
-    >"${xray_traces_tmp}" 2>"${xray_error_file}"; then
-    rm -f "${xray_traces_tmp}"
-    echo "Real AWS X-Ray batch trace pull failed; see ${xray_error_file}." >&2
+for xray_attempt in $(seq 1 "${xray_poll_attempts}"); do
+  end_epoch="$(date -u +%s)"
+
+  if ! aws_real_xray get-trace-summaries \
+    --start-time "${start_epoch}" \
+    --end-time "${end_epoch}" \
+    >"${xray_summaries_tmp}" 2>"${xray_error_file}"; then
+    rm -f "${xray_summaries_tmp}"
+    echo "Real AWS X-Ray trace summary pull failed; see ${xray_error_file}." >&2
     exit 1
   fi
-  mv "${xray_traces_tmp}" "${artifact_dir}/xray-batch-get-traces.json"
-else
-  echo '{"Traces":[],"UnprocessedTraceIds":[]}' >"${artifact_dir}/xray-batch-get-traces.json"
-  echo "No X-Ray trace summaries returned for the proof window." >&2
+  mv "${xray_summaries_tmp}" "${artifact_dir}/xray-trace-summaries.json"
+
+  if jq -e --arg id "${expected_xray_trace_id}" \
+    'any(.TraceSummaries[]; .Id == $id)' \
+    "${artifact_dir}/xray-trace-summaries.json" >/dev/null; then
+    xray_trace_found=1
+    break
+  fi
+
+  echo "Expected X-Ray trace ID ${expected_xray_trace_id} not yet visible (attempt ${xray_attempt}/${xray_poll_attempts})." >&2
+  [ "${xray_attempt}" -eq "${xray_poll_attempts}" ] || sleep "${xray_poll_interval_seconds}"
+done
+
+if [ "${xray_trace_found}" -ne 1 ]; then
+  echo "Expected X-Ray trace ID ${expected_xray_trace_id} (derived from seeded traceId ${trace_id_seed}) was not found in xray-trace-summaries.json after ${xray_poll_attempts} attempts." >&2
+  echo "The ADOT collector may have failed to export this run's trace even though other traces exist in the account/region for this time window." >&2
+  echo "Check ${artifact_dir}/trace-proof-adot.log for exporter errors (service.telemetry.logs.level is set to debug in observability/adot-collector.yaml)." >&2
+  exit 1
+fi
+
+if ! aws_real_xray batch-get-traces \
+  --trace-ids "${expected_xray_trace_id}" \
+  >"${xray_traces_tmp}" 2>"${xray_error_file}"; then
+  rm -f "${xray_traces_tmp}"
+  echo "Real AWS X-Ray batch trace pull failed; see ${xray_error_file}." >&2
+  exit 1
+fi
+mv "${xray_traces_tmp}" "${artifact_dir}/xray-batch-get-traces.json"
+
+if ! jq -e --arg id "${expected_xray_trace_id}" \
+  'any(.Traces[]; .Id == $id)' \
+  "${artifact_dir}/xray-batch-get-traces.json" >/dev/null; then
+  echo "Expected X-Ray trace ID ${expected_xray_trace_id} was not returned by batch-get-traces." >&2
   exit 1
 fi
 
@@ -277,6 +318,7 @@ cat >"${artifact_dir}/trace-proof-summary.json" <<EOF
   "targetUrl": "${target_url}",
   "correlationId": "${correlation_id}",
   "traceId": "${trace_id_seed}",
+  "xrayTraceId": "${expected_xray_trace_id}",
   "apiLogMatches": ${api_trace_count},
   "computeLogMatches": ${compute_trace_count},
   "realXrayRegion": "${real_xray_region}",
@@ -284,4 +326,4 @@ cat >"${artifact_dir}/trace-proof-summary.json" <<EOF
 }
 EOF
 
-echo "Trace proof passed for traceId=${trace_id_seed}"
+echo "Trace proof passed for traceId=${trace_id_seed} (xrayTraceId=${expected_xray_trace_id})"
