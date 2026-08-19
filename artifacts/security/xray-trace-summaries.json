@@ -1,0 +1,378 @@
+{
+    "TraceSummaries": [
+        {
+            "Id": "1-90614534-a6543bbd8bd8cdec910a135d",
+            "StartTime": "2026-08-19T10:56:17-05:00",
+            "Duration": 0.001,
+            "ResponseTime": 0.001,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://127.0.0.1:8000/health",
+                "HttpStatus": 200,
+                "HttpMethod": "GET",
+                "UserAgent": "Python-urllib/3.13",
+                "ClientIp": "127.0.0.1"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "expenseflow-gl-coding-engine",
+                "Names": [
+                    "expenseflow-gl-coding-engine"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-fe1b650e-1783a146969ac2fe78f853f3",
+            "StartTime": "2026-08-19T10:56:04-05:00",
+            "Duration": 0.026,
+            "ResponseTime": 0.026,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://floci:4566/",
+                "HttpStatus": 200,
+                "HttpMethod": "POST",
+                "UserAgent": "aws-sdk-js/3.1090.0 ua/2.1 os/linux#6.6.114.1-microsoft-standard-WSL2 lang/js md/nodejs#24.19.0 api/secrets-manager#3.1090.0 m/N,E,e",
+                "ClientIp": "172.19.0.4"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "POST",
+                    "Names": [
+                        "POST"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "POST",
+                    "Names": [
+                        "POST"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "POST",
+                "Names": [
+                    "POST"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-c85febbf-d25fafa48234353007e2e6af",
+            "StartTime": "2026-08-19T10:56:04-05:00",
+            "Duration": 0.01,
+            "ResponseTime": 0.01,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://floci:4566/",
+                "HttpStatus": 200,
+                "HttpMethod": "POST",
+                "UserAgent": "aws-sdk-js/3.1090.0 ua/2.1 os/linux#6.6.114.1-microsoft-standard-WSL2 lang/js md/nodejs#24.19.0 api/secrets-manager#3.1090.0 m/N,E,e",
+                "ClientIp": "172.19.0.4"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "POST",
+                    "Names": [
+                        "POST"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "POST",
+                    "Names": [
+                        "POST"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "POST",
+                "Names": [
+                    "POST"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-19fcbe99-5cc6c33d5e6570367f402cfb",
+            "StartTime": "2026-08-19T10:56:17-05:00",
+            "Duration": 0.005,
+            "ResponseTime": 0.005,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://127.0.0.1:3000/ready",
+                "HttpStatus": 200,
+                "HttpMethod": "GET",
+                "ClientIp": "::ffff:127.0.0.1"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ]
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "expenseflow-core-case-service",
+                "Names": [
+                    "expenseflow-core-case-service"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-92dcd0a5-e5a07dccefca2020b6f6cb56",
+            "StartTime": "2026-08-19T10:56:06-05:00",
+            "Duration": 0.025,
+            "ResponseTime": 0.025,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://127.0.0.1:8000/health",
+                "HttpStatus": 200,
+                "HttpMethod": "GET",
+                "UserAgent": "Python-urllib/3.13",
+                "ClientIp": "127.0.0.1"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "expenseflow-gl-coding-engine",
+                "Names": [
+                    "expenseflow-gl-coding-engine"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-12345678-90abcdef1234567890abcdef",
+            "StartTime": "2026-08-19T10:56:12-05:00",
+            "Duration": 0.015,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": true,
+            "Http": {},
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ]
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 2
+        },
+        {
+            "Id": "1-d334087a-c36a61240e45423ce453c452",
+            "StartTime": "2026-08-19T10:56:07-05:00",
+            "Duration": 0.024,
+            "ResponseTime": 0.024,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://127.0.0.1:3000/ready",
+                "HttpStatus": 200,
+                "HttpMethod": "GET",
+                "ClientIp": "::ffff:127.0.0.1"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-gl-coding-engine",
+                    "Names": [
+                        "expenseflow-gl-coding-engine"
+                    ]
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "expenseflow-core-case-service",
+                "Names": [
+                    "expenseflow-core-case-service"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        },
+        {
+            "Id": "1-84c32342-5c39c012414d3933f344afdc",
+            "StartTime": "2026-08-19T10:56:05-05:00",
+            "Duration": 0.006,
+            "ResponseTime": 0.006,
+            "HasFault": false,
+            "HasError": false,
+            "HasThrottle": false,
+            "IsPartial": false,
+            "Http": {
+                "HttpURL": "http://expenseflow-trace-api:3000/health",
+                "HttpStatus": 200,
+                "HttpMethod": "GET",
+                "UserAgent": "curl/8.16.0",
+                "ClientIp": "::ffff:172.19.0.8"
+            },
+            "Annotations": {},
+            "Users": [],
+            "ServiceIds": [
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ],
+                    "Type": "client"
+                },
+                {
+                    "Name": "expenseflow-core-case-service",
+                    "Names": [
+                        "expenseflow-core-case-service"
+                    ]
+                }
+            ],
+            "ResourceARNs": [],
+            "InstanceIds": [],
+            "AvailabilityZones": [],
+            "EntryPoint": {
+                "Name": "expenseflow-core-case-service",
+                "Names": [
+                    "expenseflow-core-case-service"
+                ]
+            },
+            "FaultRootCauses": [],
+            "ErrorRootCauses": [],
+            "ResponseTimeRootCauses": [],
+            "Revision": 1
+        }
+    ],
+    "TracesProcessedCount": 8,
+    "ApproximateTime": "2026-08-19T10:55:32-05:00"
+}

@@ -218,7 +218,7 @@ td {
 	</h2>
 
 	<h3>
-		Generated on Mon, 17 Aug 2026 19:07:54
+		Generated on Wed, 19 Aug 2026 16:00:18
 	</h3>
 
 	<h3>
@@ -267,7 +267,7 @@ td {
 					<div>Informational</div>
 				</td>
 				<td align="center">
-					<div>1</div>
+					<div>2</div>
 				</td>
 			</tr>
 			<tr>
@@ -308,7 +308,7 @@ td {
 					<div>Percentage of responses with status code 2xx</div>
 				</td>
 				<td align="center">
-					<div>33 %</div>
+					<div>16 %</div>
 				</td>
 				</tr>
 			
@@ -326,7 +326,7 @@ td {
 					<div>Percentage of responses with status code 4xx</div>
 				</td>
 				<td align="center">
-					<div>66 %</div>
+					<div>16 %</div>
 				</td>
 				</tr>
 			
@@ -341,10 +341,10 @@ td {
 					<div>http://floci</div>
 				</td>
 				<td>
-					<div>Percentage of endpoints with content type application/json</div>
+					<div>Percentage of responses with status code 5xx</div>
 				</td>
 				<td align="center">
-					<div>25 %</div>
+					<div>66 %</div>
 				</td>
 				</tr>
 			
@@ -362,7 +362,7 @@ td {
 					<div>Percentage of endpoints with content type application/problem+json</div>
 				</td>
 				<td align="center">
-					<div>75 %</div>
+					<div>25 %</div>
 				</td>
 				</tr>
 			
@@ -402,6 +402,24 @@ td {
 				</td>
 				</tr>
 			
+				<tr>
+				<td class="risk-0">
+					<div>Info</div>
+				</td>
+				<td>
+					<div>Informational</div>
+				</td>
+				<td>
+					<div>http://floci</div>
+				</td>
+				<td>
+					<div>Percentage of slow responses</div>
+				</td>
+				<td align="center">
+					<div>66 %</div>
+				</td>
+				</tr>
+			
 		</table>
 		<div class="spacer-lg"></div>
 	
@@ -430,11 +448,19 @@ td {
 					align="center">Number of Instances</th>
 			</tr>
 			<tr>
+				<td><a href="#10019">Content-Type Header Missing</a></td>
+				<td align="center" class="risk-0">Informational</td>
+				
+				
+				<td align="center">3</td>
+				
+			</tr>
+			<tr>
 				<td><a href="#10049">Non-Storable Content</a></td>
 				<td align="center" class="risk-0">Informational</td>
 				
 				
-				<td align="center">4</td>
+				<td align="center">5</td>
 				
 			</tr>
 		</table>
@@ -443,6 +469,170 @@ td {
 
 	
 		<h3>Alert Detail</h3>
+		
+			<table class="results">
+				<tr height="24">
+					<th width="20%" class="risk-0"><a
+						id="10019"></a>
+						<div>Informational</div></th>
+					<th class="risk-0">Content-Type Header Missing</th>
+				</tr>
+				<tr>
+					<td width="20%">Description</td>
+					<td width="80%">
+							<div>The Content-Type header was either missing or empty.</div>
+							
+						</td>
+				</tr>
+				<TR vAlign="top">
+					<TD colspan="2"></TD>
+				</TR>
+				
+					<tr>
+						<td width="20%"
+							class="indent1">URL</td>
+						<td width="80%"><a href="http://floci/">http://floci/</a></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Node Name</td>
+						<td width="80%">http://floci/</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Method</td>
+						<td width="80%">GET</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Parameter</td>
+						<td width="80%">content-type</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Attack</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Evidence</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Other Info</td>
+						<td width="80%"></td>
+					</tr>
+				
+					<tr>
+						<td width="20%"
+							class="indent1">URL</td>
+						<td width="80%"><a href="http://floci/health">http://floci/health</a></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Node Name</td>
+						<td width="80%">http://floci/health</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Method</td>
+						<td width="80%">GET</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Parameter</td>
+						<td width="80%">content-type</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Attack</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Evidence</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Other Info</td>
+						<td width="80%"></td>
+					</tr>
+				
+					<tr>
+						<td width="20%"
+							class="indent1">URL</td>
+						<td width="80%"><a href="http://floci/sitemap.xml">http://floci/sitemap.xml</a></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Node Name</td>
+						<td width="80%">http://floci/sitemap.xml</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Method</td>
+						<td width="80%">GET</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Parameter</td>
+						<td width="80%">content-type</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Attack</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Evidence</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Other Info</td>
+						<td width="80%"></td>
+					</tr>
+				
+				<tr>
+					<td width="20%">Instances</td>
+					
+					
+					<td width="80%">3</td>
+					
+				</tr>
+				<tr>
+					<td width="20%">Solution</td>
+					<td width="80%">
+							<div>Ensure each page is setting the specific and appropriate content-type value for the content being delivered.</div>
+							
+						</td>
+				</tr>
+				<tr>
+					<td width="20%">Reference</td>
+					<td width="80%">
+							<a href="https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/compatibility/gg622941(v=vs.85)">https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/compatibility/gg622941(v=vs.85)</a>
+							
+						</td>
+				</tr>
+				<tr>
+					<td width="20%">CWE Id</td>
+					<td width="80%"><a
+						href="https://cwe.mitre.org/data/definitions/345.html">345</a></td>
+				</tr>
+				<tr>
+					<td width="20%">WASC Id</td>
+					<td width="80%">12</td>
+				</tr>
+				<tr>
+					<td width="20%">Plugin Id</td>
+					<td width="80%"><a
+						href="https://www.zaproxy.org/docs/alerts/10019/">10019</a></td>
+				</tr>
+			</table>
+			<div class="spacer"></div>
 		
 			<table class="results">
 				<tr height="24">
@@ -490,7 +680,43 @@ td {
 					<tr>
 						<td width="20%"
 							class="indent2">Evidence</td>
-						<td width="80%">no-store</td>
+						<td width="80%">503</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Other Info</td>
+						<td width="80%"></td>
+					</tr>
+				
+					<tr>
+						<td width="20%"
+							class="indent1">URL</td>
+						<td width="80%"><a href="http://floci/health">http://floci/health</a></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Node Name</td>
+						<td width="80%">http://floci/health</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Method</td>
+						<td width="80%">GET</td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Parameter</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Attack</td>
+						<td width="80%"></td>
+					</tr>
+					<tr>
+						<td width="20%"
+							class="indent2">Evidence</td>
+						<td width="80%">503</td>
 					</tr>
 					<tr>
 						<td width="20%"
@@ -598,7 +824,7 @@ td {
 					<tr>
 						<td width="20%"
 							class="indent2">Evidence</td>
-						<td width="80%">no-store</td>
+						<td width="80%">503</td>
 					</tr>
 					<tr>
 						<td width="20%"
@@ -610,7 +836,7 @@ td {
 					<td width="20%">Instances</td>
 					
 					
-					<td width="80%">4</td>
+					<td width="80%">5</td>
 					
 				</tr>
 				<tr>

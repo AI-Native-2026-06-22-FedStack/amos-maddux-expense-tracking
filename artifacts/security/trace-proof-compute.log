@@ -2,13 +2,13 @@ INFO:     Started server process [1]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-{"method": "GET", "path": "/health", "event": "request.started", "traceId": "4ff8c4fca72f347fc77bde87be66fbea", "correlationId": null, "level": "info", "timestamp": "2026-08-17T20:58:03.185671Z"}
-{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "4ff8c4fca72f347fc77bde87be66fbea", "correlationId": null, "level": "info", "timestamp": "2026-08-17T20:58:03.212168Z"}
-{"method": "GET", "path": "/health", "event": "request.started", "traceId": "57c78a4f810cbcf69709da83fb0f89da", "correlationId": "5982eb5b-043c-40b7-b66c-78089722b489", "level": "info", "timestamp": "2026-08-17T20:58:03.379941Z"}
-{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "57c78a4f810cbcf69709da83fb0f89da", "correlationId": "5982eb5b-043c-40b7-b66c-78089722b489", "level": "info", "timestamp": "2026-08-17T20:58:03.381200Z"}
-{"method": "GET", "path": "/health", "event": "request.started", "traceId": "1234567890abcdef1234567890abcdef", "correlationId": "synthetic-floci-trace-correlation-id", "level": "info", "timestamp": "2026-08-17T20:58:12.952017Z"}
-{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "1234567890abcdef1234567890abcdef", "correlationId": "synthetic-floci-trace-correlation-id", "level": "info", "timestamp": "2026-08-17T20:58:12.954875Z"}
-{"method": "GET", "path": "/health", "event": "request.started", "traceId": "bae0b58e2f2c35cb8401438563c95e71", "correlationId": null, "level": "info", "timestamp": "2026-08-17T20:58:13.489059Z"}
-{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "bae0b58e2f2c35cb8401438563c95e71", "correlationId": null, "level": "info", "timestamp": "2026-08-17T20:58:13.490458Z"}
-{"method": "GET", "path": "/health", "event": "request.started", "traceId": "c7676a4bf804f6b4e4a767b77ea3f4c4", "correlationId": "3af022c1-8429-44b0-8f8c-418aff05fbd6", "level": "info", "timestamp": "2026-08-17T20:58:13.517271Z"}
-{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "c7676a4bf804f6b4e4a767b77ea3f4c4", "correlationId": "3af022c1-8429-44b0-8f8c-418aff05fbd6", "level": "info", "timestamp": "2026-08-17T20:58:13.518472Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "correlationId": null, "traceId": "92dcd0a5e5a07dccefca2020b6f6cb56", "level": "info", "timestamp": "2026-08-19T15:56:06.946338Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "correlationId": null, "traceId": "92dcd0a5e5a07dccefca2020b6f6cb56", "level": "info", "timestamp": "2026-08-19T15:56:06.971291Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "correlationId": "b91f38b0-e736-4e6f-b7ec-ab6e982d38da", "traceId": "d334087ac36a61240e45423ce453c452", "level": "info", "timestamp": "2026-08-19T15:56:07.285542Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "correlationId": "b91f38b0-e736-4e6f-b7ec-ab6e982d38da", "traceId": "d334087ac36a61240e45423ce453c452", "level": "info", "timestamp": "2026-08-19T15:56:07.286497Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "correlationId": "synthetic-floci-trace-correlation-id", "traceId": "1234567890abcdef1234567890abcdef", "level": "info", "timestamp": "2026-08-19T15:56:12.590160Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "correlationId": "synthetic-floci-trace-correlation-id", "traceId": "1234567890abcdef1234567890abcdef", "level": "info", "timestamp": "2026-08-19T15:56:12.592267Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "correlationId": null, "traceId": "90614534a6543bbd8bd8cdec910a135d", "level": "info", "timestamp": "2026-08-19T15:56:17.221423Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "correlationId": null, "traceId": "90614534a6543bbd8bd8cdec910a135d", "level": "info", "timestamp": "2026-08-19T15:56:17.222472Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "correlationId": "23b7ee9f-b933-4575-ae2b-1534b0be3d73", "traceId": "19fcbe995cc6c33d5e6570367f402cfb", "level": "info", "timestamp": "2026-08-19T15:56:17.416581Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "correlationId": "23b7ee9f-b933-4575-ae2b-1534b0be3d73", "traceId": "19fcbe995cc6c33d5e6570367f402cfb", "level": "info", "timestamp": "2026-08-19T15:56:17.417454Z"}
