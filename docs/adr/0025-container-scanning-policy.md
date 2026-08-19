@@ -57,7 +57,20 @@ Policy:
 - The release `.trivyignore.release` file exists only to implement those
   written HIGH exceptions. It must not contain CRITICAL CVEs.
 
-Current accepted HIGH exceptions: none.
+Current accepted HIGH exceptions:
+
+- `CVE-2026-14456` is a HIGH finding (package `libssl3t64`, version
+  `3.5.6-1~deb13u2`, base image `gcr.io/distroless/nodejs24-debian13`): no
+  fixed Debian trixie package exists yet (the pinned digest matches the
+  current `:latest` distroless tag, so there is no newer base image to bump
+  to either). The flaw is an unbounded memory allocation when OpenSSL acts
+  as a QUIC server accepting inbound QUIC Initial packets from unrecognized
+  connection IDs. The Core Case Service never runs OpenSSL as a QUIC server:
+  it is a plain Express HTTP/1.1 API with no QUIC or HTTP/3 code anywhere in
+  `apps/api/src/`, so the vulnerable code path is present in the linked
+  library but never exercised. Recheck trigger: drop this exception the next
+  time `apps/api/Dockerfile`'s `gcr.io/distroless/nodejs24-debian13` digest
+  is bumped and Trivy no longer reports the CVE against the new digest.
 
 The Trivy SARIF report lands in:
 

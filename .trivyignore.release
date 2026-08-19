@@ -7,3 +7,5 @@
 # - no more than two unique HIGH CVEs are listed here at the same time.
 #
 # CRITICAL findings must not be listed here.
+
+CVE-2026-14456
