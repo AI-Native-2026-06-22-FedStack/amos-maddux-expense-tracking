@@ -44,3 +44,19 @@
 # these two historical fingerprints are suppressed here too.
 5d869223895e47232375bf91821890b90041c021:docs/security/disposition-log.md:aws-access-token:28
 5d869223895e47232375bf91821890b90041c021:.gitleaksignore:aws-access-token:26
+
+# scripts/run-zap-baseline-floci.sh:47 and scripts/trace-proof-floci.sh:102 @
+# 73d205d1: synthetic TOTP_SECRET_ENCRYPTION_KEY value
+# ("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=", base64 of the literal hex
+# digit sequence "0123456789abcdef0123456789abcdef") passed as a container
+# env var so the ephemeral local DAST/trace-proof harnesses can boot the API
+# image, which requires the var to be set. Same disposition as the
+# docker-compose.yml TOTP placeholder above: not a real credential (the
+# decoded value is just the ordered hex alphabet, never provisioned or used
+# outside these ephemeral local containers), and unrelated to any production
+# key, which flows via TOTP_SECRET_ENCRYPTION_KEY_FILE. These findings are
+# current-tree (not history-only), but are suppressed here rather than
+# rewritten because the value must stay a fixed, recognizable placeholder for
+# these scripts' own local-only container bootstrap, not a generated secret.
+73d205d1866349c52651168e9ed60789b57bb945:scripts/run-zap-baseline-floci.sh:generic-api-key:47
+73d205d1866349c52651168e9ed60789b57bb945:scripts/trace-proof-floci.sh:generic-api-key:102
