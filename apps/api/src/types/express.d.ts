@@ -8,5 +8,6 @@ declare module "express-serve-static-core" {
     aiAssistUsage?: AiAssistUsage;
     authContext?: AuthenticatedRequestContext;
     correlationId: string;
+    traceId?: string;
   }
 }

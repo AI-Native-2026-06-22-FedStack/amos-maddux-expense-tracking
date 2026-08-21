@@ -1,0 +1,20 @@
+{
+    "Traces": [
+        {
+            "Id": "1-6a85f71b-cb4fbb856df2090acbc1e18d",
+            "Duration": 0.005,
+            "LimitExceeded": false,
+            "Segments": [
+                {
+                    "Id": "0d2299a09d37fcfd",
+                    "Document": "{\"id\":\"0d2299a09d37fcfd\",\"name\":\"expenseflow-gl-coding-engine\",\"start_time\":1.7871644721644938E9,\"trace_id\":\"1-6a85f71b-cb4fbb856df2090acbc1e18d\",\"end_time\":1.7871644721660864E9,\"parent_id\":\"afde00d2df6cdd85\",\"fault\":false,\"error\":false,\"throttle\":false,\"http\":{\"request\":{\"url\":\"http://expenseflow-trace-compute:8000/health\",\"method\":\"GET\",\"user_agent\":\"node\",\"client_ip\":\"172.19.0.8\"},\"response\":{\"status\":200,\"content_length\":0}},\"aws\":{\"xray\":{\"auto_instrumentation\":false,\"sdk_version\":\"1.44.0\",\"sdk\":\"opentelemetry for python\"}},\"metadata\":{\"default\":{\"otel.resource.telemetry.sdk.name\":\"opentelemetry\",\"http.flavor\":\"1.1\",\"http.route\":\"/health\",\"otel.resource.service.instance.id\":\"6c0326d3-c5a6-4b5f-b884-76e4dc7161b4\",\"otel.resource.service.name\":\"expenseflow-gl-coding-engine\",\"otel.resource.telemetry.sdk.language\":\"python\",\"otel.resource.telemetry.sdk.version\":\"1.44.0\"}},\"subsegments\":[{\"id\":\"254e79aa73f71389\",\"name\":\"GET /health http send\",\"start_time\":1.7871644721659737E9,\"end_time\":1.7871644721659944E9,\"fault\":false,\"error\":false,\"throttle\":false,\"aws\":{\"xray\":{\"auto_instrumentation\":false,\"sdk_version\":\"1.44.0\",\"sdk\":\"opentelemetry for python\"}},\"metadata\":{\"default\":{\"asgi.event.type\":\"http.response.body\"}}},{\"id\":\"be0b5778990d119d\",\"name\":\"GET /health http send\",\"start_time\":1.7871644721655753E9,\"end_time\":1.7871644721656256E9,\"fault\":false,\"error\":false,\"throttle\":false,\"http\":{\"request\":{},\"response\":{\"status\":200,\"content_length\":0}},\"aws\":{\"xray\":{\"auto_instrumentation\":false,\"sdk_version\":\"1.44.0\",\"sdk\":\"opentelemetry for python\"}},\"metadata\":{\"default\":{\"asgi.event.type\":\"http.response.start\"}}}]}"
+                },
+                {
+                    "Id": "afde00d2df6cdd85",
+                    "Document": "{\"id\":\"afde00d2df6cdd85\",\"name\":\"expenseflow-core-case-service\",\"start_time\":1.787164472162E9,\"trace_id\":\"1-6a85f71b-cb4fbb856df2090acbc1e18d\",\"end_time\":1.787164472167089E9,\"parent_id\":\"0cf3840a46ae7e6e\",\"fault\":false,\"error\":false,\"throttle\":false,\"http\":{\"request\":{\"url\":\"http://172.19.0.8:3000/ready\",\"method\":\"GET\",\"user_agent\":\"curl/8.16.0\",\"client_ip\":\"::ffff:172.19.0.4\"},\"response\":{\"status\":200,\"content_length\":0}},\"aws\":{\"xray\":{\"auto_instrumentation\":false,\"sdk_version\":\"2.10.0\",\"sdk\":\"opentelemetry for nodejs\"}},\"metadata\":{\"default\":{\"otel.resource.process.command\":\"/app/dist/apps/api/src/server.js\",\"otel.resource.telemetry.sdk.name\":\"opentelemetry\",\"network.protocol.version\":\"1.1\",\"otel.resource.process.command_args\":[\"/nodejs/bin/node\",\"/app/dist/apps/api/src/server.js\"],\"otel.resource.process.runtime.description\":\"Node.js\",\"network.peer.port\":39624,\"otel.resource.host.arch\":\"amd64\",\"otel.resource.host.name\":\"3ffa589c0400\",\"otel.resource.process.runtime.version\":\"24.19.0\",\"otel.resource.service.name\":\"expenseflow-core-case-service\",\"otel.resource.process.executable.path\":\"/nodejs/bin/node\",\"otel.resource.telemetry.sdk.version\":\"2.10.0\",\"otel.resource.process.executable.name\":\"/nodejs/bin/node\",\"otel.resource.process.owner\":\"nonroot\",\"otel.resource.process.pid\":1,\"otel.resource.process.runtime.name\":\"nodejs\",\"otel.resource.telemetry.sdk.language\":\"nodejs\"}}}"
+                }
+            ]
+        }
+    ],
+    "UnprocessedTraceIds": []
+}

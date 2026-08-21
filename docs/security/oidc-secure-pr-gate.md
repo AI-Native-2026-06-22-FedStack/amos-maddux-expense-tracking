@@ -118,3 +118,20 @@ the real repository and AWS role:
 - Baseline pass: `<run URL>` — `Arn: <assumed-role ARN>`
 - Attack (permission removed) fail: `<run URL>` — failure step/message
 - Restore pass: `<run URL>` — `Arn: <assumed-role ARN>`
+
+## Provisioning the role
+
+Create or update the IAM role and set the repository variable with:
+
+```sh
+scripts/provision-github-oidc-role.sh
+```
+
+The script provisions `expenseflow-secure-pr-gate-oidc` in account
+`208096650110` using the `expenseflow-smoke` AWS profile by default, verifies
+the existing GitHub OIDC provider, scopes the trust policy to the
+`pull_request` subject above, and writes the resulting role ARN to the
+`AWS_ROLE_ARN` GitHub repository variable. On creation it also sets the
+`TraineeSandboxBoundary` permissions boundary. The role intentionally has no
+permissions policies attached; `oidc-verify` only needs STS to return the
+assumed-role identity.

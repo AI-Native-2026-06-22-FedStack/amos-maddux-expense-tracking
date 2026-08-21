@@ -1,0 +1,10 @@
+{
+  "targetUrl": "http://floci/ready",
+  "correlationId": "synthetic-floci-trace-correlation-id",
+  "traceId": "6a85f71bcb4fbb856df2090acbc1e18d",
+  "xrayTraceId": "1-6a85f71b-cb4fbb856df2090acbc1e18d",
+  "apiLogMatches": 1,
+  "computeLogMatches": 2,
+  "realXrayRegion": "us-east-1",
+  "xrayTraceSummaryCount": 10
+}
