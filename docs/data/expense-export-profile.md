@@ -39,33 +39,33 @@
   pandas 3.0.5): 2,244.2 MB (2.19 GB) deep memory usage, an 11.4x expansion
   over the 197.1 MB compressed file on disk.
 
-| Column | Inferred dtype (plain read) | Null count | Null rate |
-|---|---|---|---|
-| `record_type` | str | 0 | 0.0% |
-| `tenant_id` | str | 0 | 0.0% |
-| `expense_report_id` | str | 0 | 0.0% |
-| `record_id` | str | 0 | 0.0% |
-| `submitter_id` | str | 0 | 0.0% |
-| `current_stage` | str | 0 | 0.0% |
-| `merchant` | str | 400,320 | 20.0% |
-| `category` | str | 0 | 0.0% |
-| `amount_cents` | float64 | 400,320 | 20.0% |
-| `currency` | str | 400,320 | 20.0% |
-| `miles` | float64 | 1,599,680 | 80.0% |
-| `trip_date` | str | 1,599,680 | 80.0% |
-| `origin` | str | 1,599,680 | 80.0% |
-| `destination` | str | 1,599,680 | 80.0% |
-| `business_purpose` | str | 1,599,680 | 80.0% |
-| `gl_account_code` | int64 | 0 | 0.0% |
-| `gl_account_name` | str | 0 | 0.0% |
-| `gl_normal_balance` | str | 0 | 0.0% |
-| `gl_coding_status` | str | 0 | 0.0% |
-| `receipt_number` | str | 400,320 | 20.0% |
-| `receipt_date` | str | 432,063 | 21.6% |
-| `flagged` | bool | 0 | 0.0% |
-| `deductible` | bool | 0 | 0.0% |
-| `manager_review_status` | str | 0 | 0.0% |
-| `created_at` | datetime64[us, UTC] | 0 | 0.0% |
+| Column                  | Inferred dtype (plain read) | Null count | Null rate |
+| ----------------------- | --------------------------- | ---------- | --------- |
+| `record_type`           | str                         | 0          | 0.0%      |
+| `tenant_id`             | str                         | 0          | 0.0%      |
+| `expense_report_id`     | str                         | 0          | 0.0%      |
+| `record_id`             | str                         | 0          | 0.0%      |
+| `submitter_id`          | str                         | 0          | 0.0%      |
+| `current_stage`         | str                         | 0          | 0.0%      |
+| `merchant`              | str                         | 400,320    | 20.0%     |
+| `category`              | str                         | 0          | 0.0%      |
+| `amount_cents`          | float64                     | 400,320    | 20.0%     |
+| `currency`              | str                         | 400,320    | 20.0%     |
+| `miles`                 | float64                     | 1,599,680  | 80.0%     |
+| `trip_date`             | str                         | 1,599,680  | 80.0%     |
+| `origin`                | str                         | 1,599,680  | 80.0%     |
+| `destination`           | str                         | 1,599,680  | 80.0%     |
+| `business_purpose`      | str                         | 1,599,680  | 80.0%     |
+| `gl_account_code`       | int64                       | 0          | 0.0%      |
+| `gl_account_name`       | str                         | 0          | 0.0%      |
+| `gl_normal_balance`     | str                         | 0          | 0.0%      |
+| `gl_coding_status`      | str                         | 0          | 0.0%      |
+| `receipt_number`        | str                         | 400,320    | 20.0%     |
+| `receipt_date`          | str                         | 432,063    | 21.6%     |
+| `flagged`               | bool                        | 0          | 0.0%      |
+| `deductible`            | bool                        | 0          | 0.0%      |
+| `manager_review_status` | str                         | 0          | 0.0%      |
+| `created_at`            | datetime64[us, UTC]         | 0          | 0.0%      |
 
 All null columns above are structural: `merchant`/`amount_cents`/`currency`/
 `receipt_number` are null on every `mileage` row (400,320 of 2,000,000 rows);
@@ -76,14 +76,14 @@ seeded "receipt present but no date" defect on `line_item` rows (see below).
 
 ## Data observations and anomalies
 
-| Anomaly | Affected column | Exact row count |
-|---|---|---|
-| Lowercase currency code (e.g. `"usd"` instead of `"USD"`) | `currency` | 31,942 |
-| `gl_account_code` leading zero (`"06100"`) or whitespace padding (`"6400 "`) | `gl_account_code` | 39,908 |
-| Non-positive `amount_cents` (`0` or negative) | `amount_cents` | 32,097 |
-| `trip_date` in `MM/DD/YYYY` instead of ISO `YYYY-MM-DD` | `trip_date` | 8,079 |
-| `receipt_number` populated but `receipt_date` null, on `line_item` rows | `receipt_date` | 31,743 |
-| `record_id` duplicated from the immediately preceding row | `record_id` | 39,920 |
+| Anomaly                                                                      | Affected column   | Exact row count |
+| ---------------------------------------------------------------------------- | ----------------- | --------------- |
+| Lowercase currency code (e.g. `"usd"` instead of `"USD"`)                    | `currency`        | 31,942          |
+| `gl_account_code` leading zero (`"06100"`) or whitespace padding (`"6400 "`) | `gl_account_code` | 39,908          |
+| Non-positive `amount_cents` (`0` or negative)                                | `amount_cents`    | 32,097          |
+| `trip_date` in `MM/DD/YYYY` instead of ISO `YYYY-MM-DD`                      | `trip_date`       | 8,079           |
+| `receipt_number` populated but `receipt_date` null, on `line_item` rows      | `receipt_date`    | 31,743          |
+| `record_id` duplicated from the immediately preceding row                    | `record_id`       | 39,920          |
 
 All six counts land within a few tenths of a percent of the generator's
 documented 2%-per-check `--defect-rate` default, confirming these are the
@@ -101,6 +101,7 @@ This was confirmed directly against both the 1,000-row and 2,000,000-row
 export files on this environment's pandas (3.0.5).
 
 Two further mismatches were confirmed the same way:
+
 - `amount_cents` is a bare JSON integer in the file but is inferred as
   `float64` because nulls (present on every mileage row) block pandas from
   using `int64`. The integer-minor-units contract is broken by inference,
@@ -120,33 +121,33 @@ incidental to their content, not a guarantee.
 Declared in `services/pipeline/schema.py`, applied explicitly per column —
 no column is left to inference.
 
-| Column | Declared type | Reason |
-|---|---|---|
-| `record_type` | string | Two-value discriminator |
-| `tenant_id` | string | Identifier |
-| `expense_report_id` | string | Identifier |
-| `record_id` | string | Identifier |
-| `submitter_id` | string | Identifier |
-| `current_stage` | string | Categorical text |
-| `merchant` | string (nullable) | Structurally null on mileage rows |
-| `category` | string | Categorical text |
-| `amount_cents` | int64 (nullable) | Money must stay integer minor units; plain inference upcasts to float64 |
-| `currency` | string (nullable) | Structurally null on mileage rows |
-| `miles` | string (nullable) | Source is `numeric(10,2)`; kept as exact text to avoid float rounding drift until an explicit decimal cast is chosen downstream |
-| `trip_date` | date | Must become a real date type; two formats (ISO and seeded `MM/DD/YYYY`) are parsed explicitly, not guessed |
-| `origin` | string (nullable) | Structurally null on line-item rows |
-| `destination` | string (nullable) | Structurally null on line-item rows |
-| `business_purpose` | string (nullable) | Structurally null on line-item rows |
-| `gl_account_code` | string | GL code, including leading zeros; plain inference silently destroys this |
-| `gl_account_name` | string | Descriptive text |
-| `gl_normal_balance` | string | Categorical text (`debit`/`credit` per source check constraint) |
-| `gl_coding_status` | string | Categorical text |
-| `receipt_number` | string (nullable) | Identifier; structurally null on mileage rows |
-| `receipt_date` | date (nullable) | Must become a real date type; ISO format only |
-| `flagged` | bool | Unambiguous boolean |
-| `deductible` | bool | Unambiguous boolean |
-| `manager_review_status` | string | Categorical text |
-| `created_at` | datetime (UTC) | Must become a real datetime type; format declared explicitly rather than relying on pandas-version-dependent auto-parsing |
+| Column                  | Declared type     | Reason                                                                                                                          |
+| ----------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `record_type`           | string            | Two-value discriminator                                                                                                         |
+| `tenant_id`             | string            | Identifier                                                                                                                      |
+| `expense_report_id`     | string            | Identifier                                                                                                                      |
+| `record_id`             | string            | Identifier                                                                                                                      |
+| `submitter_id`          | string            | Identifier                                                                                                                      |
+| `current_stage`         | string            | Categorical text                                                                                                                |
+| `merchant`              | string (nullable) | Structurally null on mileage rows                                                                                               |
+| `category`              | string            | Categorical text                                                                                                                |
+| `amount_cents`          | int64 (nullable)  | Money must stay integer minor units; plain inference upcasts to float64                                                         |
+| `currency`              | string (nullable) | Structurally null on mileage rows                                                                                               |
+| `miles`                 | string (nullable) | Source is `numeric(10,2)`; kept as exact text to avoid float rounding drift until an explicit decimal cast is chosen downstream |
+| `trip_date`             | date              | Must become a real date type; two formats (ISO and seeded `MM/DD/YYYY`) are parsed explicitly, not guessed                      |
+| `origin`                | string (nullable) | Structurally null on line-item rows                                                                                             |
+| `destination`           | string (nullable) | Structurally null on line-item rows                                                                                             |
+| `business_purpose`      | string (nullable) | Structurally null on line-item rows                                                                                             |
+| `gl_account_code`       | string            | GL code, including leading zeros; plain inference silently destroys this                                                        |
+| `gl_account_name`       | string            | Descriptive text                                                                                                                |
+| `gl_normal_balance`     | string            | Categorical text (`debit`/`credit` per source check constraint)                                                                 |
+| `gl_coding_status`      | string            | Categorical text                                                                                                                |
+| `receipt_number`        | string (nullable) | Identifier; structurally null on mileage rows                                                                                   |
+| `receipt_date`          | date (nullable)   | Must become a real date type; ISO format only                                                                                   |
+| `flagged`               | bool              | Unambiguous boolean                                                                                                             |
+| `deductible`            | bool              | Unambiguous boolean                                                                                                             |
+| `manager_review_status` | string            | Categorical text                                                                                                                |
+| `created_at`            | datetime (UTC)    | Must become a real datetime type; format declared explicitly rather than relying on pandas-version-dependent auto-parsing       |
 
 Every identifier column (`tenant_id`, `expense_report_id`, `record_id`,
 `submitter_id`, `receipt_number`) is declared as a string. Every GL code
@@ -172,13 +173,13 @@ either engine's own type inference.
 
 At full scale (2,000,000-row export):
 
-| Metric | Value |
-|---|---|
-| Grouped (tenant, GL code, month) rows | 864 |
-| Total spend | $1,942,523,897.03 (194,252,389,703 cents) |
-| Line items evaluated | 1,599,680 |
-| Line items flagged (> $500.00) | 1,256,894 |
-| Flagged share | 78.6% |
+| Metric                                | Value                                     |
+| ------------------------------------- | ----------------------------------------- |
+| Grouped (tenant, GL code, month) rows | 864                                       |
+| Total spend                           | $1,942,523,897.03 (194,252,389,703 cents) |
+| Line items evaluated                  | 1,599,680                                 |
+| Line items flagged (> $500.00)        | 1,256,894                                 |
+| Flagged share                         | 78.6%                                     |
 
 These figures were cross-checked three ways: the eager pandas baseline, the
 lazy Polars pipeline, and an independent raw-JSON scan of the file with no
@@ -192,10 +193,10 @@ attributed cleanly, rather than measuring Python-heap allocations only
 (which would understate both engines' real footprint — most of their memory
 lives in native pandas/numpy or Polars/Arrow buffers, not the Python heap).
 
-| Engine | Wall clock | Peak RSS |
-|---|---|---|
-| pandas (eager: read whole file, then filter/group/aggregate) | 29.4 s | 8,908 MB |
-| polars (lazy: `scan_ndjson` → filter → select → `.collect()`) | 2.0 s | 762 MB |
+| Engine                                                        | Wall clock | Peak RSS |
+| ------------------------------------------------------------- | ---------- | -------- |
+| pandas (eager: read whole file, then filter/group/aggregate)  | 29.4 s     | 8,908 MB |
+| polars (lazy: `scan_ndjson` → filter → select → `.collect()`) | 2.0 s      | 762 MB   |
 
 Polars was **~14.7x faster** and used **~11.7x less peak memory** on this
 2,000,000-row file (two full runs measured: 14.41–14.80x time, 11.53–11.69x
@@ -225,7 +226,7 @@ simple π 4/4 ["tenant_id", "gl_account_code", ... 2 other columns]
 
 In the optimized plan, `SELECTION:` and `PROJECT 5/25 COLUMNS` are
 attributes of the `NDJson SCAN` node itself — the filter and column
-selection happen *during* the scan, not as separate steps discarding rows
+selection happen _during_ the scan, not as separate steps discarding rows
 and columns afterward. The unoptimized plan shows the naive shape for
 comparison: a full `PROJECT */25 COLUMNS` scan feeding separate `FILTER`
 and `SELECT` steps.
@@ -258,7 +259,7 @@ same direction:
   pandas' cost scales with total file size while Polars' scan cost scales
   with what the query actually needs.
 - **SQL ergonomics**: Polars' lazy `.filter()` / `.select()` / `.group_by()`
-  / `.agg()` chain reads like a query plan and *is* one — `.explain()`
+  / `.agg()` chain reads like a query plan and _is_ one — `.explain()`
   exposes exactly what will run before it runs, which is what let this
   profile prove pushdown instead of asserting it. pandas' eager
   `groupby().agg()` is equally readable for a single aggregate like this
@@ -327,10 +328,10 @@ prints the reason if the totals differ by even one cent.
 
 **Result:**
 
-| Source | Rows | Total spend |
-|---|---|---|
+| Source                                                                           | Rows      | Total spend       |
+| -------------------------------------------------------------------------------- | --------- | ----------------- |
 | Parquet (`s3://expenseflow-valid-line-items-m9d1/valid-line-items/`, via DuckDB) | 1,512,518 | $1,893,541,463.08 |
-| Postgres (`expense_line_item`, via DuckDB `ATTACH`) | 1,512,518 | $1,893,541,463.08 |
+| Postgres (`expense_line_item`, via DuckDB `ATTACH`)                              | 1,512,518 | $1,893,541,463.08 |
 
 Exact match, confirmed a third way by an independent Python scan of the
 raw export with no SQL engine involved at all (same row count, same
@@ -352,8 +353,8 @@ Postgres side of this comparison:
   `expense_line_item_currency_check` (`currency ~ '^[A-Z]{3}$'`)**
   (`apps/api/src/db/schema.ts`) reject the export's seeded non-positive-amount
   and lowercase-currency defect rows outright — 63,408 rows (31,466 amount-only
-  + 31,311 currency-only + 631 both) cannot be inserted into a real
-  `expense_line_item` table as-is.
+  - 31,311 currency-only + 631 both) cannot be inserted into a real
+    `expense_line_item` table as-is.
 - **The primary key on `expense_line_item.id`** rejects the export's seeded
   duplicate-`record_id` defect (a small fraction of rows reuse the
   immediately preceding row's id): once the first occurrence of a
@@ -371,11 +372,11 @@ the row-level Parquet archive writer) before comparing anything. With that
 shared filter in place on both sides, the totals matched exactly on the
 first real run.
 
-This is also why the equivalence check reads from a *second*,
+This is also why the equivalence check reads from a _second_,
 row-level Parquet archive (`s3://expenseflow-valid-line-items-m9d1/valid-line-items/`,
 partitioned by `tenant_id`) rather than the pre-grouped spend-by-tenant-GL-month
 archive from the prior section: the grouped archive's total is deliberately
-computed over *every* line item (defects included, matching the finance
+computed over _every_ line item (defects included, matching the finance
 question as originally asked), so comparing it directly to Postgres would
 fail for a row-scope reason, not a data-correctness one. The two archives
 answer two different, both-legitimate questions — "total spend across
