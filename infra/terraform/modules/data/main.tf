@@ -433,3 +433,43 @@ resource "aws_sqs_queue" "stage_projection" {
 
   tags = { Name = "${var.stack_name}-stage-projection-queue" }
 }
+
+# ====== SNS/SQS: pipeline dataset-refreshed events ======
+#
+# Separate topic/queue pair from stage_events/stage_projection above, on the
+# same Module 6 SNS->SQS pattern (KMS-encrypted SNS topic, SQS queue with a
+# redrive-policy DLQ) and reusing the same aws_kms_key.sns key. A distinct
+# topic is used rather than publishing onto stage_events itself because the
+# stage-transition consumer (apps/api/src/events/stage-transition-consumer.ts)
+# strictly parses every message against the stage-transitioned event's own
+# CloudEvents schema (see docs/adr/0014-event-taxonomy-and-cloudevents.md) --
+# a different fact type on that topic would fail that parse and dead-letter.
+
+resource "aws_sns_topic" "pipeline_dataset_events" {
+  name              = "${var.stack_name}-pipeline-dataset-events"
+  kms_master_key_id = aws_kms_key.sns.key_id
+
+  tags = { Name = "${var.stack_name}-pipeline-dataset-events-topic" }
+}
+
+resource "aws_sqs_queue" "pipeline_dataset_refreshed_dlq" {
+  name                      = "${var.stack_name}-pipeline-dataset-refreshed-dlq"
+  message_retention_seconds = 1209600 # 14 days
+  sqs_managed_sse_enabled   = true
+
+  tags = { Name = "${var.stack_name}-pipeline-dataset-refreshed-dlq" }
+}
+
+resource "aws_sqs_queue" "pipeline_dataset_refreshed" {
+  name                       = "${var.stack_name}-pipeline-dataset-refreshed"
+  visibility_timeout_seconds = 300
+  message_retention_seconds  = 345600 # 4 days
+  sqs_managed_sse_enabled    = true
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.pipeline_dataset_refreshed_dlq.arn
+    maxReceiveCount     = 3
+  })
+
+  tags = { Name = "${var.stack_name}-pipeline-dataset-refreshed-queue" }
+}

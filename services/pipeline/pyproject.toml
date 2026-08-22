@@ -10,6 +10,10 @@ dependencies = [
   "polars>=1.43.2",
   "pyarrow>=25.0.1",
   "duckdb>=1.5.5",
+  "psycopg[binary]>=3.2",
+  "boto3>=1.43.78",
+  "pydantic>=2.13",
+  "structlog>=26.1.0",
 ]
 
 [dependency-groups]
@@ -20,7 +24,6 @@ dev = [
   "jupyter>=1.0",
   "pytest",
   "ruff",
-  "boto3>=1.43.78",
 ]
 
 [tool.uv]

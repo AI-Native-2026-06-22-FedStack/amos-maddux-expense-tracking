@@ -1,0 +1,18 @@
+# ExpenseFlow pipeline configuration.
+#
+# This is the pipeline's own config file (loaded via the standard-library
+# tomllib, no new dependency), for settings that are policy/threshold
+# values rather than per-environment connection details -- those stay in
+# environment variables (see config.py, .env.example) per this
+# repository's existing convention. A quarantine-rate threshold is a
+# policy decision, not something that differs between local/staging/prod
+# in the way an endpoint URL does, so it belongs here rather than as
+# another env var.
+
+[quarantine]
+# If quarantine_rate (rejected_rows / total_input_rows for a run) exceeds
+# this threshold, the pipeline run fails outright (see quarantine_rate.py
+# and run.py's QuarantineRateExceededError) rather than continuing with
+# more than an acceptable fraction of a batch rejected. See
+# docs/runbooks/quarantine-rate.md for what to do when this fires.
+max_rate = 0.05
