@@ -56,3 +56,25 @@ variable "compute_cloudwatch_log_group" {
   description = "CloudWatch log group for compute service."
   type        = string
 }
+
+variable "release_latency_threshold_seconds" {
+  description = "Average ALB target response time threshold for the first post-release golden-signal alarm."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.release_latency_threshold_seconds > 0
+    error_message = "release_latency_threshold_seconds must be greater than zero."
+  }
+}
+
+variable "release_latency_evaluation_periods" {
+  description = "Number of consecutive one-minute periods that must breach before the release-health alarm fires."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.release_latency_evaluation_periods > 1
+    error_message = "release_latency_evaluation_periods must be greater than one so a single blip cannot alarm."
+  }
+}

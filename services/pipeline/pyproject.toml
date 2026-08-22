@@ -1,0 +1,37 @@
+# path: services/pipeline/pyproject.toml
+[project]
+name = "pipeline"
+version = "0.1.0"
+description = "ExpenseFlow analytical pipeline: export generation and profiling."
+requires-python = ">=3.13"
+dependencies = [
+  "pandas>=2.2",
+  "numpy>=2.0",
+  "polars>=1.43.2",
+  "pyarrow>=25.0.1",
+  "duckdb>=1.5.5",
+]
+
+[dependency-groups]
+dev = [
+  "ipykernel>=6.29",
+  "nbformat>=5.10",
+  "nbclient>=0.11",
+  "jupyter>=1.0",
+  "pytest",
+  "ruff",
+  "boto3>=1.43.78",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

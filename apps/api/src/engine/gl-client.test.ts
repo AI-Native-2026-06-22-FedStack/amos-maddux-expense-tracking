@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { context, trace, TraceFlags } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
 
 import { BoundaryContractError, UpstreamEngineError } from "../errors/problem-json.js";
 import { createGlCodingEngineClient } from "./gl-client.js";
@@ -32,7 +34,18 @@ const validResponse = {
   flagged_line_item: null
 };
 
+const contextManager = new AsyncLocalStorageContextManager();
+
 describe("GlCodingEngineClient", () => {
+  beforeAll(() => {
+    context.setGlobalContextManager(contextManager.enable());
+  });
+
+  afterAll(() => {
+    context.disable();
+    contextManager.disable();
+  });
+
   it("caps retries with growing jittered waits for a downed engine", async () => {
     const sleeps: number[] = [];
     const fetchImpl = vi.fn(async () => {
@@ -166,6 +179,38 @@ describe("GlCodingEngineClient", () => {
       headers: {
         authorization: "Bearer synthetic-token",
         "content-type": "application/json"
+      },
+      body: JSON.stringify(validRequest),
+      signal: expect.any(AbortSignal)
+    });
+  });
+
+  it("propagates the active OpenTelemetry trace context to the GL-coding engine", async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse(validResponse, 200)
+    ) as unknown as typeof fetch;
+    const client = createGlCodingEngineClient({
+      baseUrl: "http://compute.example.test",
+      fetchImpl
+    });
+
+    await context.with(
+      trace.setSpanContext(context.active(), {
+        traceId: "abcdefabcdefabcdefabcdefabcdefab",
+        spanId: "abcdefabcdefabcd",
+        traceFlags: TraceFlags.SAMPLED
+      }),
+      async () => {
+        await client.codeExpenseReport(validRequest, "synthetic-token");
+      }
+    );
+
+    expect(fetchImpl).toHaveBeenCalledWith(new URL("/v1/coding", "http://compute.example.test"), {
+      method: "POST",
+      headers: {
+        authorization: "Bearer synthetic-token",
+        "content-type": "application/json",
+        traceparent: "00-abcdefabcdefabcdefabcdefabcdefab-abcdefabcdefabcd-01"
       },
       body: JSON.stringify(validRequest),
       signal: expect.any(AbortSignal)
