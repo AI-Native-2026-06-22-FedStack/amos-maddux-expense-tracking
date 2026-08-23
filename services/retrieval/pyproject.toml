@@ -1,0 +1,28 @@
+# path: services/retrieval/pyproject.toml
+[project]
+name = "retrieval"
+version = "0.1.0"
+description = "ExpenseFlow retrieval service: hierarchical chunking, embedding, RRF fusion, and reranking over the synthetic expense-policy corpus."
+requires-python = ">=3.13"
+dependencies = [
+  "pyyaml>=6.0",
+]
+
+[dependency-groups]
+dev = [
+  "pytest",
+  "ruff",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
