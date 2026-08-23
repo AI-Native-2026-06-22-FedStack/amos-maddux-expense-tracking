@@ -315,6 +315,7 @@ def _vector_literal(embedding: list[float]) -> str:
 
 def load_corpus(
     tenant_id: str = DEFAULT_TENANT_ID,
+    corpus_dir: Path | None = None,
     chunking_config: ChunkingConfig | None = None,
     embedding_config: EmbeddingConfig | None = None,
     cache_dir: Path = DEFAULT_CACHE_DIR,
@@ -325,6 +326,15 @@ def load_corpus(
     into retrieval.corpus_chunk. Returns EmbedStats so callers (the CLI
     entrypoint and the test suite) can inspect exactly what happened --
     cache hits/misses, API calls, rows touched -- without re-deriving it.
+
+    corpus_dir defaults to chunker.CORPUS_DIR (data/corpus/, the
+    Deliverable-1/2 single-tenant corpus) when omitted. A caller loading a
+    second tenant's content from a different directory (e.g.
+    data/corpus-tenant-b/ -- see the tenant-isolation regression test)
+    passes both a different tenant_id and a different corpus_dir; the two
+    are independent parameters because tenant_id is how a chunk is scoped
+    in the DATABASE, while corpus_dir is only where its source Markdown
+    lives on disk.
     """
     import psycopg
 
@@ -342,7 +352,10 @@ def load_corpus(
     else:
         stats = embedder.stats
 
-    chunks = chunk_corpus(config=chunking_config)
+    chunk_corpus_kwargs = {"config": chunking_config}
+    if corpus_dir is not None:
+        chunk_corpus_kwargs["corpus_dir"] = corpus_dir
+    chunks = chunk_corpus(**chunk_corpus_kwargs)
 
     with psycopg.connect(db_config.database_uri) as connection:
         existing_hashes = _fetch_existing_content_hashes(connection, tenant_id)
