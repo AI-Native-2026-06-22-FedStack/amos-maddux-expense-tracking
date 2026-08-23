@@ -15,9 +15,10 @@
 # docs/adr/0009-storage-per-bounded-context.md for why no new store is
 # introduced without an ADR).
 #
-# NOTE: this skeleton intentionally configures values only. The chunker,
-# embedding loader, retriever, and reranker themselves are not
-# implemented yet -- see prompt-journal for the corresponding entry.
+# The chunker (chunker.py), embedding loader (embed.py), and hybrid
+# retriever (retrieve.py -- keyword + dense legs fused with RRF) are
+# implemented; only the reranker ([rerank] below) is not yet -- see
+# prompt-journal for the corresponding entries.
 
 [chunking]
 # Hierarchical chunking: split by document structure first (e.g. section /
@@ -46,6 +47,16 @@ dimensions = 1536
 # (Cormack, Clarke & Buettcher 2009) and is not tuned per-corpus here.
 rrf_k = 60
 top_k = 5
+
+# Candidates pulled from EACH leg (keyword, dense) before fusion, not the
+# final result count (top_k above is that). This corpus has only 43
+# chunks total, so 20 per leg already covers roughly half the corpus --
+# generous enough that RRF has real overlapping/non-overlapping rankings
+# to fuse from both legs, while still being a real top-N cutoff (not "all
+# rows") so this stays representative of how a larger corpus would be
+# queried. Retrieve.py's tests assert this value is honored as a hard
+# per-leg limit.
+candidates_per_leg = 20
 
 [rerank]
 # gpt-4o-mini as the configured reranker model family. Reranking is a

@@ -51,8 +51,17 @@ RETRIEVAL_TOML_PATH = RETRIEVAL_DIR / "retrieval.toml"
 
 FRONT_MATTER_PATTERN = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 SECTION_HEADING_PATTERN = re.compile(
-    r"^(#{2,3})\s+.*`(NWP-POL-\d{3}-\d{2}(?:\.\d{2})?)`\s*$", re.MULTILINE
+    r"^(#{2,3})\s+.*`([A-Z]+-POL-\d{3}-\d{2}(?:\.\d{2})?)`\s*$", re.MULTILINE
 )
+"""Generic <PREFIX>-POL-<doc>-<section>[.<subsection>] shape -- NOT
+hardcoded to Northwind Prairie's own NWP-POL- prefix. Each fictional
+company/tenant in this corpus uses its own prefix (Northwind Prairie:
+NWP-POL-, see data/corpus/CORPUS-SPEC.md; Rival Corp:
+RVL-POL-, see data/corpus-tenant-b/ -- the tenant-isolation regression
+test's adversarial second-tenant content), and the chunker must not
+assume there is only ever one company's convention -- the '-POL-' +
+3-digit-doc + 2-digit-section shape is the real structural invariant,
+the letters before it are not."""
 TOP_LEVEL_HEADING_DEPTH = 2  # "##"
 
 # A rough, deterministic token estimate (characters / 4) used only to
@@ -226,7 +235,9 @@ def _split_oversized_section(
     part_label is a human-readable fragment used to build
     section_heading_path for that part.
     """
-    subsection_pattern = re.compile(r"^(###)\s+.*`(NWP-POL-\d{3}-\d{2}\.\d{2})`\s*$", re.MULTILINE)
+    subsection_pattern = re.compile(
+        r"^(###)\s+.*`([A-Z]+-POL-\d{3}-\d{2}\.\d{2})`\s*$", re.MULTILINE
+    )
     subheadings = list(subsection_pattern.finditer(section_text))
 
     if not subheadings:
@@ -293,12 +304,29 @@ def _make_chunk_id(section_id: str, part_index: int, part_count: int) -> str:
     return f"{section_id}#{part_index}"
 
 
+def _source_path(path: Path) -> str:
+    """Repo-relative path string for provenance (Chunk.source), derived
+    from the file's ACTUAL location rather than assuming data/corpus/ --
+    a second corpus directory (e.g. data/corpus-tenant-b/, used by the
+    tenant-isolation regression test) must produce a source that reflects
+    where its file really lives, not a hardcoded data/corpus/ prefix."""
+    repo_root = RETRIEVAL_DIR.parent.parent
+    try:
+        return str(path.resolve().relative_to(repo_root))
+    except ValueError:
+        # Path isn't under the repo root (e.g. a tmp_path in a test) --
+        # fall back to a 'data/<parent-dir-name>/<file-name>' shape so
+        # source still reads as a plausible corpus-relative path rather
+        # than leaking an absolute filesystem path into stored provenance.
+        return f"data/{path.resolve().parent.name}/{path.name}"
+
+
 def chunk_document(path: Path, config: ChunkingConfig) -> list[Chunk]:
     """Chunk one corpus Markdown file into a list of Chunk objects."""
     raw_text = path.read_text(encoding="utf-8")
     front_matter, body, body_start = _load_front_matter_and_body(raw_text)
     doc_title = front_matter["title"]
-    source = f"data/corpus/{path.name}"
+    source = _source_path(path)
 
     top_level_sections = _split_top_level_sections(body)
 
