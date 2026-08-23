@@ -20,3 +20,4 @@ crash.log
 crash.*.log
 artifacts/terraform/
 data/exports/
+.cache/
