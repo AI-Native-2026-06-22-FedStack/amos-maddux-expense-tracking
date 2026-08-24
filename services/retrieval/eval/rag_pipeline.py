@@ -150,16 +150,18 @@ def generate_policy_answer(
     from openai import OpenAI
 
     context_block = "\n\n".join(
-        f"[{index}] chunk_id={chunk.chunk_id} section={chunk.section_id}\n{chunk.text}"
+        f"[{index}] chunk_id={chunk.chunk_id} source={chunk.source} "
+        f"section={chunk.section_id}\n{chunk.text}"
         for index, chunk in enumerate(contexts, start=1)
     )
     prompt = (
-        "Answer the ExpenseFlow policy question as valid JSON using only the supplied "
-        "policy excerpts. "
+        "Answer the ExpenseFlow policy question as raw valid JSON using only the supplied "
+        "policy excerpts. Do not wrap the JSON in Markdown or a code fence. "
         "If the excerpts do not support an answer, say that the policy excerpts do not "
         "provide enough information. Keep the answer concise and cite supporting chunk ids "
         "in the citations array. The JSON object must have an answer string and a citations "
-        "array. Each citation must include chunk_id, source, section_id, and may include quote. "
+        "array. Each citation must copy chunk_id, source, and section_id exactly from the "
+        "supplied excerpt header, and may include quote. "
         "Do not cite chunk ids that are not present in the supplied excerpts.\n\n"
         f"Question: {question}\n\n"
         f"Policy excerpts:\n{context_block}"
