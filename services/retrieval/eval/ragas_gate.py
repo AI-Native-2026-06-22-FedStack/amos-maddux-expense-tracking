@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from rag_pipeline import PolicyRagPipeline, UsageTotals
+from rag_pipeline import PolicyRagPipeline, UsageTotals, answer_text_for_evaluation
 
 from retrieve import load_embedding_config
 
@@ -125,7 +125,7 @@ def build_ragas_rows(
         rows.append(
             {
                 "user_input": example.question,
-                "response": answer.answer,
+                "response": answer_text_for_evaluation(answer.answer),
                 "retrieved_contexts": answer.contexts,
                 "reference": example.ground_truth,
                 "expected_chunk_id": example.expected_chunk_id,

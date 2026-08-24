@@ -9,6 +9,7 @@ instead of reconstructing easier test-only behavior.
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ class PolicyAnswer:
     question: str
     answer: str
     contexts: list[str]
+    citation_metadata: list[dict[str, str]]
     context_chunk_ids: list[str]
     retrieved_chunk_ids: list[str]
     reranked_chunk_ids: list[str]
@@ -119,6 +121,14 @@ class PolicyRagPipeline:
             question=question,
             answer=answer,
             contexts=[chunk.text for chunk in selected_contexts],
+            citation_metadata=[
+                {
+                    "chunk_id": chunk.chunk_id,
+                    "source": chunk.source,
+                    "section_id": chunk.section_id,
+                }
+                for chunk in selected_contexts
+            ],
             context_chunk_ids=[chunk.chunk_id for chunk in selected_contexts],
             retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved],
             reranked_chunk_ids=[chunk.chunk_id for chunk in ordered_chunks],
@@ -144,10 +154,13 @@ def generate_policy_answer(
         for index, chunk in enumerate(contexts, start=1)
     )
     prompt = (
-        "Answer the ExpenseFlow policy question using only the supplied policy excerpts. "
+        "Answer the ExpenseFlow policy question as valid JSON using only the supplied "
+        "policy excerpts. "
         "If the excerpts do not support an answer, say that the policy excerpts do not "
         "provide enough information. Keep the answer concise and cite supporting chunk ids "
-        "inline.\n\n"
+        "in the citations array. The JSON object must have an answer string and a citations "
+        "array. Each citation must include chunk_id, source, section_id, and may include quote. "
+        "Do not cite chunk ids that are not present in the supplied excerpts.\n\n"
         f"Question: {question}\n\n"
         f"Policy excerpts:\n{context_block}"
     )
@@ -161,6 +174,15 @@ def generate_policy_answer(
     content = response.choices[0].message.content or ""
     usage = _usage_from_openai_response(response)
     return content, getattr(response, "model", None), usage
+
+
+def answer_text_for_evaluation(raw_answer: str) -> str:
+    try:
+        payload = json.loads(raw_answer)
+    except json.JSONDecodeError:
+        return raw_answer
+    answer = payload.get("answer") if isinstance(payload, dict) else None
+    return answer if isinstance(answer, str) else raw_answer
 
 
 def _candidates_from_retrieved(chunks: list[RetrievedChunk]) -> list[Candidate]:
