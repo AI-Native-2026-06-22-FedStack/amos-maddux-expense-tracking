@@ -12,6 +12,8 @@ from typing import Any
 
 from rag_pipeline import PolicyRagPipeline, UsageTotals
 
+from retrieve import load_embedding_config
+
 EVAL_DIR = Path(__file__).resolve().parent
 DEFAULT_THRESHOLDS_PATH = EVAL_DIR / "thresholds.toml"
 DEFAULT_EVAL_PATH = EVAL_DIR / "eval_smoke.jsonl"
@@ -166,7 +168,7 @@ def assert_quality_gates(scores: RagasScores, thresholds: GateThresholds) -> Non
 def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
     try:
         from datasets import Dataset
-        from langchain_openai import ChatOpenAI
+        from langchain_openai import ChatOpenAI, OpenAIEmbeddings
         from ragas import evaluate
         from ragas.cost import get_token_usage_for_openai
         from ragas.metrics import answer_relevancy, context_precision, faithfulness
@@ -178,10 +180,16 @@ def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
 
     dataset = Dataset.from_list(rows)
     judge_llm = ChatOpenAI(model=config.judge.model, temperature=0)
+    embedding_config = load_embedding_config()
+    judge_embeddings = OpenAIEmbeddings(
+        model=embedding_config.model,
+        dimensions=embedding_config.dimensions,
+    )
     ragas_result = evaluate(
         dataset,
         metrics=[faithfulness, answer_relevancy, context_precision],
         llm=judge_llm,
+        embeddings=judge_embeddings,
         token_usage_parser=get_token_usage_for_openai,
         raise_exceptions=True,
         show_progress=False,
