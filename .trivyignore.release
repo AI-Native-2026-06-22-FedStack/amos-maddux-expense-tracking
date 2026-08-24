@@ -1,0 +1,11 @@
+# Release image HIGH exceptions for ADR-0025.
+#
+# Leave this file empty when the image scans clean. A future HIGH exception is
+# allowed only when all of these are true:
+# - no fixed version exists in the real advisory,
+# - the CVE is recorded on its own ADR-0025 line with a HIGH justification,
+# - no more than two unique HIGH CVEs are listed here at the same time.
+#
+# CRITICAL findings must not be listed here.
+
+CVE-2026-14456

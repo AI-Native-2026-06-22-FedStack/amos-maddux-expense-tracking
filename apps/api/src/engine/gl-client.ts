@@ -1,5 +1,6 @@
 import { getApiRuntimeConfig } from "../config/runtime-config.js";
 import { BoundaryContractError, UpstreamEngineError } from "../errors/problem-json.js";
+import { injectActiveTraceContext } from "../telemetry/trace-context.js";
 import {
   validateGlCodingRequestPayload,
   validateGlCodingResponsePayload
@@ -121,12 +122,14 @@ class FetchGlCodingEngineClient implements GlCodingEngineClient {
     const timeout = setTimeout(() => controller.abort(), this.perAttemptTimeoutMs);
 
     try {
+      const headers = injectActiveTraceContext({
+        authorization: `Bearer ${bearerToken}`,
+        "content-type": "application/json"
+      });
+
       return await this.fetchImpl(new URL("/v1/coding", this.baseUrl), {
         method: "POST",
-        headers: {
-          authorization: `Bearer ${bearerToken}`,
-          "content-type": "application/json"
-        },
+        headers,
         body: JSON.stringify(request),
         signal: controller.signal
       });

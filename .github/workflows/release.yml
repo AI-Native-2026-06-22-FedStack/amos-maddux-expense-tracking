@@ -1,0 +1,171 @@
+name: Release provenance
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  core-case-image:
+    name: Core Case image provenance
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_SLUG: core-case-service
+      TRIVY_SARIF: artifacts/security/trivy-image-core-case-service.sarif
+      SBOM_FILE: artifacts/security/core-case-service.cdx.json
+      COSIGN_VERIFY_FILE: artifacts/security/cosign-verify-core-case-service.json
+      VERIFY_IDENTITY: https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/heads/main
+      VERIFY_ISSUER: https://token.actions.githubusercontent.com
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare release evidence sink
+        run: mkdir -p artifacts/security
+
+      - name: Resolve image reference
+        id: image
+        run: |
+          image_repository="$(printf 'ghcr.io/%s/%s' "${GITHUB_REPOSITORY}" "${IMAGE_SLUG}" | tr '[:upper:]' '[:lower:]')"
+          image_ref="${image_repository}:m7-${GITHUB_SHA}"
+          printf 'ref=%s\n' "${image_ref}" >> "${GITHUB_OUTPUT}"
+          printf 'repository=%s\n' "${image_repository}" >> "${GITHUB_OUTPUT}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image locally
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          load: true
+          tags: ${{ steps.image.outputs.ref }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Check Trivy HIGH exception policy
+        run: ./scripts/container-provenance.sh --check-policy-only
+
+      - name: Run Trivy image gate
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ steps.image.outputs.ref }}
+          scanners: vuln
+          format: sarif
+          output: ${{ env.TRIVY_SARIF }}
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          trivyignores: .trivyignore.release
+          limit-severities-for-sarif: "true"
+
+      - name: Generate Syft CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.image.outputs.ref }}
+          format: cyclonedx-json
+          output-file: ${{ env.SBOM_FILE }}
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Deploy to floci and run OWASP ZAP baseline
+        if: steps.trivy.outcome == 'success'
+        run: ./scripts/run-zap-baseline-floci.sh "${{ steps.image.outputs.ref }}"
+
+      - name: Log in to GHCR
+        if: steps.trivy.outcome == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push gated image
+        if: steps.trivy.outcome == 'success'
+        id: push
+        run: |
+          docker push "${{ steps.image.outputs.ref }}"
+          digest_ref="$(docker inspect --format='{{index .RepoDigests 0}}' "${{ steps.image.outputs.ref }}")"
+          printf 'digest-ref=%s\n' "${digest_ref}" >> "${GITHUB_OUTPUT}"
+          printf '%s\n' "${digest_ref}" > artifacts/security/core-case-service-image-digest.txt
+
+      - name: Install cosign
+        if: steps.trivy.outcome == 'success'
+        uses: sigstore/cosign-installer@v3.9.2
+
+      - name: Sign image keylessly
+        if: steps.trivy.outcome == 'success'
+        env:
+          COSIGN_YES: "true"
+        run: cosign sign "${{ steps.push.outputs.digest-ref }}"
+
+      - name: Verify keyless signature
+        if: steps.trivy.outcome == 'success'
+        run: |
+          cosign verify \
+            --certificate-oidc-issuer "${VERIFY_ISSUER}" \
+            --certificate-identity "${VERIFY_IDENTITY}" \
+            --output json \
+            "${{ steps.push.outputs.digest-ref }}" > "${COSIGN_VERIFY_FILE}"
+
+      - name: Check release evidence files
+        if: steps.trivy.outcome == 'success'
+        run: |
+          test -s "${TRIVY_SARIF}"
+          test -s "${SBOM_FILE}"
+          test -s artifacts/security/zap-baseline.html
+          test -s artifacts/security/zap-baseline.json
+          test -s artifacts/security/zap-target-curl.json
+          test -s artifacts/security/core-case-service-image-digest.txt
+          test -s "${COSIGN_VERIFY_FILE}"
+
+      - name: Confirm no stored cosign key exists
+        run: |
+          if find . \
+            -path ./.git -prune -o \
+            -type f \( \
+              -name 'cosign.key' -o \
+              -name 'cosign.pub' -o \
+              -name 'cosign.password' -o \
+              -name '*cosign*key*' \
+            \) -print | grep .; then
+            echo "Stored cosign key material is not allowed; release signing must stay keyless via GitHub OIDC."
+            exit 1
+          fi
+
+      - name: Upload release security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-core-case-security-evidence
+          path: |
+            artifacts/security/trivy-image-core-case-service.sarif
+            artifacts/security/core-case-service.cdx.json
+            artifacts/security/zap-baseline.html
+            artifacts/security/zap-baseline.json
+            artifacts/security/zap-target-curl.json
+            artifacts/security/zap-target-url.txt
+            artifacts/security/core-case-service-image-digest.txt
+            artifacts/security/cosign-verify-core-case-service.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Enforce Trivy gate
+        if: always()
+        env:
+          TRIVY_OUTCOME: ${{ steps.trivy.outcome }}
+        run: |
+          if [ "${TRIVY_OUTCOME}" != "success" ]; then
+            echo "Trivy image gate failed. CRITICAL findings are not allowed; unignored HIGH findings must be fixed or justified under ADR-0025."
+            exit 1
+          fi

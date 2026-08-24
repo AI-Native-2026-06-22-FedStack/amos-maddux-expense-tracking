@@ -42,6 +42,24 @@ output "alb_dns_name" {
   value       = aws_lb.expenseflow.dns_name
 }
 
+output "api_primary_target_group_arn" {
+  description = "Primary target group ARN for the Core Case Service blue/green service."
+  value       = aws_lb_target_group.api.arn
+  sensitive   = true
+}
+
+output "api_alternate_target_group_arn" {
+  description = "Alternate target group ARN for the Core Case Service blue/green service."
+  value       = aws_lb_target_group.api_alternate.arn
+  sensitive   = true
+}
+
+output "api_production_listener_rule_arn" {
+  description = "Production listener rule ARN that ECS switches during Core Case Service blue/green cutovers."
+  value       = aws_lb_listener_rule.api_production.arn
+  sensitive   = true
+}
+
 output "api_cloudwatch_log_group" {
   description = "CloudWatch log group for API service."
   value       = aws_cloudwatch_log_group.api.name

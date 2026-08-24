@@ -189,6 +189,29 @@ output "alb_dns_name" {
   value       = module.app.alb_dns_name
 }
 
+output "api_primary_target_group_arn" {
+  description = "Primary target group ARN for the Core Case Service blue/green service."
+  value       = module.app.api_primary_target_group_arn
+  sensitive   = true
+}
+
+output "api_alternate_target_group_arn" {
+  description = "Alternate target group ARN for the Core Case Service blue/green service."
+  value       = module.app.api_alternate_target_group_arn
+  sensitive   = true
+}
+
+output "api_production_listener_rule_arn" {
+  description = "Production listener rule ARN that ECS switches during Core Case Service blue/green cutovers."
+  value       = module.app.api_production_listener_rule_arn
+  sensitive   = true
+}
+
+output "release_health_alarm_name" {
+  description = "CloudWatch alarm name for the first post-release golden-signal alarm."
+  value       = module.observability.release_health_alarm_name
+}
+
 output "api_cloudwatch_log_group" {
   description = "CloudWatch log group for API service."
   value       = module.app.api_cloudwatch_log_group

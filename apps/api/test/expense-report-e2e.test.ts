@@ -183,10 +183,14 @@ describe("Expense Report create and read end-to-end", () => {
 
   it("serves Finance Dashboard rollup from real tenant-scoped Expense Report rows", async () => {
     const db = drizzle(client, { schema });
-    const todayResult = await client.query<{ today: string }>("select current_date::text as today");
+    const todayResult = await client.query<{ today: string; not_yet_due: string; overdue: string }>(
+      "select current_date::text as today, (current_date + interval '30 days')::date::text as not_yet_due, (current_date - interval '30 days')::date::text as overdue"
+    );
     const today = todayResult.rows[0]?.today;
+    const notYetDueDate = todayResult.rows[0]?.not_yet_due;
+    const overdueDate = todayResult.rows[0]?.overdue;
 
-    if (today === undefined) {
+    if (today === undefined || notYetDueDate === undefined || overdueDate === undefined) {
       throw new Error("Could not read the database current date.");
     }
 
@@ -197,7 +201,7 @@ describe("Expense Report create and read end-to-end", () => {
         submitterId,
         currentStage: "Drafted",
         priority: "Normal",
-        dueDate: "2026-07-01"
+        dueDate: overdueDate
       },
       {
         id: "00000000-0000-4000-8000-000000000682",
@@ -205,7 +209,7 @@ describe("Expense Report create and read end-to-end", () => {
         submitterId,
         currentStage: "Drafted",
         priority: "Normal",
-        dueDate: "2026-08-15"
+        dueDate: notYetDueDate
       },
       {
         id: "00000000-0000-4000-8000-000000000683",
@@ -213,7 +217,7 @@ describe("Expense Report create and read end-to-end", () => {
         submitterId,
         currentStage: "Manager Approval",
         priority: "High",
-        dueDate: "2026-07-02"
+        dueDate: overdueDate
       },
       {
         id: "00000000-0000-4000-8000-000000000684",

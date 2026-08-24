@@ -1,0 +1,131 @@
+env:
+  contexts:
+  - excludePaths: []
+    name: baseline
+    urls:
+    - http://floci/health
+    - http://floci/
+  parameters:
+    failOnError: true
+    progressToStdout: false
+jobs:
+- parameters:
+    enableTags: false
+    maxAlertsPerRule: 10
+  type: passiveScan-config
+- parameters:
+    maxDuration: 1
+    url: http://floci/
+  type: spider
+- parameters:
+    maxDuration: 5
+  type: passiveScan-wait
+- parameters:
+    format: Long
+    summaryFile: /home/zap/zap_out.json
+  rules:
+  - action: INFO
+    customMessage: ''
+    id: 10010
+  - action: INFO
+    customMessage: ''
+    id: 10011
+  - action: INFO
+    customMessage: ''
+    id: 10012
+  - action: INFO
+    customMessage: ''
+    id: 10015
+  - action: INFO
+    customMessage: ''
+    id: 10016
+  - action: INFO
+    customMessage: ''
+    id: 10017
+  - action: INFO
+    customMessage: ''
+    id: 10019
+  - action: FAIL
+    customMessage: ''
+    id: 10020
+  - action: INFO
+    customMessage: ''
+    id: 10021
+  - action: FAIL
+    customMessage: ''
+    id: 10023
+  - action: FAIL
+    customMessage: ''
+    id: 10024
+  - action: FAIL
+    customMessage: ''
+    id: 10025
+  - action: INFO
+    customMessage: ''
+    id: 10026
+  - action: INFO
+    customMessage: ''
+    id: 10027
+  - action: INFO
+    customMessage: ''
+    id: 10032
+  - action: FAIL
+    customMessage: ''
+    id: 10038
+  - action: FAIL
+    customMessage: ''
+    id: 10040
+  - action: IGNORE
+    customMessage: ''
+    id: 10049
+  - action: INFO
+    customMessage: ''
+    id: 10054
+  - action: FAIL
+    customMessage: ''
+    id: 10055
+  - action: INFO
+    customMessage: ''
+    id: 10063
+  - action: FAIL
+    customMessage: ''
+    id: 10105
+  - action: INFO
+    customMessage: ''
+    id: 10202
+  - action: INFO
+    customMessage: ''
+    id: 2
+  - action: FAIL
+    customMessage: ''
+    id: 3
+  - action: INFO
+    customMessage: ''
+    id: 50001
+  - action: INFO
+    customMessage: ''
+    id: 90001
+  - action: INFO
+    customMessage: ''
+    id: 90011
+  - action: FAIL
+    customMessage: ''
+    id: 90022
+  - action: INFO
+    customMessage: ''
+    id: 90033
+  type: outputSummary
+- parameters:
+    reportDescription: ''
+    reportDir: /zap/wrk/
+    reportFile: zap-baseline.html
+    reportTitle: ZAP Scanning Report
+    template: traditional-html
+  type: report
+- parameters:
+    reportDescription: ''
+    reportDir: /zap/wrk/
+    reportFile: zap-baseline.json
+    reportTitle: ZAP Scanning Report
+    template: traditional-json
+  type: report

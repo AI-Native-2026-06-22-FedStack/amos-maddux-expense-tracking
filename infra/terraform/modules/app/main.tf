@@ -51,11 +51,13 @@ resource "aws_lb" "expenseflow" {
 
 resource "aws_lb_target_group" "api" {
   #checkov:skip=CKV_AWS_378: ADR-0023 - no ACM certificate/domain exists yet in this local stack; target group protocol follows the HTTP listener until HTTPS is introduced.
-  name        = "${var.stack_name}-api-tg"
+  name        = "${var.stack_name}-api-blue-tg"
   port        = var.container_port_api
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
+
+  deregistration_delay = var.blue_green_deregistration_delay_seconds
 
   health_check {
     healthy_threshold   = 2
@@ -69,6 +71,28 @@ resource "aws_lb_target_group" "api" {
   tags = { Name = "${var.stack_name}-api-tg" }
 }
 
+resource "aws_lb_target_group" "api_alternate" {
+  #checkov:skip=CKV_AWS_378: ADR-0023 - no ACM certificate/domain exists yet in this local stack; target group protocol follows the HTTP listener until HTTPS is introduced.
+  name        = "${var.stack_name}-api-green-tg"
+  port        = var.container_port_api
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  deregistration_delay = var.blue_green_deregistration_delay_seconds
+
+  health_check {
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    timeout             = 5
+    interval            = 30
+    path                = "/health"
+    matcher             = "200"
+  }
+
+  tags = { Name = "${var.stack_name}-api-alternate-tg" }
+}
+
 #trivy:ignore:AWS-0054 ADR-0023 - no ACM certificate/domain exists yet in this local stack; adding HTTPS is separate infrastructure work tracked in the ADR.
 resource "aws_lb_listener" "http" {
   #checkov:skip=CKV_AWS_2: ADR-0023 - no ACM certificate/domain exists yet in this local stack; adding HTTPS is separate infrastructure work tracked in the ADR.
@@ -78,9 +102,57 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
+    type = "fixed-response"
+
+    fixed_response {
+      content_type = "application/json"
+      message_body = "{\"error\":\"not_found\"}"
+      status_code  = "404"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "api_production" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.api.arn
   }
+
+  condition {
+    path_pattern {
+      values = ["/*"]
+    }
+  }
+}
+
+# ====== ECS Blue/Green IAM ======
+
+data "aws_iam_policy_document" "ecs_lb_infrastructure_assume_role" {
+  statement {
+    sid    = "AllowEcsToManageBlueGreenLoadBalancing"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["ecs.amazonaws.com"]
+    }
+
+    actions = ["sts:AssumeRole"]
+  }
+}
+
+resource "aws_iam_role" "ecs_lb_infrastructure" {
+  name               = "${var.stack_name}-ecs-lb-infrastructure-role"
+  description        = "Allows Amazon ECS native blue/green deployments to switch ALB target groups."
+  assume_role_policy = data.aws_iam_policy_document.ecs_lb_infrastructure_assume_role.json
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_lb_infrastructure" {
+  role       = aws_iam_role.ecs_lb_infrastructure.name
+  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonECSInfrastructureRolePolicyForLoadBalancers"
 }
 
 # ====== KMS Key for CloudWatch Logs ======
@@ -176,6 +248,16 @@ resource "aws_ecs_task_definition" "api" {
           protocol      = "tcp"
         }
       ]
+      healthCheck = {
+        command = [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/ready').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""
+        ]
+        interval    = 15
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -210,6 +292,14 @@ resource "aws_ecs_task_definition" "api" {
         {
           name  = "DYNAMODB_CASE_QUEUE_TABLE"
           value = var.dynamodb_case_queue_rollup_table_name
+        },
+        {
+          name  = "OTEL_SERVICE_NAME"
+          value = "expenseflow-core-case-service"
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+          value = var.otlp_traces_endpoint
         }
       ]
     }
@@ -239,6 +329,16 @@ resource "aws_ecs_task_definition" "compute" {
           protocol      = "tcp"
         }
       ]
+      healthCheck = {
+        command = [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)\""
+        ]
+        interval    = 15
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
+      }
       logConfiguration = {
         logDriver = "awslogs"
         options = {
@@ -277,6 +377,14 @@ resource "aws_ecs_task_definition" "compute" {
         {
           name  = "DYNAMODB_IDEMPOTENCY_TABLE"
           value = var.dynamodb_idempotency_table_name
+        },
+        {
+          name  = "OTEL_SERVICE_NAME"
+          value = "expenseflow-gl-coding-engine"
+        },
+        {
+          name  = "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"
+          value = var.otlp_traces_endpoint
         }
       ]
     }
@@ -288,11 +396,29 @@ resource "aws_ecs_task_definition" "compute" {
 # ====== ECS Services ======
 
 resource "aws_ecs_service" "api" {
-  name            = "${var.stack_name}-api-service"
-  cluster         = aws_ecs_cluster.expenseflow.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                               = "${var.stack_name}-api-service"
+  cluster                            = aws_ecs_cluster.expenseflow.id
+  task_definition                    = aws_ecs_task_definition.api.arn
+  desired_count                      = 1
+  launch_type                        = "FARGATE"
+  health_check_grace_period_seconds  = 60
+  deployment_maximum_percent         = 200
+  deployment_minimum_healthy_percent = 100
+  wait_for_steady_state              = true
+
+  deployment_controller {
+    type = "ECS"
+  }
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
+  deployment_configuration {
+    strategy             = "BLUE_GREEN"
+    bake_time_in_minutes = var.blue_green_bake_time_minutes
+  }
 
   network_configuration {
     subnets          = var.subnet_ids_private_task
@@ -304,11 +430,20 @@ resource "aws_ecs_service" "api" {
     target_group_arn = aws_lb_target_group.api.arn
     container_name   = "api"
     container_port   = var.container_port_api
+
+    advanced_configuration {
+      alternate_target_group_arn = aws_lb_target_group.api_alternate.arn
+      production_listener_rule   = aws_lb_listener_rule.api_production.arn
+      role_arn                   = aws_iam_role.ecs_lb_infrastructure.arn
+    }
   }
 
   tags = { Name = "${var.stack_name}-api-service" }
 
-  depends_on = [aws_lb_listener.http]
+  depends_on = [
+    aws_iam_role_policy_attachment.ecs_lb_infrastructure,
+    aws_lb_listener_rule.api_production,
+  ]
 }
 
 resource "aws_ecs_service" "compute" {

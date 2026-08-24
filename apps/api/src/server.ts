@@ -1,4 +1,7 @@
+import "./telemetry.js";
+
 import { startApiServer, type ApiServerHandle } from "./bootstrap.js";
+import { shutdownTelemetry } from "./telemetry.js";
 
 let apiServer: ApiServerHandle | undefined;
 let shutdownStarted = false;
@@ -32,6 +35,7 @@ function shutdown(signal: NodeJS.Signals): void {
 
 async function finishShutdown(): Promise<void> {
   await apiServer?.shutdown();
+  await shutdownTelemetry();
   console.log("ExpenseFlow API shutdown complete.");
   process.exit(0);
 }

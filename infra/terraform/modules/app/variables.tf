@@ -174,3 +174,31 @@ variable "container_port_compute" {
   type        = number
   default     = 8000
 }
+
+variable "otlp_traces_endpoint" {
+  description = "OTLP/HTTP traces endpoint for the ADOT collector that forwards traces to real AWS X-Ray."
+  type        = string
+  default     = "http://adot-collector:4318/v1/traces"
+}
+
+variable "blue_green_bake_time_minutes" {
+  description = "Minutes to keep the previous blue service revision alive after ECS shifts production traffic to green."
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.blue_green_bake_time_minutes >= 1 && var.blue_green_bake_time_minutes <= 1440
+    error_message = "blue_green_bake_time_minutes must be between 1 and 1440 minutes."
+  }
+}
+
+variable "blue_green_deregistration_delay_seconds" {
+  description = "Seconds the ALB target groups wait before draining deregistered blue/green targets."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.blue_green_deregistration_delay_seconds >= 0 && var.blue_green_deregistration_delay_seconds <= 3600
+    error_message = "blue_green_deregistration_delay_seconds must be between 0 and 3600 seconds."
+  }
+}

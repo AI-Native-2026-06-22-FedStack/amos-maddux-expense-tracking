@@ -1,0 +1,14 @@
+INFO:     Started server process [1]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+{"method": "GET", "path": "/health", "event": "request.started", "traceId": "0cf9d941fcba34d3edafda008b1d4d8b", "correlationId": null, "level": "info", "timestamp": "2026-08-19T18:34:28.415819Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "0cf9d941fcba34d3edafda008b1d4d8b", "correlationId": null, "level": "info", "timestamp": "2026-08-19T18:34:28.442266Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "traceId": "b92a6e752cef8af307cc3b2437b8ac39", "correlationId": "b2e9b80f-5511-467a-9aae-c943968a0d28", "level": "info", "timestamp": "2026-08-19T18:34:28.565526Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "b92a6e752cef8af307cc3b2437b8ac39", "correlationId": "b2e9b80f-5511-467a-9aae-c943968a0d28", "level": "info", "timestamp": "2026-08-19T18:34:28.566989Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "traceId": "6a85f71bcb4fbb856df2090acbc1e18d", "correlationId": "synthetic-floci-trace-correlation-id", "level": "info", "timestamp": "2026-08-19T18:34:32.164583Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "6a85f71bcb4fbb856df2090acbc1e18d", "correlationId": "synthetic-floci-trace-correlation-id", "level": "info", "timestamp": "2026-08-19T18:34:32.166120Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "traceId": "c89c1b09ab0dd9a3eb10d719c4b15d01", "correlationId": null, "level": "info", "timestamp": "2026-08-19T18:34:38.687427Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "c89c1b09ab0dd9a3eb10d719c4b15d01", "correlationId": null, "level": "info", "timestamp": "2026-08-19T18:34:38.688641Z"}
+{"method": "GET", "path": "/health", "event": "request.started", "traceId": "74a41747cd72e00ee40152bbba859327", "correlationId": "85c9ebc9-c68c-4363-acc4-215ec811e726", "level": "info", "timestamp": "2026-08-19T18:34:38.692110Z"}
+{"method": "GET", "path": "/health", "status_code": 200, "event": "request.completed", "traceId": "74a41747cd72e00ee40152bbba859327", "correlationId": "85c9ebc9-c68c-4363-acc4-215ec811e726", "level": "info", "timestamp": "2026-08-19T18:34:38.693223Z"}

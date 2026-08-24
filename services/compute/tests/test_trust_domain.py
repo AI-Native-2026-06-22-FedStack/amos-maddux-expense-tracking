@@ -113,6 +113,27 @@ def test_health_route_logs_incoming_correlation_id(
     assert '"event": "request.completed"' in captured.out
 
 
+def test_health_route_logs_incoming_trace_id(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    client = _load_test_client(monkeypatch)
+    trace_id = "1234567890abcdef1234567890abcdef"
+
+    response = client.get(
+        "/health",
+        headers={
+            "traceparent": f"00-{trace_id}-1234567890abcdef-01",
+            "X-Correlation-Id": "synthetic-traced-correlation-id",
+        },
+    )
+    captured = capsys.readouterr()
+
+    assert response.status_code == 200
+    assert f'"traceId": "{trace_id}"' in captured.out
+    assert '"correlationId": "synthetic-traced-correlation-id"' in captured.out
+
+
 def test_compute_disables_uvicorn_access_logs(monkeypatch: pytest.MonkeyPatch) -> None:
     _load_test_client(monkeypatch)
 
@@ -276,6 +297,7 @@ def _load_test_client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 
 def _load_test_main(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     _load_auth_with_test_key(monkeypatch)
+    monkeypatch.setenv("OTEL_SDK_DISABLED", "true")
 
     import app.main
 

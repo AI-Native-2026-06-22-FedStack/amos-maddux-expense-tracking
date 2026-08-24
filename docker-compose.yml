@@ -46,7 +46,7 @@ services:
       FLOCI_SERVICES_ECS_DOCKER_NETWORK: expenseflow-local
     ports:
       - "${FLOCI_HOST_PORT:-4566}:4566"
-      - "8080:80"
+      - "${FLOCI_EDGE_HOST_PORT:-8080}:80"
     volumes:
       - floci-data:/app/data
       - /var/run/docker.sock:/var/run/docker.sock
@@ -56,6 +56,22 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 12
+    networks:
+      - expenseflow
+
+  adot-collector:
+    image: public.ecr.aws/aws-observability/aws-otel-collector:v0.43.0
+    command: ["--config=/etc/otel-agent-config.yaml"]
+    environment:
+      AWS_REGION: ${REAL_AWS_REGION:-${AWS_REGION:-us-east-1}}
+      AWS_ACCESS_KEY_ID: ${REAL_AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${REAL_AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${REAL_AWS_SESSION_TOKEN:-}
+    volumes:
+      - ./observability/adot-collector.yaml:/etc/otel-agent-config.yaml:ro
+    ports:
+      - "${OTEL_GRPC_HOST_PORT:-4317}:4317"
+      - "${OTEL_HTTP_HOST_PORT:-4318}:4318"
     networks:
       - expenseflow
 
@@ -128,6 +144,8 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-expense-api}
       JWT_AUDIENCE: ${JWT_AUDIENCE:-expense-clients}
       MILEAGE_REIMBURSEMENT_RATE: ${MILEAGE_REIMBURSEMENT_RATE:-0.67}
+      OTEL_SERVICE_NAME: expenseflow-gl-coding-engine
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://adot-collector:4318/v1/traces
     volumes:
       - compose-secrets:/run/expenseflow-secrets:ro
     healthcheck:
@@ -207,6 +225,8 @@ services:
       RECEIPT_STORAGE_BUCKET: ${RECEIPT_STORAGE_BUCKET:-expenseflow-receipts}
       RECEIPT_STORAGE_FORCE_PATH_STYLE: "true"
       TOTP_SECRET_ENCRYPTION_KEY_FILE: /run/expenseflow-secrets/synthetic-local-dev-totp-encryption-key.b64
+      OTEL_SERVICE_NAME: expenseflow-core-case-service
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://adot-collector:4318/v1/traces
     ports:
       - "${API_HOST_PORT:-3000}:3000"
     volumes:

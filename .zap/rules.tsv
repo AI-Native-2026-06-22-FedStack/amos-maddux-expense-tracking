@@ -1,0 +1,35 @@
+# OWASP ZAP baseline rule configuration for ADR-0026.
+# Format: <rule-id><tab><action><tab><reason>
+# Medium-or-above passive alerts are FAIL. Lower-risk browser compatibility
+# findings are INFO. IGNORE is reserved for genuinely informational findings
+# with a written reason; no rules are ignored today.
+10010	INFO	Health/API DAST route sets no cookies; cookie flags are evaluated when an authenticated browser route introduces cookies.
+10011	INFO	Health/API DAST route sets no cookies; cookie flags are evaluated when an authenticated browser route introduces cookies.
+10012	INFO	The API does not render password forms on the DAST target route.
+10015	INFO	Cache-control is reviewed per endpoint; authenticated data endpoints use API authorization and no shared browser cache contract is introduced by /health.
+10016	INFO	X-XSS-Protection is obsolete in modern browsers; CSP is the enforced browser control.
+10017	INFO	Cross-domain JavaScript inclusion is not applicable to the JSON health route.
+10019	INFO	Content-Type is asserted in API tests; a missing type is lower than the ADR-0026 Medium gate.
+10020	FAIL	Medium anti-clickjacking finding; must be fixed by X-Frame-Options or CSP frame-ancestors.
+10021	INFO	X-Content-Type-Options is Low, but the app still sets nosniff as defense in depth.
+10023	FAIL	Medium debug-error disclosure finding; verbose error pages must be fixed.
+10024	FAIL	Sensitive information in URL is Medium-or-above and must be fixed.
+10025	FAIL	Sensitive information in Referrer is Medium-or-above and must be fixed.
+10026	INFO	HTTP parameter override is not used by ExpenseFlow API routes.
+10027	INFO	Suspicious comments are reviewed as informational unless ZAP assigns Medium-or-above risk in the JSON gate.
+10032	INFO	Viewstate is not used by the Express API.
+10038	FAIL	Medium Content-Security-Policy finding; must be fixed by an application CSP.
+10040	FAIL	Mixed-content findings are Medium-or-above and must be fixed.
+10049	IGNORE	Informational cacheability observation only: ExpenseFlow sets no-store/no-cache on API responses, and this rule is riskcode 0 rather than a Medium-or-above security finding.
+10054	INFO	Cookie SameSite is evaluated when an authenticated browser route introduces cookies; the DAST health route sets none.
+10055	FAIL	Content-Security-Policy scanner findings at Medium-or-above must be fixed.
+10063	INFO	Permissions-Policy is lower-signal for this JSON API route, but the app sets a restrictive policy.
+10105	FAIL	Weak authentication findings are Medium-or-above and must be fixed.
+10202	INFO	The API uses bearer authorization and JSON mutation routes rather than cookie-backed browser forms; CSRF is reviewed when cookie auth is introduced.
+2	INFO	Private IP disclosure is informational for the floci-only local deployment.
+3	FAIL	Session IDs in URLs are Medium-or-above and must be fixed.
+50001	INFO	Generic script passive findings are informational unless the JSON risk gate reports Medium-or-above.
+90001	INFO	JSF ViewState is not used by the Express API.
+90011	INFO	Charset mismatches are below the ADR-0026 Medium gate.
+90022	FAIL	Application error disclosure is Medium-or-above and must be fixed.
+90033	INFO	Loosely scoped cookie findings are evaluated when an authenticated browser route introduces cookies; the DAST route sets none.

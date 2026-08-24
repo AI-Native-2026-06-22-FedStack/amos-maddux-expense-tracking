@@ -8,6 +8,9 @@ import { NotFoundError, problemJsonErrorHandler } from "./errors/problem-json.js
 import { logger as rootLogger } from "./logger.js";
 import { bindCorrelationId, CORRELATION_ID_LOG_FIELD } from "./middleware/correlation.js";
 import { attachAiAssistUsageHeader } from "./middleware/cost-header.js";
+import { attachSecurityHeaders } from "./middleware/security-headers.js";
+import { bindTraceId } from "./middleware/trace-context.js";
+import { TRACE_ID_LOG_FIELD } from "./telemetry/trace-context.js";
 import { generateOpenApiDocument } from "./openapi/openapi.js";
 import { createApiCorsMiddleware } from "./config/cors.js";
 import { createAuthRouter } from "./routes/auth-routes.js";
@@ -29,21 +32,23 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   const app = express();
   const logger = options.logger ?? rootLogger;
 
+  app.disable("x-powered-by");
   app.use(
     pinoHttp({
       logger,
       customProps(request) {
-        if (typeof request.correlationId !== "string") {
-          return {};
-        }
-
         return {
-          [CORRELATION_ID_LOG_FIELD]: request.correlationId
+          ...(typeof request.correlationId === "string"
+            ? { [CORRELATION_ID_LOG_FIELD]: request.correlationId }
+            : {}),
+          ...(typeof request.traceId === "string" ? { [TRACE_ID_LOG_FIELD]: request.traceId } : {})
         };
       }
     })
   );
   app.use(bindCorrelationId);
+  app.use(bindTraceId);
+  app.use(attachSecurityHeaders);
   app.use(attachAiAssistUsageHeader);
   app.use(createApiCorsMiddleware());
   app.use(express.json());
