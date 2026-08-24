@@ -39,6 +39,35 @@ from retrieve import (
 DEFAULT_TENANT_ID = "tenant-synthetic-northwind-prairie"
 GENERATION_MODEL = "gpt-4o-mini"
 GENERATION_TEMPERATURE = 0.0
+ASSIST_RESPONSE_JSON_SCHEMA = {
+    "name": "expenseflow_policy_assist_answer",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "required": ["answer", "citations"],
+        "properties": {
+            "answer": {
+                "type": "string",
+                "description": "Direct answer grounded only in the supplied policy excerpts.",
+            },
+            "citations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": ["chunk_id", "source", "section_id", "quote"],
+                    "properties": {
+                        "chunk_id": {"type": "string"},
+                        "source": {"type": "string"},
+                        "section_id": {"type": "string"},
+                        "quote": {"type": ["string", "null"]},
+                    },
+                },
+            },
+        },
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -155,14 +184,37 @@ def generate_policy_answer(
         for index, chunk in enumerate(contexts, start=1)
     )
     prompt = (
-        "Answer the ExpenseFlow policy question as raw valid JSON using only the supplied "
-        "policy excerpts. Do not wrap the JSON in Markdown or a code fence. "
-        "If the excerpts do not support an answer, say that the policy excerpts do not "
-        "provide enough information. Keep the answer concise and cite supporting chunk ids "
-        "in the citations array. The JSON object must have an answer string and a citations "
-        "array. Each citation must copy chunk_id, source, and section_id exactly from the "
-        "supplied excerpt header, and may include quote. "
-        "Do not cite chunk ids that are not present in the supplied excerpts.\n\n"
+        "You are ExpenseFlow Policy Assist. Answer the user's exact policy question. "
+        "Use only the supplied policy excerpts as evidence. Do not infer rules, limits, "
+        "approval powers, dates, exceptions, or consequences that are not stated in the "
+        "excerpts. If the excerpts do not support a complete answer, say exactly what is "
+        "not provided by the excerpts. Do not approve, reject, submit, edit, pay, or "
+        "reconcile an Expense Report; describe applicable policy only. "
+        "Return raw JSON that satisfies the response schema. Do not use Markdown fences. "
+        "Answer as policy conditions rather than as unsupported claims about the user's "
+        "specific scenario. "
+        "The answer must be concise, but it must include every policy rule, limit, class, "
+        "documentation requirement, exception, and escalation condition needed to answer "
+        "the question. Do not stop after the first yes/no rule if the same cited section "
+        "also states class, receipt, documentation, timing, exception, or escalation limits. "
+        "Each citation must copy chunk_id, source, and section_id exactly from "
+        "a supplied excerpt header. Use quote for a short supporting excerpt or null. "
+        "Do not cite chunk ids that are not present in the supplied excerpts. "
+        "When the policy excerpt contains a table, first match every condition in the "
+        "question to the correct row and column before answering; do not mix table rows. "
+        "For booking tables, phrases such as fewer than 14 days, less than 14 days, "
+        "one week before departure, or a week before departure match the Late booking "
+        "(< 14 days advance) column, not the Standard booking column. "
+        "If the matched policy class is Economy Plus / Premium Economy, treat that as a "
+        "seat above basic economy being policy-allowed. "
+        "Do not say no additional approval is needed unless a retrieved excerpt explicitly "
+        "says no additional approval is needed. "
+        "For late air or rail bookings, include any documented business justification "
+        "requirement from the retrieved excerpts. For rental vehicle questions, include "
+        "the allowed vehicle class restrictions from the retrieved excerpts. "
+        "When a user asks whether they can approve something, do not say that the user can "
+        "or cannot approve it. Instead say whether the policy allows the expense or requires "
+        "additional approval.\n\n"
         f"Question: {question}\n\n"
         f"Policy excerpts:\n{context_block}"
     )
@@ -171,6 +223,10 @@ def generate_policy_answer(
     response = client.chat.completions.create(
         model=model,
         temperature=GENERATION_TEMPERATURE,
+        response_format={
+            "type": "json_schema",
+            "json_schema": ASSIST_RESPONSE_JSON_SCHEMA,
+        },
         messages=[{"role": "user", "content": prompt}],
     )
     content = response.choices[0].message.content or ""

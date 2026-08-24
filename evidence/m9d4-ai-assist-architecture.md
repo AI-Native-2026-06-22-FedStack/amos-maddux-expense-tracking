@@ -29,31 +29,61 @@ Column type: `vector(1536)`
 Dense retrieval query shape:
 
 ```sql
-select chunk_id, source, section_id, chunk_offset, chunk_text,
-       1 - (embedding <=> %(query_embedding)s) as cosine_similarity
-from retrieval.corpus_chunk
+select chunk_id, source, section_id, chunk_offset, chunk_text, cosine_similarity
+from (
+    select tenant_id, chunk_id, source, section_id, chunk_offset, chunk_text,
+           embedding <=> %(query_embedding)s as cosine_distance,
+           1 - (embedding <=> %(query_embedding)s) as cosine_similarity
+    from retrieval.corpus_chunk
+    where embedding is not null
+    order by embedding <=> %(query_embedding)s asc
+    limit %(ann_limit)s
+) nearest
 where tenant_id = %(tenant_id)s
-  and embedding is not null
-order by embedding <=> %(query_embedding)s asc
+order by cosine_distance asc, chunk_id asc
 limit %(limit)s
 ```
 
-The exact tenant-filtered dense query over the current 43-row local corpus
-does not choose the HNSW index; PostgreSQL chooses the tenant btree index
-and a top-N sort:
+The dense retrieval implementation now uses this ANN-first shape for the
+dense leg, with a tenant-filtered exact fallback if oversampling cannot fill
+the requested tenant results. The helper
+`services/retrieval/retrieve.py::explain_dense_leg_query_plan` runs
+`EXPLAIN (ANALYZE, BUFFERS)` against the same ANN-first SQL shape used by
+`_dense_leg`.
+
+Catalog proof:
 
 ```text
-->  Index Scan using corpus_chunk_tenant_source_idx on corpus_chunk  (cost=0.14..70.40 rows=43 width=590) (actual time=0.038..0.397 rows=43 loops=1)
+corpus_chunk_embedding_hnsw_idx | hnsw
 ```
 
-With the same cosine distance operator and `ORDER BY ... LIMIT` nearest
-neighbor shape, the HNSW index is valid and used when the tenant btree filter
-is not the dominant tiny-corpus access path:
+Query-plan proof:
 
 ```text
-->  Index Scan using corpus_chunk_embedding_hnsw_idx on corpus_chunk  (cost=192.34..297.15 rows=46 width=590) (actual time=0.706..0.728 rows=5 loops=1)
+Limit  (cost=194.81..207.00 rows=5 width=590) (actual time=0.514..0.516 rows=5 loops=1)
+              ->  Limit  (cost=192.34..297.15 rows=46 width=624) (actual time=0.385..0.451 rows=6 loops=1)
+                    ->  Index Scan using corpus_chunk_embedding_hnsw_idx on corpus_chunk  (cost=192.34..297.15 rows=46 width=624) (actual time=0.384..0.449 rows=6 loops=1)
         Order By: (embedding <=> '[...]'::vector)
 ```
+
+The captured HNSW proof contains no sequential scan.
+
+Known judged retrieval query:
+
+```bash
+cd services/retrieval
+export DATABASE_URI="postgres://expenseflow:synthetic-compose-db-password@localhost:5433/expenseflow"
+uv run python retrieve.py "What does NWP-POL-006-04 say about receipt requirements?"
+```
+
+Result:
+
+```text
+1. NWP-POL-006-04  fused=0.03252  kw_rank=1  dense_rank=2  data/corpus/006-receipt-and-documentation-policy.md
+2. NWP-POL-006-01  fused=0.03252  kw_rank=2  dense_rank=1  data/corpus/006-receipt-and-documentation-policy.md
+```
+
+Expected chunk `NWP-POL-006-04` still appears first.
 
 ## Prompt-Injection Suite
 
@@ -198,11 +228,23 @@ The deliberate smoke-set red/green proof requested during implementation was
 not completed because the baseline smoke gate was already red before any
 temporary prompt degradation could be applied.
 
-Observed baseline failures:
+Observed baseline failures after structured-output generation changes:
 
 ```text
-faithfulness 0.8250 below threshold 0.8500
-faithfulness 0.7400 below threshold 0.8500
+answer_relevancy 0.7864 below threshold 0.8500
+answer_relevancy 0.7000 below threshold 0.8500
+answer_relevancy 0.7493 below threshold 0.8500
+faithfulness 0.8000 below threshold 0.8500
+```
+
+Diagnostic run using the human-reviewed smoke-set `ground_truth` values as
+the generated responses still missed the configured answer-relevancy gate:
+
+```text
+faithfulness: 1.0000
+answer_relevancy: 0.6523
+context_precision: 0.9900
+resolved_judge_model_id: gpt-4o-mini-2024-07-18
 ```
 
 No threshold, evaluator, expected chunk, relevance label, ground truth, or

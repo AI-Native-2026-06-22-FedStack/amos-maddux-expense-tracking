@@ -87,11 +87,14 @@ the present small corpus while preserving the production query shape. They are
 deliberately conservative and should be revisited with recall/latency evidence
 as the corpus grows.
 
-Local evidence shows a subtle planner result: the HNSW index is valid and used
-for the nearest-neighbor `ORDER BY embedding <=> ... LIMIT` shape, but the
-exact tenant-filtered dense query over the 43-row corpus still chooses the
-tenant btree index plus a top-N sort because every current row belongs to the
-same tenant. That limitation is documented in evidence rather than hidden.
+The dense leg now uses an ANN-first query shape that orders by
+`embedding <=> query_embedding`, limits to an oversampled nearest-neighbor
+candidate set, then filters those candidates to the authenticated tenant. If
+that candidate set cannot fill the requested tenant result count, the retriever
+falls back to the exact tenant-filtered dense query for correctness. Local
+evidence shows the ANN-first dense query plan uses
+`Index Scan using corpus_chunk_embedding_hnsw_idx` and contains no sequential
+scan for the HNSW proof.
 
 ### Quality Gates
 
@@ -106,8 +109,11 @@ are not averaged into one quality score.
 
 Configured judge family: `gpt-4o-mini`
 
-Resolved judge model ID for the completed full-set run: not reported by RAGAS
-token usage for that run.
+Resolved judge model ID capture has been added through LangChain callback
+metadata. Smoke-set diagnostics now resolve `gpt-4o-mini` to
+`gpt-4o-mini-2024-07-18`. The earlier completed full-set run was performed
+before that callback existed and therefore did not record a resolved snapshot
+ID.
 
 Resolved rerank model ID exposed by the implementation and retrieval evidence:
 `gpt-4o-mini-2024-07-18`.
@@ -122,9 +128,12 @@ The completed full reviewed-set run did not pass all gates:
 - answer relevancy: 0.7361, threshold 0.8500, FAIL
 - context precision: 0.9767, threshold 0.8000, PASS
 
-The likely failing stage is answer generation rather than retrieval/reranking,
-because context precision passed with margin while faithfulness and answer
-relevancy missed.
+The likely failing stage is answer generation or judge/evaluator calibration
+rather than retrieval/reranking, because context precision passed with margin
+while faithfulness and answer relevancy missed. A smoke diagnostic using the
+human-reviewed `ground_truth` values as responses still scored answer
+relevancy below threshold, so the remaining quality blocker should not be
+papered over with prompt wording or threshold changes.
 
 ### Context Recall
 
@@ -236,13 +245,14 @@ contracts cannot reach users.
 ## Consequences
 
 AI Assist is usable as a cited policy explainer, but it is not deployment-ready
-as a required quality-gated feature until the full reviewed-set RAGAS failures
-are addressed without weakening thresholds or labels.
+as a required quality-gated feature until the smoke and full reviewed-set RAGAS
+failures are addressed without weakening thresholds, labels, questions, or
+ground truths.
 
-The implemented HNSW migration prepares the dense vector path for growth while
-the current tiny tenant-scoped corpus can still produce non-HNSW plans. Future
-performance work should use larger tenant-distributed data before tuning HNSW
-parameters.
+The implemented HNSW migration and ANN-first dense query prepare the vector
+path for growth while preserving tenant safety through post-filtering and an
+exact fallback. Future performance work should use larger tenant-distributed
+data before tuning HNSW oversampling or build parameters.
 
 Keeping RAGAS quality gates, prompt-injection tests, and output validation
 separate makes failures easier to diagnose and prevents one kind of success

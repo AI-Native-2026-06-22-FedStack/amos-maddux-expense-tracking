@@ -75,3 +75,33 @@ Judge usage: 200 calls, 181,502 input tokens, 16,404 output tokens.
 
 Cost: $0.0370677, derived from the run's measured token usage and the
 configured `gpt-4o-mini` token rates in `services/retrieval/eval/ragas_gate.py`.
+
+## Follow-Up Diagnostics
+
+After the full-set run above, the evaluator was updated to capture resolved
+judge model IDs from LangChain callback metadata. Smoke-set diagnostics now
+record:
+
+```text
+configured_judge_family: gpt-4o-mini
+resolved_judge_model_id: gpt-4o-mini-2024-07-18
+```
+
+The smoke gate remains red after structured-output generation changes, so the
+full reviewed set was not rerun as a final quality claim. The most important
+diagnostic used the reviewed smoke-set `ground_truth` values as the generated
+responses, which removes the production generator from the answer text while
+keeping the same RAGAS metrics, judge, embeddings, retrieved contexts, and
+labels:
+
+```text
+faithfulness: 1.0000
+answer_relevancy: 0.6523
+context_precision: 0.9900
+resolved_judge_model_id: gpt-4o-mini-2024-07-18
+```
+
+Because answer relevancy remains below the configured `0.8500` threshold even
+for human-reviewed ground truths, the remaining quality blocker should be
+handled by revisiting evaluator calibration or approved model access rather
+than by weakening thresholds, changing labels, or documenting a false pass.

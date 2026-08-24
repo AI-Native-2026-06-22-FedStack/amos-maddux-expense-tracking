@@ -129,3 +129,21 @@ def test_ragas_result_adapter_reads_scores_and_usage_from_actual_result_shape():
     assert usage.input_tokens == 11
     assert usage.output_tokens == 7
     assert usage.cost_usd is not None
+
+
+def test_resolved_judge_model_callback_reads_langchain_response_metadata():
+    class Message:
+        response_metadata = {"model_name": "gpt-4o-mini-2024-07-18"}
+
+    class Generation:
+        message = Message()
+
+    class Response:
+        llm_output = {}
+        generations = [[Generation()]]
+
+    callback = ragas_gate._ResolvedJudgeModelCallback()
+
+    callback.on_llm_end(Response())
+
+    assert callback.resolved_model_ids == {"gpt-4o-mini-2024-07-18"}

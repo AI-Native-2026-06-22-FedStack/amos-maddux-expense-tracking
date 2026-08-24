@@ -20,6 +20,7 @@ from retrieve import (  # noqa: E402
     _extract_literal_section_id,
     _keyword_leg,
     _to_tsquery_or_terms,
+    explain_dense_leg_query_plan,
     reciprocal_rank_fusion,
 )
 from retrieve import (
@@ -244,6 +245,15 @@ def test_dense_leg_orders_by_cosine_distance_ascending(db_connection, has_real_c
     # Querying with a chunk's OWN embedding must rank that exact chunk
     # first (cosine distance to itself is 0, the minimum possible).
     assert leg.ranked_chunk_ids[0] == "NWP-POL-006-01"
+
+
+def test_dense_leg_query_plan_uses_hnsw_index(db_connection, has_real_corpus_loaded):
+    embedding = _fetch_embedding_as_list(db_connection, "NWP-POL-006-01", REAL_TENANT_ID)
+
+    plan_lines = explain_dense_leg_query_plan(db_connection, REAL_TENANT_ID, embedding, limit=5)
+
+    assert any("corpus_chunk_embedding_hnsw_idx" in line for line in plan_lines)
+    assert not any("Seq Scan" in line for line in plan_lines)
 
 
 def test_candidates_per_leg_is_honored_as_a_hard_limit(db_connection, has_real_corpus_loaded):

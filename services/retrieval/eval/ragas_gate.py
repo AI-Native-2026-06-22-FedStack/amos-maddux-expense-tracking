@@ -14,6 +14,11 @@ from rag_pipeline import PolicyRagPipeline, UsageTotals, answer_text_for_evaluat
 
 from retrieve import load_embedding_config
 
+try:
+    from langchain_core.callbacks import BaseCallbackHandler
+except ImportError:  # pragma: no cover - paid eval dependency guard
+    BaseCallbackHandler = object
+
 EVAL_DIR = Path(__file__).resolve().parent
 DEFAULT_THRESHOLDS_PATH = EVAL_DIR / "thresholds.toml"
 DEFAULT_EVAL_PATH = EVAL_DIR / "eval_smoke.jsonl"
@@ -179,7 +184,12 @@ def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
         ) from exc
 
     dataset = Dataset.from_list(rows)
-    judge_llm = ChatOpenAI(model=config.judge.model, temperature=0)
+    resolved_model_callback = _ResolvedJudgeModelCallback()
+    judge_llm = ChatOpenAI(
+        model=config.judge.model,
+        temperature=0,
+        callbacks=[resolved_model_callback],
+    )
     embedding_config = load_embedding_config()
     judge_embeddings = OpenAIEmbeddings(
         model=embedding_config.model,
@@ -195,7 +205,11 @@ def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
         show_progress=False,
     )
     scores = _scores_from_ragas_result(ragas_result)
-    usage = _usage_from_ragas_result(ragas_result, config.judge.model)
+    usage = _usage_from_ragas_result(
+        ragas_result,
+        config.judge.model,
+        resolved_model_ids=resolved_model_callback.resolved_model_ids,
+    )
     return GateResult(scores=scores, usage=usage, example_count=len(rows))
 
 
@@ -210,7 +224,12 @@ def _scores_from_ragas_result(ragas_result: Any) -> RagasScores:
     )
 
 
-def _usage_from_ragas_result(ragas_result: Any, judge_family: str) -> RagasUsage:
+def _usage_from_ragas_result(
+    ragas_result: Any,
+    judge_family: str,
+    *,
+    resolved_model_ids: set[str] | None = None,
+) -> RagasUsage:
     total_tokens = _safe_total_tokens(ragas_result)
     input_tokens = total_tokens.input_tokens
     output_tokens = total_tokens.output_tokens
@@ -218,9 +237,12 @@ def _usage_from_ragas_result(ragas_result: Any, judge_family: str) -> RagasUsage
     cost_usd = (
         _estimate_gpt_4o_mini_cost(input_tokens, output_tokens) if cost_usd is None else cost_usd
     )
+    model_ids = set(resolved_model_ids or set())
+    if total_tokens.resolved_model_id:
+        model_ids.update(total_tokens.resolved_model_id.split(","))
     return RagasUsage(
         judge_family=judge_family,
-        resolved_judge_model_id=total_tokens.resolved_model_id,
+        resolved_judge_model_id=",".join(sorted(model_ids)) if model_ids else None,
         judge_call_count=total_tokens.call_count,
         input_tokens=input_tokens,
         output_tokens=output_tokens,
@@ -277,6 +299,35 @@ def _estimate_gpt_4o_mini_cost(input_tokens: int, output_tokens: int) -> float:
         input_tokens * OPENAI_GPT_4O_MINI_INPUT_PER_TOKEN_USD
         + output_tokens * OPENAI_GPT_4O_MINI_OUTPUT_PER_TOKEN_USD
     )
+
+
+class _ResolvedJudgeModelCallback(BaseCallbackHandler):
+    """Collect resolved model IDs exposed by LangChain/OpenAI callbacks."""
+
+    def __init__(self) -> None:
+        self.resolved_model_ids: set[str] = set()
+
+    def on_llm_end(self, response: Any, **_kwargs: Any) -> None:
+        llm_output = getattr(response, "llm_output", None)
+        if isinstance(llm_output, dict):
+            self._add_model(llm_output.get("model_name"))
+            self._add_model(llm_output.get("model"))
+
+        for generation_group in getattr(response, "generations", []) or []:
+            for generation in generation_group or []:
+                message = getattr(generation, "message", None)
+                metadata = getattr(message, "response_metadata", None)
+                if isinstance(metadata, dict):
+                    self._add_model(metadata.get("model_name"))
+                    self._add_model(metadata.get("model"))
+                generation_info = getattr(generation, "generation_info", None)
+                if isinstance(generation_info, dict):
+                    self._add_model(generation_info.get("model_name"))
+                    self._add_model(generation_info.get("model"))
+
+    def _add_model(self, model: Any) -> None:
+        if isinstance(model, str) and model.strip():
+            self.resolved_model_ids.add(model)
 
 
 def main() -> int:

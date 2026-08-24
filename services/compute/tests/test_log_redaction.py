@@ -105,6 +105,24 @@ def test_authorization_headers_are_redacted_case_insensitively() -> None:
     assert "synthetic-token-secret" not in output.getvalue()
 
 
+def test_sensitive_string_values_are_redacted_even_when_key_is_not_sensitive() -> None:
+    redacted = redact_sensitive_fields(
+        None,
+        "",
+        {
+            "prompt": (
+                "Can synthetic.user@example.test submit 123-45-6789 "
+                "or card 4111 1111 1111 1111?"
+            )
+        },
+    )
+
+    assert redacted["prompt"] == (
+        f"Can {SENSITIVE_LOG_CENSOR} submit {SENSITIVE_LOG_CENSOR} "
+        f"or card {SENSITIVE_LOG_CENSOR}?"
+    )
+
+
 def test_shared_redaction_keys_cover_payment_identifiers_and_receipt_data() -> None:
     assert {"payment_id", "receipt_data", "account_number"}.issubset(SENSITIVE_LOG_KEYS)
 

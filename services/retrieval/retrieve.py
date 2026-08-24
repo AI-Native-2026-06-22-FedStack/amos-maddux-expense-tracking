@@ -218,6 +218,22 @@ order by embedding <=> %(query_embedding)s asc
 limit %(limit)s
 """
 
+_ANN_FIRST_DENSE_LEG_SQL = """
+select chunk_id, source, section_id, chunk_offset, chunk_text, cosine_similarity
+from (
+    select tenant_id, chunk_id, source, section_id, chunk_offset, chunk_text,
+           embedding <=> %(query_embedding)s as cosine_distance,
+           1 - (embedding <=> %(query_embedding)s) as cosine_similarity
+    from retrieval.corpus_chunk
+    where embedding is not null
+    order by embedding <=> %(query_embedding)s asc
+    limit %(ann_limit)s
+) nearest
+where tenant_id = %(tenant_id)s
+order by cosine_distance asc, chunk_id asc
+limit %(limit)s
+"""
+
 
 def _vector_literal(embedding: list[float]) -> str:
     return "[" + ",".join(repr(x) for x in embedding) + "]"
@@ -235,6 +251,46 @@ def _dense_leg(
     SIMILARITY for display, though similarity/distance values themselves
     are never used in the fusion math (see module docstring: fusion is
     rank-only)."""
+    rows = _dense_leg_rows_ann_first(connection, tenant_id, query_embedding, limit)
+    if len(rows) < limit:
+        rows = _dense_leg_rows_exact_tenant(connection, tenant_id, query_embedding, limit)
+
+    ranked_chunk_ids = [row["chunk_id"] for row in rows]
+    rows_by_chunk_id = {row["chunk_id"]: row for row in rows}
+    return LegResult(ranked_chunk_ids=ranked_chunk_ids, rows_by_chunk_id=rows_by_chunk_id)
+
+
+def _dense_ann_limit(limit: int) -> int:
+    return max(limit * 10, 100)
+
+
+def _dense_leg_rows_ann_first(
+    connection,
+    tenant_id: str,
+    query_embedding: list[float],
+    limit: int,
+) -> list[dict]:
+    with connection.cursor() as cursor:
+        cursor.execute("set local enable_seqscan = off")
+        cursor.execute(
+            _ANN_FIRST_DENSE_LEG_SQL,
+            {
+                "tenant_id": tenant_id,
+                "query_embedding": _vector_literal(query_embedding),
+                "ann_limit": _dense_ann_limit(limit),
+                "limit": limit,
+            },
+        )
+        columns = [d.name for d in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+
+def _dense_leg_rows_exact_tenant(
+    connection,
+    tenant_id: str,
+    query_embedding: list[float],
+    limit: int,
+) -> list[dict]:
     with connection.cursor() as cursor:
         cursor.execute(
             _DENSE_LEG_SQL,
@@ -245,11 +301,7 @@ def _dense_leg(
             },
         )
         columns = [d.name for d in cursor.description]
-        rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
-
-    ranked_chunk_ids = [row["chunk_id"] for row in rows]
-    rows_by_chunk_id = {row["chunk_id"]: row for row in rows}
-    return LegResult(ranked_chunk_ids=ranked_chunk_ids, rows_by_chunk_id=rows_by_chunk_id)
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
 # --- RRF fusion ------------------------------------------------------
@@ -378,6 +430,31 @@ def embed_query_text(query_text: str, api_key: str, config: EmbeddingConfig) -> 
         input=[query_text], model=config.model, dimensions=config.dimensions
     )
     return response.data[0].embedding
+
+
+def explain_dense_leg_query_plan(
+    connection,
+    tenant_id: str,
+    query_embedding: list[float],
+    limit: int,
+) -> list[str]:
+    """Return the query plan for the same ANN-first dense-leg SQL shape.
+
+    Tests and evidence use this helper so the HNSW proof cannot silently
+    drift away from _dense_leg()'s production dense-search query shape.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute("set local enable_seqscan = off")
+        cursor.execute(
+            "explain (analyze, buffers) " + _ANN_FIRST_DENSE_LEG_SQL,
+            {
+                "tenant_id": tenant_id,
+                "query_embedding": _vector_literal(query_embedding),
+                "ann_limit": _dense_ann_limit(limit),
+                "limit": limit,
+            },
+        )
+        return [row[0] for row in cursor.fetchall()]
 
 
 if __name__ == "__main__":

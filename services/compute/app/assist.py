@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import sys
 import time
 from dataclasses import dataclass
@@ -14,6 +13,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from app.auth import CurrentUser
+from app.log_redaction import redact_sensitive_fields
 
 ROOT_DIR = Path(__file__).resolve().parents[3]
 RETRIEVAL_DIR = ROOT_DIR / "services" / "retrieval"
@@ -33,8 +33,6 @@ from validator import (  # noqa: E402
 
 GPT_4O_MINI_INPUT_PER_TOKEN_USD = 0.15 / 1_000_000
 GPT_4O_MINI_OUTPUT_PER_TOKEN_USD = 0.60 / 1_000_000
-REDACTION_CENSOR = "[REDACTED]"
-
 
 class AssistRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4000)
@@ -100,14 +98,10 @@ class PromptRedactor:
     def redact(self, text: str) -> str:
         if text.strip() == "":
             raise ValueError("question is blank")
-        redacted = re.sub(r"\b\d{3}-?\d{2}-?\d{4}\b", REDACTION_CENSOR, text)
-        redacted = re.sub(
-            r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
-            REDACTION_CENSOR,
-            redacted,
-            flags=re.IGNORECASE,
-        )
-        redacted = re.sub(r"\b(?:\d[ -]?){13,16}\b", REDACTION_CENSOR, redacted)
+        payload = redact_sensitive_fields(None, "", {"prompt": text})
+        redacted = payload["prompt"]
+        if not isinstance(redacted, str):
+            raise ValueError("redacted prompt is not a string")
         return redacted
 
 
