@@ -34,11 +34,11 @@ guidance in `NWP-POL-011` (International Travel Policy).
 Class of service is determined by flight duration and, separately, by how
 far in advance the trip is booked.
 
-| Flight duration | Standard booking (14+ days advance) | Late booking (< 14 days advance) |
-| --- | --- | --- |
-| Under 3 hours | Economy | Economy |
-| 3 to 6 hours | Economy | Economy Plus / Premium Economy |
-| Over 6 hours | Economy Plus / Premium Economy | Business (with `Department Manager` approval) |
+| Flight duration | Standard booking (14+ days advance) | Late booking (< 14 days advance)              |
+| --------------- | ----------------------------------- | --------------------------------------------- |
+| Under 3 hours   | Economy                             | Economy                                       |
+| 3 to 6 hours    | Economy                             | Economy Plus / Premium Economy                |
+| Over 6 hours    | Economy Plus / Premium Economy      | Business (with `Department Manager` approval) |
 
 Rail travel under 4 hours is booked in standard class. Rail travel of 4
 hours or more may be booked in first class when the fare difference is
@@ -67,9 +67,9 @@ not reimbursable and must be paid out of pocket.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued |
-| 2.0 | 2022-03-15 | Introduced late-booking class-of-service table |
-| 2.1 | 2023-09-01 | Added rail first-class fare-difference threshold |
-| 2.2 | 2024-06-01 | Clarified loyalty-program upgrade handling |
+| Version | Effective Date | Change                                           |
+| ------- | -------------- | ------------------------------------------------ |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued                  |
+| 2.0     | 2022-03-15     | Introduced late-booking class-of-service table   |
+| 2.1     | 2023-09-01     | Added rail first-class fare-difference threshold |
+| 2.2     | 2024-06-01     | Clarified loyalty-program upgrade handling       |

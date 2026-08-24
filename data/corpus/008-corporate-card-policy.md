@@ -59,8 +59,8 @@ rolling 12-month period) may also result in card revocation at
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2020-05-01 | Initial synthetic policy issued |
-| 1.3 | 2023-02-01 | Shortened reconciliation window from 30 to 15 days |
-| 1.4 | 2024-06-01 | Added repeated-late-reconciliation revocation criterion |
+| Version | Effective Date | Change                                                  |
+| ------- | -------------- | ------------------------------------------------------- |
+| 1.0     | 2020-05-01     | Initial synthetic policy issued                         |
+| 1.3     | 2023-02-01     | Shortened reconciliation window from 30 to 15 days      |
+| 1.4     | 2024-06-01     | Added repeated-late-reconciliation revocation criterion |

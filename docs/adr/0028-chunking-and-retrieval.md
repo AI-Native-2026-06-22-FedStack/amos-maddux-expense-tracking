@@ -224,7 +224,7 @@ why: every relevant chunk was already ranked at position ≤5 in the
 baseline hybrid retrieval, and stayed at position ≤5 after reranking —
 there was no headroom left for a top-5-set-membership metric to show
 improvement on this small, already-strong-baseline corpus (43 chunks,
-12 questions). Reranking did visibly improve rank *position within* the
+12 questions). Reranking did visibly improve rank _position within_ the
 top 5 for several questions (e.g. `Q03`'s two relevant chunks moved from
 baseline ranks {2, 5} to reranked ranks {1, 2}), which Precision@5
 cannot see by construction (it only measures set membership in the top

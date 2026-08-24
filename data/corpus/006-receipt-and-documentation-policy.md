@@ -33,13 +33,13 @@ A receipt is required for any out-of-pocket expense above the following
 per-category thresholds. Expenses at or below the threshold may be
 submitted with a self-attestation in place of a receipt.
 
-| Category | Receipt required above (USD) |
-| --- | --- |
-| Meals | $25 |
-| Ground transportation | $25 |
-| Lodging | $0 (always required) |
-| Office/general supplies | $25 |
-| Other | $25 |
+| Category                | Receipt required above (USD) |
+| ----------------------- | ---------------------------- |
+| Meals                   | $25                          |
+| Ground transportation   | $25                          |
+| Lodging                 | $0 (always required)         |
+| Office/general supplies | $25                          |
+| Other                   | $25                          |
 
 ### 1.1 Acceptable Receipt Formats `NWP-POL-006-01.01`
 
@@ -71,19 +71,19 @@ receipt-required threshold than the general out-of-pocket threshold in
 captured in the statement feed and only need supporting documentation
 above a higher amount.
 
-| Category | Receipt required above (USD) |
-| --- | --- |
-| Meals | $75 |
-| Ground transportation | $75 |
-| Lodging | $0 (always required) |
-| Office/general supplies | $75 |
-| Other | $75 |
+| Category                | Receipt required above (USD) |
+| ----------------------- | ---------------------------- |
+| Meals                   | $75                          |
+| Ground transportation   | $75                          |
+| Lodging                 | $0 (always required)         |
+| Office/general supplies | $75                          |
+| Other                   | $75                          |
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued |
-| 1.1 | 2021-05-01 | Added missing receipt affidavit process |
-| 1.2 | 2023-01-15 | Split corporate-card receipt threshold into its own section |
-| 1.3 | 2024-06-01 | Raised corporate-card threshold from $50 to $75 |
+| Version | Effective Date | Change                                                      |
+| ------- | -------------- | ----------------------------------------------------------- |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued                             |
+| 1.1     | 2021-05-01     | Added missing receipt affidavit process                     |
+| 1.2     | 2023-01-15     | Split corporate-card receipt threshold into its own section |
+| 1.3     | 2024-06-01     | Raised corporate-card threshold from $50 to $75             |

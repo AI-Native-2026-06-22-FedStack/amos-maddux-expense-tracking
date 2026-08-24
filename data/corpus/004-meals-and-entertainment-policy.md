@@ -45,11 +45,11 @@ a receipt; `NWP-POL-005-02` covers client-facing entertainment, uses
 higher caps, and additionally requires recording the client's name and
 business purpose.
 
-| Meal | Cap (USD/person/day) |
-| --- | --- |
-| Breakfast | $18 |
-| Lunch | $22 |
-| Dinner | $45 |
+| Meal      | Cap (USD/person/day) |
+| --------- | -------------------- |
+| Breakfast | $18                  |
+| Lunch     | $22                  |
+| Dinner    | $45                  |
 
 ### 3.1 Receipt Requirement `NWP-POL-004-03.01`
 
@@ -59,8 +59,8 @@ self-attestation is sufficient.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued |
-| 2.0 | 2022-03-15 | Split employee-meal caps out from client entertainment into this standalone document |
-| 2.1 | 2024-06-01 | Raised dinner cap from $40 to $45 |
+| Version | Effective Date | Change                                                                               |
+| ------- | -------------- | ------------------------------------------------------------------------------------ |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued                                                      |
+| 2.0     | 2022-03-15     | Split employee-meal caps out from client entertainment into this standalone document |
+| 2.1     | 2024-06-01     | Raised dinner cap from $40 to $45                                                    |

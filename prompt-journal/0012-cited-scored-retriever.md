@@ -128,7 +128,7 @@
   Precision@5: **0.2500 before reranking, 0.2500 after** (delta 0.0000).
   Traced every one of 15 (question, relevant-chunk) pairs across all 12
   questions: every relevant chunk was already ranked ≤5 in the baseline and
-  stayed ≤5 after reranking — reranking measurably improved rank *position*
+  stayed ≤5 after reranking — reranking measurably improved rank _position_
   within the top 5 for several questions (e.g. one question's two relevant
   chunks moved from baseline ranks {2, 5} to reranked ranks {1, 2}), which
   Precision@5 cannot detect because it only measures top-5 set membership,

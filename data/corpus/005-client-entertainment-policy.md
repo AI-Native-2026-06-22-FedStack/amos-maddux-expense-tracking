@@ -37,11 +37,11 @@ because client entertainment additionally requires recording the
 client's name, company, and business purpose in the expense report — a
 documentation requirement `NWP-POL-004-03` does not carry.
 
-| Event type | Cap (USD/person) |
-| --- | --- |
-| Client meal (breakfast/lunch) | $60 |
-| Client meal (dinner) | $110 |
-| Client event/tickets (sporting, theater, etc.) | $150 |
+| Event type                                     | Cap (USD/person) |
+| ---------------------------------------------- | ---------------- |
+| Client meal (breakfast/lunch)                  | $60              |
+| Client meal (dinner)                           | $110             |
+| Client event/tickets (sporting, theater, etc.) | $150             |
 
 Caps apply per person, per event, inclusive of tax and gratuity. A
 moderate amount of alcohol is reimbursable under this policy when
@@ -62,8 +62,8 @@ policy where known.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued |
-| 2.0 | 2022-03-15 | Split out from the former combined meals-and-entertainment document into this standalone policy |
-| 2.1 | 2024-06-01 | Raised client event/tickets cap from $125 to $150 |
+| Version | Effective Date | Change                                                                                          |
+| ------- | -------------- | ----------------------------------------------------------------------------------------------- |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued                                                                 |
+| 2.0     | 2022-03-15     | Split out from the former combined meals-and-entertainment document into this standalone policy |
+| 2.1     | 2024-06-01     | Raised client event/tickets cap from $125 to $150                                               |

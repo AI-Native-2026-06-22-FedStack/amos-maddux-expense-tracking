@@ -30,11 +30,11 @@ international travel and relocation spend and requires **dual** sign-off
 (`Department Manager` AND `Finance Admin`) at the equivalent top tier,
 reflecting the higher risk of that spend category.
 
-| Report total | Required approval |
-| --- | --- |
-| Up to $500 | `Department Manager` |
+| Report total     | Required approval                          |
+| ---------------- | ------------------------------------------ |
+| Up to $500       | `Department Manager`                       |
 | $500.01 – $5,000 | `Department Manager`, then `Finance Admin` |
-| Above $5,000 | `Finance Admin` (single sign-off) |
+| Above $5,000     | `Finance Admin` (single sign-off)          |
 
 ### 1.1 Self-Approval Prohibition `NWP-POL-007-01.01`
 
@@ -58,16 +58,16 @@ top tier — both `Department Manager` AND `Finance Admin` — rather than
 the single `Finance Admin` sign-off that `NWP-POL-007-01` requires at the
 equivalent tier for ordinary domestic spend.
 
-| Report total | Required approval |
-| --- | --- |
-| Up to $500 | `Department Manager` |
-| $500.01 – $5,000 | `Department Manager`, then `Finance Admin` |
-| Above $5,000 | `Department Manager` AND `Finance Admin` (dual sign-off) |
+| Report total     | Required approval                                        |
+| ---------------- | -------------------------------------------------------- |
+| Up to $500       | `Department Manager`                                     |
+| $500.01 – $5,000 | `Department Manager`, then `Finance Admin`               |
+| Above $5,000     | `Department Manager` AND `Finance Admin` (dual sign-off) |
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2020-01-01 | Initial synthetic policy issued |
-| 1.1 | 2022-08-01 | Added delegation section |
-| 1.2 | 2024-06-01 | Added dual sign-off requirement for international/relocation spend above $5,000 |
+| Version | Effective Date | Change                                                                          |
+| ------- | -------------- | ------------------------------------------------------------------------------- |
+| 1.0     | 2020-01-01     | Initial synthetic policy issued                                                 |
+| 1.1     | 2022-08-01     | Added delegation section                                                        |
+| 1.2     | 2024-06-01     | Added dual sign-off requirement for international/relocation spend above $5,000 |

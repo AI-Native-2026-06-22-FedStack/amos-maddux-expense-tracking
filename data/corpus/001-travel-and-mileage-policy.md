@@ -47,12 +47,12 @@ reimbursed per mile driven, at a rate that varies by vehicle class. The
 standard mileage rate is reviewed annually and may be adjusted to track
 published fuel-cost indices.
 
-| Vehicle class | Rate (USD/mile) | Notes |
-| --- | --- | --- |
-| Standard passenger vehicle | $0.67 | Default rate for sedans, hatchbacks, standard SUVs |
-| Hybrid or electric vehicle | $0.70 | Incentive rate to encourage lower-emission travel |
-| Motorcycle | $0.35 | |
-| Personal vehicle towing equipment/trailer | $0.75 | Requires prior `Department Manager` approval |
+| Vehicle class                             | Rate (USD/mile) | Notes                                              |
+| ----------------------------------------- | --------------- | -------------------------------------------------- |
+| Standard passenger vehicle                | $0.67           | Default rate for sedans, hatchbacks, standard SUVs |
+| Hybrid or electric vehicle                | $0.70           | Incentive rate to encourage lower-emission travel  |
+| Motorcycle                                | $0.35           |                                                    |
+| Personal vehicle towing equipment/trailer | $0.75           | Requires prior `Department Manager` approval       |
 
 Mileage is calculated from the employee's regular worksite to the
 business destination, net of the employee's normal commute distance.
@@ -90,9 +90,9 @@ documentation thresholds in `NWP-POL-006`.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued |
-| 2.0 | 2022-03-15 | Added hybrid/electric incentive mileage rate |
-| 3.0 | 2023-11-01 | Added trailer-towing rate tier |
-| 3.1 | 2024-06-01 | Clarified commute-distance deduction exception for weekends/holidays |
+| Version | Effective Date | Change                                                               |
+| ------- | -------------- | -------------------------------------------------------------------- |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued                                      |
+| 2.0     | 2022-03-15     | Added hybrid/electric incentive mileage rate                         |
+| 3.0     | 2023-11-01     | Added trailer-towing rate tier                                       |
+| 3.1     | 2024-06-01     | Clarified commute-distance deduction exception for weekends/holidays |

@@ -36,11 +36,11 @@ city tier to reflect real differences in market lodging cost.
 
 ## 2. Nightly Hotel Caps by City Tier `RVL-POL-001-02`
 
-| City tier | Example markets (synthetic) | Nightly cap (USD) |
-| --- | --- | --- |
-| Tier 1 (major metro) | Fictional cities: Rivermarch, Eastgate Crossing | $325 |
-| Tier 2 (secondary metro) | Fictional cities: Millbrook Junction, Fenwood | $215 |
-| Tier 3 (all other locations) | All other synthetic locations | $145 |
+| City tier                    | Example markets (synthetic)                     | Nightly cap (USD) |
+| ---------------------------- | ----------------------------------------------- | ----------------- |
+| Tier 1 (major metro)         | Fictional cities: Rivermarch, Eastgate Crossing | $325              |
+| Tier 2 (secondary metro)     | Fictional cities: Millbrook Junction, Fenwood   | $215              |
+| Tier 3 (all other locations) | All other synthetic locations                   | $145              |
 
 Nightly caps are inclusive of room rate and mandatory hotel fees, but
 exclusive of taxes, which are separately reimbursable. How much you can
@@ -62,6 +62,6 @@ which is often below the standard nightly cap.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2024-06-01 | Initial synthetic policy issued, for tenant-isolation regression testing only |
+| Version | Effective Date | Change                                                                        |
+| ------- | -------------- | ----------------------------------------------------------------------------- |
+| 1.0     | 2024-06-01     | Initial synthetic policy issued, for tenant-isolation regression testing only |

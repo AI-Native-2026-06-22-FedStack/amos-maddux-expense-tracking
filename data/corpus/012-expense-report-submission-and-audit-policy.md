@@ -54,11 +54,11 @@ superseded rule above.
 
 ## 3. Audit Sampling Rate by Report-Value Tier `NWP-POL-012-03`
 
-| Report value tier | Sampling rate |
-| --- | --- |
-| Under $500 | 2% of reports sampled |
-| $500 – $5,000 | 10% of reports sampled |
-| Above $5,000 | 100% of reports sampled |
+| Report value tier | Sampling rate           |
+| ----------------- | ----------------------- |
+| Under $500        | 2% of reports sampled   |
+| $500 – $5,000     | 10% of reports sampled  |
+| Above $5,000      | 100% of reports sampled |
 
 Sampled reports are reviewed by `Finance Admin` staff not involved in
 the original approval, per the segregation-of-duties expectation
@@ -92,9 +92,9 @@ finance calendar.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2019-01-01 | Initial synthetic policy issued; established 60-day submission deadline (`NWP-POL-012-02`) |
-| 2.0 | 2021-07-01 | Added audit sampling rate table |
-| 2.1 | 2022-09-01 | Added segregation-of-duties section |
-| 3.0 | 2024-06-01 | Shortened submission deadline to 30 days (`NWP-POL-012-05`); `NWP-POL-012-02` retained as superseded historical reference |
+| Version | Effective Date | Change                                                                                                                    |
+| ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1.0     | 2019-01-01     | Initial synthetic policy issued; established 60-day submission deadline (`NWP-POL-012-02`)                                |
+| 2.0     | 2021-07-01     | Added audit sampling rate table                                                                                           |
+| 2.1     | 2022-09-01     | Added segregation-of-duties section                                                                                       |
+| 3.0     | 2024-06-01     | Shortened submission deadline to 30 days (`NWP-POL-012-05`); `NWP-POL-012-02` retained as superseded historical reference |

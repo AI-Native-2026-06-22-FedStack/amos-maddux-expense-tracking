@@ -31,11 +31,11 @@ office-based employee.
 
 ## 2. Stipend Caps by Category `NWP-POL-009-02`
 
-| Category | Cap | Frequency |
-| --- | --- | --- |
+| Category                                     | Cap  | Frequency                                    |
+| -------------------------------------------- | ---- | -------------------------------------------- |
 | Home office equipment (desk, chair, monitor) | $500 | One-time, per employee, resets every 3 years |
-| Internet service | $50 | Monthly |
-| Utilities (electricity/heating offset) | $30 | Monthly |
+| Internet service                             | $50  | Monthly                                      |
+| Utilities (electricity/heating offset)       | $30  | Monthly                                      |
 
 ### 2.1 Equipment Ownership `NWP-POL-009-02.01`
 
@@ -53,7 +53,7 @@ always requires an itemized receipt regardless of amount.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2021-04-01 | Initial synthetic policy issued (introduced post-pandemic remote-work expansion) |
-| 1.1 | 2024-06-01 | Extended equipment cap reset interval from 2 years to 3 years |
+| Version | Effective Date | Change                                                                           |
+| ------- | -------------- | -------------------------------------------------------------------------------- |
+| 1.0     | 2021-04-01     | Initial synthetic policy issued (introduced post-pandemic remote-work expansion) |
+| 1.1     | 2024-06-01     | Extended equipment cap reset interval from 2 years to 3 years                    |

@@ -35,11 +35,11 @@ flat one-time reimbursement tier for a full household relocation, unlike
 `NWP-POL-001-02`, which reimburses routine business travel at a per-mile
 rate rather than a flat move-distance tier.
 
-| Move distance | Reimbursement cap (USD) |
-| --- | --- |
-| 50–199 miles | $3,000 |
-| 200–999 miles | $7,500 |
-| 1,000 miles or more | $12,000 |
+| Move distance       | Reimbursement cap (USD) |
+| ------------------- | ----------------------- |
+| 50–199 miles        | $3,000                  |
+| 200–999 miles       | $7,500                  |
+| 1,000 miles or more | $12,000                 |
 
 Caps cover moving-company or truck-rental costs, temporary lodging up to
 14 nights, and standard packing materials. They do not cover real estate
@@ -60,6 +60,6 @@ nature of relocation spend.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2024-06-01 | Initial synthetic policy issued |
+| Version | Effective Date | Change                          |
+| ------- | -------------- | ------------------------------- |
+| 1.0     | 2024-06-01     | Initial synthetic policy issued |

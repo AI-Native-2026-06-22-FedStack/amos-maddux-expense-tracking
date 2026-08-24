@@ -45,15 +45,39 @@ jobs:
 
       - name: Sync retrieval dependencies
         working-directory: services/retrieval
-        run: uv sync
+        run: uv sync --locked
+
+      - name: Detect OpenAI API key
+        id: openai-key
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::OPENAI_API_KEY is not configured for this PR run; running adapter checks only."
+          fi
 
       - name: Apply retrieval schema
+        if: steps.openai-key.outputs.available == 'true'
         run: psql "$DATABASE_URI" -v ON_ERROR_STOP=1 -f services/retrieval/db/migrations/0001_corpus_chunks.sql
 
+      - name: Apply HNSW index migration
+        if: steps.openai-key.outputs.available == 'true'
+        run: psql "$DATABASE_URI" -v ON_ERROR_STOP=1 -f apps/api/db/migrations/0004_policy_corpus_embedding_hnsw.sql
+
       - name: Load policy corpus embeddings
+        if: steps.openai-key.outputs.available == 'true'
         working-directory: services/retrieval
         run: uv run python embed.py
 
       - name: Run full reviewed RAGAS quality gate
+        if: steps.openai-key.outputs.available == 'true'
         working-directory: services/retrieval
         run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl
+
+      - name: Validate RAGAS adapter without paid model calls
+        if: steps.openai-key.outputs.available != 'true'
+        working-directory: services/retrieval
+        run: |
+          uv run python -m pytest eval/test_ragas_gate.py -q
+          uv run ruff check eval/ragas_gate.py eval/rag_pipeline.py

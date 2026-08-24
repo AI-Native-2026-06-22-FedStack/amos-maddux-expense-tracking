@@ -104,19 +104,19 @@ All 12 are generated (the maximum of the requested 10–12 range, to give the
 near-duplicate and superseded/replacement requirements room to sit inside
 naturally-distinct policy areas rather than being forced into a cramped set).
 
-| doc_id | File | Policy area |
-|---|---|---|
-| NWP-POL-001 | `001-travel-and-mileage-policy.md` | Ground travel, personal-vehicle mileage reimbursement |
-| NWP-POL-002 | `002-air-and-rail-travel-policy.md` | Booked air/rail travel, class of service, advance booking |
-| NWP-POL-003 | `003-lodging-policy.md` | Hotel/lodging nightly caps by city tier |
-| NWP-POL-004 | `004-meals-and-entertainment-policy.md` | Meal per-diem caps, client entertainment |
-| NWP-POL-005 | `005-client-entertainment-policy.md` | Client-facing entertainment/gifts (near-dup partner of 004) |
-| NWP-POL-006 | `006-receipt-and-documentation-policy.md` | Receipt thresholds, required documentation |
-| NWP-POL-007 | `007-approval-and-authorization-policy.md` | Approval chains, spend-threshold escalation |
-| NWP-POL-008 | `008-corporate-card-policy.md` | Corporate card issuance, misuse, reconciliation |
-| NWP-POL-009 | `009-remote-work-stipend-policy.md` | Home-office/remote stipends |
-| NWP-POL-010 | `010-relocation-policy.md` | Relocation/moving expense reimbursement |
-| NWP-POL-011 | `011-international-travel-policy.md` | Foreign per diem, currency, visa/vaccination costs |
+| doc_id      | File                                                | Policy area                                                       |
+| ----------- | --------------------------------------------------- | ----------------------------------------------------------------- |
+| NWP-POL-001 | `001-travel-and-mileage-policy.md`                  | Ground travel, personal-vehicle mileage reimbursement             |
+| NWP-POL-002 | `002-air-and-rail-travel-policy.md`                 | Booked air/rail travel, class of service, advance booking         |
+| NWP-POL-003 | `003-lodging-policy.md`                             | Hotel/lodging nightly caps by city tier                           |
+| NWP-POL-004 | `004-meals-and-entertainment-policy.md`             | Meal per-diem caps, client entertainment                          |
+| NWP-POL-005 | `005-client-entertainment-policy.md`                | Client-facing entertainment/gifts (near-dup partner of 004)       |
+| NWP-POL-006 | `006-receipt-and-documentation-policy.md`           | Receipt thresholds, required documentation                        |
+| NWP-POL-007 | `007-approval-and-authorization-policy.md`          | Approval chains, spend-threshold escalation                       |
+| NWP-POL-008 | `008-corporate-card-policy.md`                      | Corporate card issuance, misuse, reconciliation                   |
+| NWP-POL-009 | `009-remote-work-stipend-policy.md`                 | Home-office/remote stipends                                       |
+| NWP-POL-010 | `010-relocation-policy.md`                          | Relocation/moving expense reimbursement                           |
+| NWP-POL-011 | `011-international-travel-policy.md`                | Foreign per diem, currency, visa/vaccination costs                |
 | NWP-POL-012 | `012-expense-report-submission-and-audit-policy.md` | Submission deadlines, audit sampling, superseded/replacement home |
 
 Each document has a distinct title, a front-matter block, a numbered
@@ -130,21 +130,21 @@ internal structure, not 12 copies of the same template with nouns swapped.
 At least one section per document carries a Markdown table with concrete
 numeric values, consistent with a real expense-policy corpus. Minimum set:
 
-| Section ID | Table contents |
-|---|---|
-| `NWP-POL-001-02` | Personal-vehicle mileage rate by vehicle class (USD/mile) |
-| `NWP-POL-002-02` | Class-of-service thresholds by flight duration/booking lead time |
-| `NWP-POL-003-02` | Nightly lodging cap by city tier (Tier 1/2/3 USD/night) |
-| `NWP-POL-004-03` | Standard meal caps by meal type (breakfast/lunch/dinner, USD) — **near-dup pair A, original** |
-| `NWP-POL-005-02` | Client entertainment per-person caps by event type — **near-dup pair A, counterpart** |
-| `NWP-POL-006-01` | Receipt-required threshold by expense category (USD) — **near-dup pair B, original** |
-| `NWP-POL-006-04` | Receipt-required threshold, corporate card transactions — **near-dup pair B, counterpart** |
-| `NWP-POL-007-01` | Approval-level threshold table by role and dollar amount — **near-dup pair C, original** |
+| Section ID       | Table contents                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `NWP-POL-001-02` | Personal-vehicle mileage rate by vehicle class (USD/mile)                                         |
+| `NWP-POL-002-02` | Class-of-service thresholds by flight duration/booking lead time                                  |
+| `NWP-POL-003-02` | Nightly lodging cap by city tier (Tier 1/2/3 USD/night)                                           |
+| `NWP-POL-004-03` | Standard meal caps by meal type (breakfast/lunch/dinner, USD) — **near-dup pair A, original**     |
+| `NWP-POL-005-02` | Client entertainment per-person caps by event type — **near-dup pair A, counterpart**             |
+| `NWP-POL-006-01` | Receipt-required threshold by expense category (USD) — **near-dup pair B, original**              |
+| `NWP-POL-006-04` | Receipt-required threshold, corporate card transactions — **near-dup pair B, counterpart**        |
+| `NWP-POL-007-01` | Approval-level threshold table by role and dollar amount — **near-dup pair C, original**          |
 | `NWP-POL-007-03` | Approval-level threshold table, international/relocation spend — **near-dup pair C, counterpart** |
-| `NWP-POL-009-02` | Remote-work stipend caps by category (equipment/internet/utilities) |
-| `NWP-POL-010-02` | Relocation reimbursement caps by move distance tier |
-| `NWP-POL-011-02` | International per-diem by region tier (USD/day) |
-| `NWP-POL-012-03` | Audit sampling rate by report-value tier |
+| `NWP-POL-009-02` | Remote-work stipend caps by category (equipment/internet/utilities)                               |
+| `NWP-POL-010-02` | Relocation reimbursement caps by move distance tier                                               |
+| `NWP-POL-011-02` | International per-diem by region tier (USD/day)                                                   |
+| `NWP-POL-012-03` | Audit sampling rate by report-value tier                                                          |
 
 ## Near-duplicate section pairs (2–3 required; 3 generated)
 

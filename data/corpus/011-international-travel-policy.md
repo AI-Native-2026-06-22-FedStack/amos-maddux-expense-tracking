@@ -34,11 +34,11 @@ Per diem covers meals and incidentals only; lodging is booked and
 reimbursed separately per `NWP-POL-003`, adjusted for international
 market cost at `Finance Admin` discretion.
 
-| Region tier | Example regions (synthetic) | Per diem (USD/day) |
-| --- | --- | --- |
-| Tier A (high cost) | Synthetic region: Western Aurelia | $95 |
-| Tier B (moderate cost) | Synthetic region: Central Meridian | $65 |
-| Tier C (lower cost) | Synthetic region: Southern Prairie Basin | $45 |
+| Region tier            | Example regions (synthetic)              | Per diem (USD/day) |
+| ---------------------- | ---------------------------------------- | ------------------ |
+| Tier A (high cost)     | Synthetic region: Western Aurelia        | $95                |
+| Tier B (moderate cost) | Synthetic region: Central Meridian       | $65                |
+| Tier C (lower cost)    | Synthetic region: Southern Prairie Basin | $45                |
 
 ### 2.1 Currency and Conversion `NWP-POL-011-02.01`
 
@@ -61,8 +61,8 @@ described in `NWP-POL-007-03`.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2021-01-01 | Initial synthetic policy issued |
-| 1.1 | 2023-04-01 | Introduced three-tier per-diem structure, replacing a single flat rate |
-| 1.2 | 2024-06-01 | Clarified passport-renewal exclusion |
+| Version | Effective Date | Change                                                                 |
+| ------- | -------------- | ---------------------------------------------------------------------- |
+| 1.0     | 2021-01-01     | Initial synthetic policy issued                                        |
+| 1.1     | 2023-04-01     | Introduced three-tier per-diem structure, replacing a single flat rate |
+| 1.2     | 2024-06-01     | Clarified passport-renewal exclusion                                   |

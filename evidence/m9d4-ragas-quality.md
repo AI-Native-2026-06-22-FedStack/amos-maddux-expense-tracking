@@ -61,11 +61,11 @@ metrics and usage.
 
 ## Interpretation
 
-| Metric | Score | Threshold | Result | Likely failing stage |
-| --- | ---: | ---: | --- | --- |
-| faithfulness | 0.7804 | 0.8500 | FAIL | Generation is adding unsupported claims. |
-| answer relevancy | 0.7361 | 0.8500 | FAIL | Generated answers are not sufficiently addressing the question. |
-| context precision | 0.9767 | 0.8000 | PASS | Retrieval/reranking is returning mostly relevant context. |
+| Metric            |  Score | Threshold | Result | Likely failing stage                                            |
+| ----------------- | -----: | --------: | ------ | --------------------------------------------------------------- |
+| faithfulness      | 0.7804 |    0.8500 | FAIL   | Generation is adding unsupported claims.                        |
+| answer relevancy  | 0.7361 |    0.8500 | FAIL   | Generated answers are not sufficiently addressing the question. |
+| context precision | 0.9767 |    0.8000 | PASS   | Retrieval/reranking is returning mostly relevant context.       |
 
 Configured judge family: `gpt-4o-mini`
 

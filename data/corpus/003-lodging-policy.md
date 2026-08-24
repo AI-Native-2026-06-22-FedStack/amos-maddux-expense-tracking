@@ -29,11 +29,11 @@ city tier to reflect real differences in market lodging cost.
 
 ## 2. Nightly Lodging Caps by City Tier `NWP-POL-003-02`
 
-| City tier | Example markets (synthetic) | Nightly cap (USD) |
-| --- | --- | --- |
-| Tier 1 (major metro) | Fictional cities: Prairiehaven, Lake Meridian | $320 |
-| Tier 2 (secondary metro) | Fictional cities: Cedarbrook, North Elston | $220 |
-| Tier 3 (all other locations) | All other synthetic locations | $150 |
+| City tier                    | Example markets (synthetic)                   | Nightly cap (USD) |
+| ---------------------------- | --------------------------------------------- | ----------------- |
+| Tier 1 (major metro)         | Fictional cities: Prairiehaven, Lake Meridian | $320              |
+| Tier 2 (secondary metro)     | Fictional cities: Cedarbrook, North Elston    | $220              |
+| Tier 3 (all other locations) | All other synthetic locations                 | $150              |
 
 Nightly caps are inclusive of room rate and mandatory hotel fees, but
 exclusive of taxes, which are separately reimbursable.
@@ -55,7 +55,7 @@ extended-stay exception in advance.
 
 ## Document History
 
-| Version | Effective Date | Change |
-| --- | --- | --- |
-| 1.0 | 2020-02-01 | Initial synthetic policy issued |
-| 2.0 | 2024-06-01 | Introduced three-tier city cap structure, replacing a single flat cap |
+| Version | Effective Date | Change                                                                |
+| ------- | -------------- | --------------------------------------------------------------------- |
+| 1.0     | 2020-02-01     | Initial synthetic policy issued                                       |
+| 2.0     | 2024-06-01     | Introduced three-tier city cap structure, replacing a single flat cap |

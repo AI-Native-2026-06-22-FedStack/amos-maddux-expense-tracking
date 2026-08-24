@@ -89,7 +89,7 @@ silently.
 **Why the delta is 0.0000, not a defect:** tracing every relevant chunk
 across all 12 questions shows each one was already ranked at position ≤5
 in the baseline hybrid retrieval and stayed at position ≤5 after
-reranking. Reranking measurably improved rank *position within* the top
+reranking. Reranking measurably improved rank _position within_ the top
 5 for several questions (e.g. one question's two relevant chunks moved
 from baseline ranks {2, 5} to reranked ranks {1, 2}), which Precision@5
 cannot detect because it only measures top-5 set membership, not
