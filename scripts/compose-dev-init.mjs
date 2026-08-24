@@ -53,6 +53,15 @@ const stageEventsTopicName = process.env.SNS_STAGE_EVENTS_TOPIC ?? "expenseflow-
 const stageEventsQueueName = process.env.SQS_STAGE_EVENTS_QUEUE ?? "expenseflow-stage-projection";
 const stageEventsDlqName = process.env.SQS_STAGE_EVENTS_DLQ ?? "expenseflow-stage-projection-dlq";
 const stageEventsMaxReceiveCount = Number(process.env.SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT ?? "3");
+const pipelineDatasetEventsTopicName =
+  process.env.SNS_PIPELINE_DATASET_EVENTS_TOPIC ?? "expenseflow-pipeline-dataset-events";
+const pipelineDatasetRefreshedQueueName =
+  process.env.SQS_PIPELINE_DATASET_REFRESHED_QUEUE ?? "expenseflow-pipeline-dataset-refreshed";
+const pipelineDatasetRefreshedDlqName =
+  process.env.SQS_PIPELINE_DATASET_REFRESHED_DLQ ?? "expenseflow-pipeline-dataset-refreshed-dlq";
+const pipelineDatasetEventsMaxReceiveCount = Number(
+  process.env.SQS_PIPELINE_DATASET_EVENTS_MAX_RECEIVE_COUNT ?? "3"
+);
 const secretDirectory = process.env.COMPOSE_SECRET_DIR ?? "/run/expenseflow-secrets";
 const privateKeyPath = join(secretDirectory, "jwt-private.pem");
 const publicKeyPath = join(secretDirectory, "jwt-public.pem");
@@ -96,11 +105,23 @@ await withPgClient(async (client) => {
   await ensureMigrationTable(client);
   await applyMigrations(client, "apps/api/drizzle", "api");
   await applyMigrations(client, "services/compute/db/migrations", "compute");
+  await applyMigrations(client, "services/pipeline/db/migrations", "pipeline");
   await seedGlMapping(client);
   await seedLocalAuthUser(client);
 });
 await ensureCaseQueueTable();
-await ensureStageEventFanout();
+await ensureSnsToSqsFanout({
+  topicName: stageEventsTopicName,
+  queueName: stageEventsQueueName,
+  dlqName: stageEventsDlqName,
+  maxReceiveCount: stageEventsMaxReceiveCount
+});
+await ensureSnsToSqsFanout({
+  topicName: pipelineDatasetEventsTopicName,
+  queueName: pipelineDatasetRefreshedQueueName,
+  dlqName: pipelineDatasetRefreshedDlqName,
+  maxReceiveCount: pipelineDatasetEventsMaxReceiveCount
+});
 
 console.log("Compose local-dev initialization complete.");
 console.log(
@@ -575,18 +596,18 @@ async function ensureCaseQueueTable() {
   );
 }
 
-async function ensureStageEventFanout() {
-  if (!Number.isInteger(stageEventsMaxReceiveCount) || stageEventsMaxReceiveCount < 1) {
-    throw new Error("SQS_STAGE_EVENTS_MAX_RECEIVE_COUNT must be a positive integer.");
+async function ensureSnsToSqsFanout({ topicName, queueName, dlqName, maxReceiveCount }) {
+  if (!Number.isInteger(maxReceiveCount) || maxReceiveCount < 1) {
+    throw new Error(`${topicName}: max receive count must be a positive integer.`);
   }
 
-  const topicArn = await ensureSnsTopic(stageEventsTopicName);
-  const dlqUrl = await ensureSqsQueue(stageEventsDlqName);
+  const topicArn = await ensureSnsTopic(topicName);
+  const dlqUrl = await ensureSqsQueue(dlqName);
   const dlqArn = await readQueueArn(dlqUrl);
-  const queueUrl = await ensureSqsQueue(stageEventsQueueName, {
+  const queueUrl = await ensureSqsQueue(queueName, {
     RedrivePolicy: JSON.stringify({
       deadLetterTargetArn: dlqArn,
-      maxReceiveCount: String(stageEventsMaxReceiveCount)
+      maxReceiveCount: String(maxReceiveCount)
     })
   });
   const queueArn = await readQueueArn(queueUrl);
@@ -597,7 +618,7 @@ async function ensureStageEventFanout() {
       Attributes: {
         RedrivePolicy: JSON.stringify({
           deadLetterTargetArn: dlqArn,
-          maxReceiveCount: String(stageEventsMaxReceiveCount)
+          maxReceiveCount: String(maxReceiveCount)
         }),
         Policy: JSON.stringify(createSnsQueuePolicy(queueArn, topicArn))
       }
