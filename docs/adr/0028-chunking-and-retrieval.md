@@ -23,7 +23,7 @@ search has no privileged way to treat that string as an identifier
 rather than as ordinary text to embed — a dense leg alone has no
 guarantee of surfacing the chunk whose own `section_id` equals a literal
 string in the query. This was demonstrated concretely while building the
-retriever (`prompt-journal/0015-hybrid-retrieval.md`): a naive
+retriever (`prompt-journal/0012-cited-scored-retriever.md`): a naive
 `to_tsquery` keyword match on a hyphenated section id like
 `NWP-POL-006-01` also matched other chunks that merely cross-reference
 that id in prose (this corpus deliberately cross-references its
@@ -197,7 +197,7 @@ calls for the 12 evaluation questions on a cold cache, not 120, and a
 raw HTTP request body was captured and inspected directly, confirming
 one `messages` array entry containing the question text followed
 immediately by all 10 numbered candidates
-(`prompt-journal/0017-llm-reranker.md`).
+(`prompt-journal/0012-cited-scored-retriever.md`).
 
 **Configured model family**: `gpt-4o-mini` (`retrieval.toml`'s
 `[rerank].model`).
@@ -331,13 +331,13 @@ model id + prompt version + reranking config, `rerank.py`) mean an
 unchanged second run of either the loader or the eval reranking pass
 makes **zero** API calls — measured directly: a second `embed.py` run
 against an unchanged corpus reports `api_calls=0`
-(`prompt-journal/0014-embedding-loader.md`), and a
+(`prompt-journal/0012-cited-scored-retriever.md`), and a
 `run_rerank.py` run against unchanged questions/candidates/model reaches
 `api_requests=0, cache_hits=12` once the run also reuses a persisted
 last-known resolved model id to seed its very first cache lookup
-(`prompt-journal/0017-llm-reranker.md` — a real cold-start caching gap
-found and fixed during this deliverable, not designed in from the
-start). Caching removes repeated-run cost; it does not remove first-run
+(`prompt-journal/0012-cited-scored-retriever.md` — a real cold-start
+caching gap found and fixed during this deliverable, not designed in
+from the start). Caching removes repeated-run cost; it does not remove first-run
 cost, and a cache miss (changed content, changed model resolution) still
 makes a real call.
 

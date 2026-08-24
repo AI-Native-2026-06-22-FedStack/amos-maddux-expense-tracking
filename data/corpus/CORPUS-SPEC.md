@@ -10,7 +10,7 @@ mistaken for a real company's actual policy.
 
 This corpus exists to give `services/retrieval` (chunker, embedding loader,
 retriever, reranker — not yet implemented; see
-[prompt-journal/0012-retrieval-skeleton-prep.md](../../prompt-journal/0012-retrieval-skeleton-prep.md))
+[prompt-journal/0012-cited-scored-retriever.md](../../prompt-journal/0012-cited-scored-retriever.md))
 realistic-but-synthetic material with the retrieval-hard properties real
 expense policy corpora have: near-duplicate sections that differ in one
 material detail, and superseded/replacement rule pairs. It is not connected
