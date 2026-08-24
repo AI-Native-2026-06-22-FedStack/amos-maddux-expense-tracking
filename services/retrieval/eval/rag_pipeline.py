@@ -1,0 +1,209 @@
+"""Reusable RAG pipeline for ExpenseFlow policy-question answering.
+
+The eval gate and the future FastAPI /assist route should share this
+module rather than each building a private retrieval/rerank/generation
+path. The pipeline intentionally calls the existing retriever and reranker
+instead of reconstructing easier test-only behavior.
+"""
+# ruff: noqa: E402
+
+from __future__ import annotations
+
+import os
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import psycopg
+
+RETRIEVAL_DIR = Path(__file__).resolve().parent.parent
+if str(RETRIEVAL_DIR) not in sys.path:
+    sys.path.insert(0, str(RETRIEVAL_DIR))
+
+from rerank import (
+    Candidate,
+    Reranker,
+    RerankStats,
+    candidate_content_hash,
+    load_rerank_config,
+)
+from retrieve import (
+    RetrievedChunk,
+    embed_query_text,
+    load_embedding_config,
+    load_retrieval_config,
+    retrieve,
+)
+
+DEFAULT_TENANT_ID = "tenant-synthetic-northwind-prairie"
+GENERATION_MODEL = "gpt-4o-mini"
+GENERATION_TEMPERATURE = 0.0
+
+
+@dataclass(frozen=True)
+class UsageTotals:
+    call_count: int | None = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float | None = None
+    resolved_model_id: str | None = None
+
+
+@dataclass(frozen=True)
+class PolicyAnswer:
+    question: str
+    answer: str
+    contexts: list[str]
+    context_chunk_ids: list[str]
+    retrieved_chunk_ids: list[str]
+    reranked_chunk_ids: list[str]
+    generation_model_family: str
+    resolved_generation_model_id: str | None
+    generation_usage: UsageTotals
+    rerank_resolved_model_id: str | None
+    rerank_api_requests: int
+
+
+@dataclass(frozen=True)
+class PolicyRagConfig:
+    tenant_id: str = DEFAULT_TENANT_ID
+    generation_model: str = GENERATION_MODEL
+    top_contexts: int = 5
+
+
+class PolicyRagPipeline:
+    def __init__(
+        self,
+        *,
+        database_uri: str | None = None,
+        api_key: str | None = None,
+        config: PolicyRagConfig | None = None,
+    ) -> None:
+        self.database_uri = database_uri or os.environ["DATABASE_URI"]
+        self.api_key = api_key or os.environ["OPENAI_API_KEY"]
+        self.config = config or PolicyRagConfig()
+
+    def answer_question(self, question: str) -> PolicyAnswer:
+        query_embedding = embed_query_text(question, self.api_key, load_embedding_config())
+        retrieval_config = load_retrieval_config()
+
+        with psycopg.connect(self.database_uri) as connection:
+            retrieved = retrieve(
+                connection,
+                self.config.tenant_id,
+                question,
+                query_embedding,
+                retrieval_config,
+            )
+
+        candidates = _candidates_from_retrieved(retrieved)
+        rerank_stats = RerankStats()
+        reranker = Reranker(load_rerank_config(), self.api_key, stats=rerank_stats)
+        reranked = reranker.rerank(question, candidates)
+        chunks_by_id = {chunk.chunk_id: chunk for chunk in retrieved}
+        ordered_chunks = [
+            chunks_by_id[item.chunk_id] for item in reranked if item.chunk_id in chunks_by_id
+        ]
+        if not ordered_chunks:
+            ordered_chunks = retrieved
+        selected_contexts = ordered_chunks[: self.config.top_contexts]
+
+        answer, resolved_model_id, usage = generate_policy_answer(
+            question=question,
+            contexts=selected_contexts,
+            api_key=self.api_key,
+            model=self.config.generation_model,
+        )
+
+        return PolicyAnswer(
+            question=question,
+            answer=answer,
+            contexts=[chunk.text for chunk in selected_contexts],
+            context_chunk_ids=[chunk.chunk_id for chunk in selected_contexts],
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved],
+            reranked_chunk_ids=[chunk.chunk_id for chunk in ordered_chunks],
+            generation_model_family=self.config.generation_model,
+            resolved_generation_model_id=resolved_model_id,
+            generation_usage=usage,
+            rerank_resolved_model_id=reranker.resolved_model_id,
+            rerank_api_requests=rerank_stats.api_requests,
+        )
+
+
+def generate_policy_answer(
+    *,
+    question: str,
+    contexts: list[RetrievedChunk],
+    api_key: str,
+    model: str,
+) -> tuple[str, str | None, UsageTotals]:
+    from openai import OpenAI
+
+    context_block = "\n\n".join(
+        f"[{index}] chunk_id={chunk.chunk_id} section={chunk.section_id}\n{chunk.text}"
+        for index, chunk in enumerate(contexts, start=1)
+    )
+    prompt = (
+        "Answer the ExpenseFlow policy question using only the supplied policy excerpts. "
+        "If the excerpts do not support an answer, say that the policy excerpts do not "
+        "provide enough information. Keep the answer concise and cite supporting chunk ids "
+        "inline.\n\n"
+        f"Question: {question}\n\n"
+        f"Policy excerpts:\n{context_block}"
+    )
+
+    client = OpenAI(api_key=api_key)
+    response = client.chat.completions.create(
+        model=model,
+        temperature=GENERATION_TEMPERATURE,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    content = response.choices[0].message.content or ""
+    usage = _usage_from_openai_response(response)
+    return content, getattr(response, "model", None), usage
+
+
+def _candidates_from_retrieved(chunks: list[RetrievedChunk]) -> list[Candidate]:
+    return [
+        Candidate(
+            chunk_id=chunk.chunk_id,
+            section_id=chunk.section_id,
+            source=chunk.source,
+            text=chunk.text,
+            content_hash=candidate_content_hash(chunk.text),
+        )
+        for chunk in chunks
+    ]
+
+
+def _usage_from_openai_response(response) -> UsageTotals:
+    usage = getattr(response, "usage", None)
+    input_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
+    output_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+    return UsageTotals(call_count=1, input_tokens=input_tokens, output_tokens=output_tokens)
+
+
+@dataclass
+class FakeRetrievedChunkFactory:
+    """Tiny helper used by eval tests without importing pytest fixtures."""
+
+    source: str = "data/corpus/fixture.md"
+    offset: int = 0
+    fused_score: float = 1.0
+    keyword_rank: int | None = 1
+    dense_rank: int | None = 1
+    created: list[RetrievedChunk] = field(default_factory=list)
+
+    def make(self, chunk_id: str, text: str) -> RetrievedChunk:
+        chunk = RetrievedChunk(
+            chunk_id=chunk_id,
+            source=self.source,
+            section_id=chunk_id,
+            offset=self.offset,
+            text=text,
+            fused_score=self.fused_score,
+            keyword_rank=self.keyword_rank,
+            dense_rank=self.dense_rank,
+        )
+        self.created.append(chunk)
+        return chunk

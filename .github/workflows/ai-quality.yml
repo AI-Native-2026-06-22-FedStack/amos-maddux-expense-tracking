@@ -1,0 +1,59 @@
+name: AI quality
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ragas-policy-gate:
+    name: AI quality / RAGAS policy gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: expenseflow
+          POSTGRES_PASSWORD: synthetic-ci-db-password
+          POSTGRES_DB: expenseflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U expenseflow -d expenseflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URI: postgres://expenseflow:synthetic-ci-db-password@localhost:5432/expenseflow
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/retrieval/uv.lock
+
+      - name: Sync retrieval dependencies
+        working-directory: services/retrieval
+        run: uv sync
+
+      - name: Apply retrieval schema
+        run: psql "$DATABASE_URI" -v ON_ERROR_STOP=1 -f services/retrieval/db/migrations/0001_corpus_chunks.sql
+
+      - name: Load policy corpus embeddings
+        working-directory: services/retrieval
+        run: uv run python embed.py
+
+      - name: Run full reviewed RAGAS quality gate
+        working-directory: services/retrieval
+        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl
