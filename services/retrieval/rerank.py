@@ -50,7 +50,7 @@ from pathlib import Path
 RETRIEVAL_DIR = Path(__file__).resolve().parent
 RETRIEVAL_TOML_PATH = RETRIEVAL_DIR / "retrieval.toml"
 
-PROMPT_VERSION = "rerank-v1"
+PROMPT_VERSION = "rerank-v2"
 """Bumped whenever _build_prompt()'s wording changes in a way that could
 change model output -- part of the cache key so an old cached ordering
 from a different prompt is never silently reused under a new prompt."""
@@ -138,6 +138,7 @@ def _build_prompt(question: str, candidates: list[Candidate]) -> str:
         f"[{i}] id={c.chunk_id} section={c.section_id}\n{c.text}"
         for i, c in enumerate(candidates, start=1)
     )
+    candidate_ids = ", ".join(c.chunk_id for c in candidates)
     return (
         "You are ranking candidate policy document excerpts by how well "
         "each one answers the given question, from MOST relevant to LEAST "
@@ -147,8 +148,12 @@ def _build_prompt(question: str, candidates: list[Candidate]) -> str:
         "Return your answer as a JSON object with a single key "
         '"ranked_ids", whose value is an array of the candidate "id" '
         "strings above, reordered from most to least relevant to the "
-        "question. Every id from the candidate list must appear exactly "
-        "once. Do not invent ids that are not in the candidate list."
+        f"question. There are exactly {len(candidates)} candidate ids, so "
+        f'"ranked_ids" must contain exactly {len(candidates)} strings. '
+        "Every id from the candidate list must appear exactly once, including "
+        "ids that seem irrelevant. Do not return only the top matches. Do not "
+        "invent ids that are not in the candidate list.\n\n"
+        f"Required candidate ids: {candidate_ids}"
     )
 
 

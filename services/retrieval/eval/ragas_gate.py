@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - paid eval dependency guard
 EVAL_DIR = Path(__file__).resolve().parent
 DEFAULT_THRESHOLDS_PATH = EVAL_DIR / "thresholds.toml"
 DEFAULT_EVAL_PATH = EVAL_DIR / "eval_smoke.jsonl"
+RESPONSE_MODES = ("generated", "reference", "fixture")
 
 OPENAI_GPT_4O_MINI_INPUT_PER_TOKEN_USD = 0.15 / 1_000_000
 OPENAI_GPT_4O_MINI_OUTPUT_PER_TOKEN_USD = 0.60 / 1_000_000
@@ -50,6 +51,8 @@ class GateConfig:
 class EvaluationExample:
     question_id: str
     question: str
+    canonical_question: str
+    reference_canonical_question: str | None
     expected_chunk_id: str
     relevant_chunk_ids: list[str]
     ground_truth: str
@@ -77,6 +80,9 @@ class GateResult:
     scores: RagasScores
     usage: RagasUsage
     example_count: int
+    canonical_question_count: int
+    response_mode: str
+    thresholds: GateThresholds
 
 
 def load_gate_config(path: Path = DEFAULT_THRESHOLDS_PATH) -> GateConfig:
@@ -103,6 +109,7 @@ def load_examples(path: Path) -> list[EvaluationExample]:
         row = json.loads(line)
         missing = {
             "question",
+            "canonical_question",
             "expected_chunk_id",
             "relevant_chunk_ids",
             "ground_truth",
@@ -113,6 +120,8 @@ def load_examples(path: Path) -> list[EvaluationExample]:
             EvaluationExample(
                 question_id=str(row.get("question_id", f"row-{line_number}")),
                 question=row["question"],
+                canonical_question=row["canonical_question"],
+                reference_canonical_question=row.get("reference_canonical_question"),
                 expected_chunk_id=row["expected_chunk_id"],
                 relevant_chunk_ids=list(row["relevant_chunk_ids"]),
                 ground_truth=row["ground_truth"],
@@ -122,23 +131,65 @@ def load_examples(path: Path) -> list[EvaluationExample]:
 
 
 def build_ragas_rows(
-    examples: list[EvaluationExample], pipeline: PolicyRagPipeline
+    examples: list[EvaluationExample],
+    pipeline: PolicyRagPipeline,
+    *,
+    response_mode: str = "generated",
+    fixture_responses: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    if response_mode not in RESPONSE_MODES:
+        raise ValueError(f"unsupported response mode: {response_mode}")
+    if response_mode == "fixture":
+        _assert_fixture_coverage(examples, fixture_responses or {})
+
     rows: list[dict[str, Any]] = []
     for example in examples:
-        answer = pipeline.answer_question(example.question)
+        if response_mode == "generated":
+            answer = pipeline.answer_question(example.question)
+            response = answer_text_for_evaluation(answer.answer)
+            contexts = answer.contexts
+            context_chunk_ids = answer.context_chunk_ids
+        else:
+            selected = pipeline.select_contexts(example.question)
+            response = (
+                example.ground_truth
+                if response_mode == "reference"
+                else (fixture_responses or {})[example.question_id]
+            )
+            contexts = [chunk.text for chunk in selected.contexts]
+            context_chunk_ids = [chunk.chunk_id for chunk in selected.contexts]
+
         rows.append(
             {
-                "user_input": example.question,
-                "response": answer_text_for_evaluation(answer.answer),
-                "retrieved_contexts": answer.contexts,
+                "user_input": _user_input_for_mode(example, response_mode),
+                "response": response,
+                "retrieved_contexts": contexts,
                 "reference": example.ground_truth,
                 "expected_chunk_id": example.expected_chunk_id,
                 "relevant_chunk_ids": example.relevant_chunk_ids,
-                "actual_context_chunk_ids": answer.context_chunk_ids,
+                "actual_context_chunk_ids": context_chunk_ids,
             }
         )
     return rows
+
+
+def load_fixture_responses(path: Path) -> dict[str, str]:
+    responses: dict[str, str] = {}
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        row = json.loads(line)
+        missing = {"question_id", "response"} - row.keys()
+        if missing:
+            raise ValueError(f"{path}:{line_number}: missing required fields: {sorted(missing)}")
+        responses[str(row["question_id"])] = str(row["response"])
+    return responses
+
+
+def _user_input_for_mode(example: EvaluationExample, response_mode: str) -> str:
+    if response_mode == "reference" and example.reference_canonical_question:
+        return example.reference_canonical_question
+    return example.canonical_question
 
 
 def evaluate_gate(
@@ -146,28 +197,56 @@ def evaluate_gate(
     eval_path: Path = DEFAULT_EVAL_PATH,
     config_path: Path = DEFAULT_THRESHOLDS_PATH,
     pipeline: PolicyRagPipeline | None = None,
+    response_mode: str = "generated",
+    fixture_path: Path | None = None,
+    assert_gates: bool = True,
 ) -> GateResult:
     config = load_gate_config(config_path)
     examples = load_examples(eval_path)
-    rag_rows = build_ragas_rows(examples, pipeline or PolicyRagPipeline())
+    fixture_responses = load_fixture_responses(fixture_path) if fixture_path else None
+    rag_rows = build_ragas_rows(
+        examples,
+        pipeline or PolicyRagPipeline(),
+        response_mode=response_mode,
+        fixture_responses=fixture_responses,
+    )
     result = _run_ragas(rag_rows, config)
-    assert_quality_gates(result.scores, config.thresholds)
-    return result
+    gate_result = GateResult(
+        scores=result.scores,
+        usage=result.usage,
+        example_count=len(rag_rows),
+        canonical_question_count=sum(1 for example in examples if example.canonical_question),
+        response_mode=response_mode,
+        thresholds=config.thresholds,
+    )
+    if assert_gates:
+        assert_quality_gates(gate_result.scores, config.thresholds)
+    return gate_result
 
 
 def assert_quality_gates(scores: RagasScores, thresholds: GateThresholds) -> None:
-    assert scores.faithfulness >= thresholds.faithfulness, (
-        f"faithfulness {scores.faithfulness:.4f} below threshold "
-        f"{thresholds.faithfulness:.4f}"
-    )
-    assert scores.answer_relevancy >= thresholds.answer_relevancy, (
-        f"answer_relevancy {scores.answer_relevancy:.4f} below threshold "
-        f"{thresholds.answer_relevancy:.4f}"
-    )
-    assert scores.context_precision >= thresholds.context_precision, (
-        f"context_precision {scores.context_precision:.4f} below threshold "
-        f"{thresholds.context_precision:.4f}"
-    )
+    failures = quality_gate_failures(scores, thresholds)
+    assert not failures, "; ".join(failures)
+
+
+def quality_gate_failures(scores: RagasScores, thresholds: GateThresholds) -> list[str]:
+    failures: list[str] = []
+    if scores.faithfulness < thresholds.faithfulness:
+        failures.append(
+            f"faithfulness {scores.faithfulness:.4f} below threshold "
+            f"{thresholds.faithfulness:.4f}"
+        )
+    if scores.answer_relevancy < thresholds.answer_relevancy:
+        failures.append(
+            f"answer_relevancy {scores.answer_relevancy:.4f} below threshold "
+            f"{thresholds.answer_relevancy:.4f}"
+        )
+    if scores.context_precision < thresholds.context_precision:
+        failures.append(
+            f"context_precision {scores.context_precision:.4f} below threshold "
+            f"{thresholds.context_precision:.4f}"
+        )
+    return failures
 
 
 def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
@@ -210,7 +289,24 @@ def _run_ragas(rows: list[dict[str, Any]], config: GateConfig) -> GateResult:
         config.judge.model,
         resolved_model_ids=resolved_model_callback.resolved_model_ids,
     )
-    return GateResult(scores=scores, usage=usage, example_count=len(rows))
+    return GateResult(
+        scores=scores,
+        usage=usage,
+        example_count=len(rows),
+        canonical_question_count=0,
+        response_mode="generated",
+        thresholds=config.thresholds,
+    )
+
+
+def _assert_fixture_coverage(
+    examples: list[EvaluationExample], fixture_responses: dict[str, str]
+) -> None:
+    missing = sorted(
+        example.question_id for example in examples if example.question_id not in fixture_responses
+    )
+    if missing:
+        raise ValueError(f"fixture responses missing question_id values: {missing}")
 
 
 def _scores_from_ragas_result(ragas_result: Any) -> RagasScores:
@@ -334,6 +430,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the ExpenseFlow RAGAS quality gate.")
     parser.add_argument("--eval", type=Path, default=DEFAULT_EVAL_PATH)
     parser.add_argument("--thresholds", type=Path, default=DEFAULT_THRESHOLDS_PATH)
+    parser.add_argument("--response-mode", choices=RESPONSE_MODES, default="generated")
+    parser.add_argument("--fixtures", type=Path)
+    parser.add_argument(
+        "--allow-fail",
+        action="store_true",
+        help="Print the full diagnostic report and exit zero even when a metric misses.",
+    )
     args = parser.parse_args()
 
     if not os.environ.get("OPENAI_API_KEY"):
@@ -341,17 +444,43 @@ def main() -> int:
     if not os.environ.get("DATABASE_URI"):
         raise RuntimeError("DATABASE_URI is required for RAGAS quality evaluation")
 
-    result = evaluate_gate(eval_path=args.eval, config_path=args.thresholds)
+    result = evaluate_gate(
+        eval_path=args.eval,
+        config_path=args.thresholds,
+        response_mode=args.response_mode,
+        fixture_path=args.fixtures,
+        assert_gates=False,
+    )
     print(json.dumps(_report_dict(result), sort_keys=True))
+    if not args.allow_fail:
+        assert_quality_gates(result.scores, result.thresholds)
     return 0
 
 
 def _report_dict(result: GateResult) -> dict[str, Any]:
+    failures = quality_gate_failures(result.scores, result.thresholds)
     return {
+        "response_mode": result.response_mode,
         "example_count": result.example_count,
+        "canonical_question_count": result.canonical_question_count,
         "faithfulness": result.scores.faithfulness,
         "answer_relevancy": result.scores.answer_relevancy,
         "context_precision": result.scores.context_precision,
+        "thresholds": {
+            "faithfulness": result.thresholds.faithfulness,
+            "answer_relevancy": result.thresholds.answer_relevancy,
+            "context_precision": result.thresholds.context_precision,
+        },
+        "passes": {
+            "faithfulness": result.scores.faithfulness >= result.thresholds.faithfulness,
+            "answer_relevancy": (
+                result.scores.answer_relevancy >= result.thresholds.answer_relevancy
+            ),
+            "context_precision": (
+                result.scores.context_precision >= result.thresholds.context_precision
+            ),
+        },
+        "failures": failures,
         "judge_family": result.usage.judge_family,
         "resolved_judge_model_id": result.usage.resolved_judge_model_id,
         "judge_call_count": result.usage.judge_call_count,

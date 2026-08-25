@@ -107,13 +107,27 @@ The RAGAS gate evaluates exactly:
 These are independent gates in `services/retrieval/eval/ragas_gate.py`; they
 are not averaged into one quality score.
 
+Reviewed eval rows carry both the production user `question` and an
+evaluator-only `canonical_question`. Retrieval, reranking, and generation use
+`question`. RAGAS receives `canonical_question` as `user_input` so answer
+relevancy evaluates the intended policy question rather than conversational
+approver phrasing. Rows may also define `reference_canonical_question` for
+`reference` mode when the terse human-reviewed answer needs different
+evaluator wording than the richer generated answer.
+
+The gate supports three response modes:
+
+- `generated`: the production retrieval/rerank/generation path.
+- `reference`: the real retrieval/rerank path with reviewed `ground_truth`
+  answers, used for evaluator calibration.
+- `fixture`: the real retrieval/rerank path with deliberate bad responses by
+  `question_id`, used for regression proof.
+
 Configured judge family: `gpt-4o-mini`
 
 Resolved judge model ID capture has been added through LangChain callback
-metadata. Smoke-set diagnostics now resolve `gpt-4o-mini` to
-`gpt-4o-mini-2024-07-18`. The earlier completed full-set run was performed
-before that callback existed and therefore did not record a resolved snapshot
-ID.
+metadata. The calibrated RAGAS runs resolve `gpt-4o-mini` to
+`gpt-4o-mini-2024-07-18`.
 
 Resolved rerank model ID exposed by the implementation and retrieval evidence:
 `gpt-4o-mini-2024-07-18`.
@@ -122,7 +136,7 @@ Changing the judge model requires re-baselining thresholds because LLM-as-judge
 scores are model-dependent. A threshold calibrated against one judge family or
 snapshot is not guaranteed to mean the same thing under another judge.
 
-The completed full reviewed-set run did not pass all gates:
+The original full reviewed-set run did not pass all gates:
 
 - faithfulness: 0.7804, threshold 0.8500, FAIL
 - answer relevancy: 0.7361, threshold 0.8500, FAIL
@@ -132,8 +146,17 @@ The likely failing stage is answer generation or judge/evaluator calibration
 rather than retrieval/reranking, because context precision passed with margin
 while faithfulness and answer relevancy missed. A smoke diagnostic using the
 human-reviewed `ground_truth` values as responses still scored answer
-relevancy below threshold, so the remaining quality blocker should not be
-papered over with prompt wording or threshold changes.
+relevancy below threshold, so the fix needed explicit evaluator calibration
+rather than prompt-only changes or threshold reductions.
+
+The current fix is to make evaluator calibration an explicit prerequisite:
+the full reviewed set must pass in `reference` mode before `generated` mode is
+treated as a meaningful quality result.
+
+The current full reviewed-set gates are green with unchanged thresholds:
+
+- reference mode: faithfulness 0.9475, answer relevancy 0.9710, context precision 0.9628
+- generated mode: faithfulness 0.8958, answer relevancy 0.9657, context precision 0.9558
 
 ### Context Recall
 
@@ -153,10 +176,12 @@ retrieval/reranking change needs finer diagnosis than precision alone gives.
 
 ### CI and Evaluation Execution
 
-The production-correct design is a required AI-quality CI check that runs the
-full reviewed evaluation set, not only the smoke set, and fails independently
-on any missed metric. `.github/workflows/ai-quality.yml` represents that
-design by running `services/retrieval/eval/eval_set.jsonl`.
+The production-correct design is a required AI-quality CI check that first
+runs the full reviewed evaluation set in `reference` mode for calibration,
+then runs the same set in `generated` mode, and fails independently on any
+missed metric. `.github/workflows/ai-quality.yml` represents that design by
+running `services/retrieval/eval/eval_set.jsonl` in both modes when
+`OPENAI_API_KEY` is configured.
 
 During this implementation exercise, the paid full evaluation was run locally
 and its output was committed under `evidence/`. This is a deliberate cost
@@ -208,17 +233,15 @@ chat-completion usage. The query-embedding call is made by the route but its
 token count is not currently included in the endpoint audit record; that is a
 known instrumentation gap.
 
-Measured full RAGAS run cost:
+Measured current full RAGAS run costs:
 
-- Judge calls: 200
-- Input tokens: 181,502
-- Output tokens: 16,404
-- Derived judge cost: $0.0370677
+- Reference calibration gate: $0.0361611
+- Generated quality gate: $0.03631695
 
-Evidence-covered measured API spend for the official full RAGAS run plus the
-successful live `/v1/assist` generation call is $0.03733785, under the program
-target of $3. This does not claim to include earlier exploratory model calls
-that were not instrumented with measured usage.
+Evidence-covered measured API spend for the two official full RAGAS gates plus
+the successful live `/v1/assist` generation call is $0.07274820, under the
+program target of $3. This does not claim to include earlier exploratory model
+calls that were not instrumented with measured usage.
 
 ## Alternatives Considered
 

@@ -96,6 +96,15 @@ class PolicyAnswer:
 
 
 @dataclass(frozen=True)
+class SelectedPolicyContexts:
+    contexts: list[RetrievedChunk]
+    retrieved_chunk_ids: list[str]
+    reranked_chunk_ids: list[str]
+    rerank_resolved_model_id: str | None
+    rerank_api_requests: int
+
+
+@dataclass(frozen=True)
 class PolicyRagConfig:
     tenant_id: str = DEFAULT_TENANT_ID
     generation_model: str = GENERATION_MODEL
@@ -115,6 +124,30 @@ class PolicyRagPipeline:
         self.config = config or PolicyRagConfig()
 
     def answer_question(self, question: str) -> PolicyAnswer:
+        selected = self.select_contexts(question)
+        answer, resolved_model_id, usage = generate_policy_answer(
+            question=question,
+            contexts=selected.contexts,
+            api_key=self.api_key,
+            model=self.config.generation_model,
+        )
+
+        return PolicyAnswer(
+            question=question,
+            answer=answer,
+            contexts=[chunk.text for chunk in selected.contexts],
+            citation_metadata=_citation_metadata(selected.contexts),
+            context_chunk_ids=[chunk.chunk_id for chunk in selected.contexts],
+            retrieved_chunk_ids=selected.retrieved_chunk_ids,
+            reranked_chunk_ids=selected.reranked_chunk_ids,
+            generation_model_family=self.config.generation_model,
+            resolved_generation_model_id=resolved_model_id,
+            generation_usage=usage,
+            rerank_resolved_model_id=selected.rerank_resolved_model_id,
+            rerank_api_requests=selected.rerank_api_requests,
+        )
+
+    def select_contexts(self, question: str) -> SelectedPolicyContexts:
         query_embedding = embed_query_text(question, self.api_key, load_embedding_config())
         retrieval_config = load_retrieval_config()
 
@@ -139,31 +172,10 @@ class PolicyRagPipeline:
             ordered_chunks = retrieved
         selected_contexts = ordered_chunks[: self.config.top_contexts]
 
-        answer, resolved_model_id, usage = generate_policy_answer(
-            question=question,
+        return SelectedPolicyContexts(
             contexts=selected_contexts,
-            api_key=self.api_key,
-            model=self.config.generation_model,
-        )
-
-        return PolicyAnswer(
-            question=question,
-            answer=answer,
-            contexts=[chunk.text for chunk in selected_contexts],
-            citation_metadata=[
-                {
-                    "chunk_id": chunk.chunk_id,
-                    "source": chunk.source,
-                    "section_id": chunk.section_id,
-                }
-                for chunk in selected_contexts
-            ],
-            context_chunk_ids=[chunk.chunk_id for chunk in selected_contexts],
             retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved],
             reranked_chunk_ids=[chunk.chunk_id for chunk in ordered_chunks],
-            generation_model_family=self.config.generation_model,
-            resolved_generation_model_id=resolved_model_id,
-            generation_usage=usage,
             rerank_resolved_model_id=reranker.resolved_model_id,
             rerank_api_requests=rerank_stats.api_requests,
         )
@@ -193,6 +205,9 @@ def generate_policy_answer(
         "Return raw JSON that satisfies the response schema. Do not use Markdown fences. "
         "Answer as policy conditions rather than as unsupported claims about the user's "
         "specific scenario. "
+        "Start the answer field with a direct policy outcome sentence beginning with "
+        "\"Policy allows\", \"Policy requires\", \"Policy prohibits\", or "
+        "\"The retrieved excerpts do not state\". "
         "The answer must be concise, but it must include every policy rule, limit, class, "
         "documentation requirement, exception, and escalation condition needed to answer "
         "the question. Do not stop after the first yes/no rule if the same cited section "
@@ -241,6 +256,17 @@ def answer_text_for_evaluation(raw_answer: str) -> str:
         return raw_answer
     answer = payload.get("answer") if isinstance(payload, dict) else None
     return answer if isinstance(answer, str) else raw_answer
+
+
+def _citation_metadata(contexts: list[RetrievedChunk]) -> list[dict[str, str]]:
+    return [
+        {
+            "chunk_id": chunk.chunk_id,
+            "source": chunk.source,
+            "section_id": chunk.section_id,
+        }
+        for chunk in contexts
+    ]
 
 
 def _candidates_from_retrieved(chunks: list[RetrievedChunk]) -> list[Candidate]:

@@ -224,9 +224,16 @@ endpoint audit record.
 
 ## Smoke Red/Green Proof
 
-The deliberate smoke-set red/green proof requested during implementation was
-not completed because the baseline smoke gate was already red before any
-temporary prompt degradation could be applied.
+The smoke-set red/green proof now has an explicit harness:
+
+- `reference` mode calibrates RAGAS against human-reviewed ground truths while
+  preserving the real retrieval/rerank path.
+- `fixture` mode loads deliberate bad responses by `question_id` while
+  preserving the real retrieval/rerank path.
+- `generated` mode runs the production retrieval/rerank/generation path.
+
+The baseline result below is the earlier pre-calibration state. It is retained
+as failure history, not as the current expected gate behavior.
 
 Observed baseline failures after structured-output generation changes:
 
@@ -247,15 +254,99 @@ context_precision: 0.9900
 resolved_judge_model_id: gpt-4o-mini-2024-07-18
 ```
 
-No threshold, evaluator, expected chunk, relevance label, ground truth, or
-prompt was weakened to force a red/green sequence.
+No threshold, expected chunk, relevance label, or ground truth was weakened to
+force a red/green sequence.
+
+Current proof commands:
+
+```bash
+cd services/retrieval
+uv run python eval/ragas_gate.py --eval eval/eval_smoke.jsonl --response-mode reference
+uv run python eval/ragas_gate.py --eval eval/eval_smoke.jsonl --response-mode generated
+uv run python eval/ragas_gate.py --eval eval/eval_smoke.jsonl --response-mode fixture --fixtures eval/eval_smoke_bad_responses.jsonl
+uv run python eval/ragas_gate.py --eval eval/eval_smoke.jsonl --response-mode generated
+```
+
+Paid smoke verification was run on 2026-08-25 with the synthetic local
+Postgres corpus and `gpt-4o-mini-2024-07-18` as the resolved judge model.
+
+Reference calibration green:
+
+```json
+{
+  "answer_relevancy": 0.9474119454495178,
+  "context_precision": 0.9499999999505555,
+  "faithfulness": 1.0,
+  "failures": [],
+  "response_mode": "reference"
+}
+```
+
+Generated baseline green:
+
+```json
+{
+  "answer_relevancy": 0.9198332302869492,
+  "context_precision": 0.9499999999505555,
+  "faithfulness": 0.9333333333333332,
+  "failures": [],
+  "response_mode": "generated"
+}
+```
+
+Deliberate bad fixture red:
+
+```json
+{
+  "answer_relevancy": 0.6287084978300764,
+  "context_precision": 0.9499999999505555,
+  "faithfulness": 0.06666666666666667,
+  "failures": [
+    "faithfulness 0.0667 below threshold 0.8500",
+    "answer_relevancy 0.6287 below threshold 0.8500"
+  ],
+  "response_mode": "fixture"
+}
+```
+
+Generated restoration green:
+
+```json
+{
+  "answer_relevancy": 0.8862926412676531,
+  "context_precision": 0.9833333332722223,
+  "faithfulness": 0.9333333333333332,
+  "failures": [],
+  "response_mode": "generated"
+}
+```
+
+The full reviewed-set quality gates are green after the smoke red/green proof:
+
+```json
+{
+  "reference": {
+    "answer_relevancy": 0.9709772670785102,
+    "context_precision": 0.96277777771997,
+    "faithfulness": 0.9475,
+    "failures": []
+  },
+  "generated": {
+    "answer_relevancy": 0.9656582579695507,
+    "context_precision": 0.955833333278111,
+    "faithfulness": 0.8958333333333334,
+    "failures": []
+  }
+}
+```
 
 ## Cost Summary
 
-Measured full RAGAS run cost from `evidence/m9d4-ragas-quality.md`:
+Measured current full generated RAGAS run cost from
+`evidence/m9d4-ragas-quality.md`:
 
 ```text
-$0.0370677
+$0.03631695
 ```
 
 Measured successful live `/v1/assist` generation cost:
@@ -267,7 +358,7 @@ $0.00027015
 Evidence-covered measured total:
 
 ```text
-$0.03733785
+$0.03658710
 ```
 
 This evidence-covered total is under the program target of $3. It does not

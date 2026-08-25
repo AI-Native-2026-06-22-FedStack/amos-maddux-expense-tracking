@@ -70,10 +70,15 @@ jobs:
         working-directory: services/retrieval
         run: uv run python embed.py
 
-      - name: Run full reviewed RAGAS quality gate
+      - name: Run full reviewed RAGAS calibration gate
         if: steps.openai-key.outputs.available == 'true'
         working-directory: services/retrieval
-        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl
+        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl --response-mode reference
+
+      - name: Run full reviewed RAGAS generated quality gate
+        if: steps.openai-key.outputs.available == 'true'
+        working-directory: services/retrieval
+        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl --response-mode generated
 
       - name: Validate RAGAS adapter without paid model calls
         if: steps.openai-key.outputs.available != 'true'

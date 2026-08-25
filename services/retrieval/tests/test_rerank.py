@@ -41,7 +41,7 @@ def _candidate(chunk_id: str, text: str = "some chunk text") -> Candidate:
 @pytest.fixture()
 def config() -> RerankConfig:
     return RerankConfig(
-        provider="openai", model="gpt-4o-mini", temperature=0.0, prompt_version="rerank-v1"
+        provider="openai", model="gpt-4o-mini", temperature=0.0, prompt_version="rerank-v2"
     )
 
 
@@ -125,6 +125,16 @@ def test_single_request_contains_the_entire_numbered_candidate_list(config, cach
     assert "text one" in sent_prompt
     assert "text two" in sent_prompt
     assert "which is better" in sent_prompt
+
+
+def test_prompt_explicitly_requires_every_candidate_id():
+    candidates = [_candidate("C1"), _candidate("C2"), _candidate("C3")]
+
+    prompt = rerank._build_prompt("rank these", candidates)
+
+    assert '"ranked_ids" must contain exactly 3 strings' in prompt
+    assert "Do not return only the top matches" in prompt
+    assert "Required candidate ids: C1, C2, C3" in prompt
 
 
 def test_prompt_does_not_leak_retrieval_scores_to_the_model(config, cache_dir):
@@ -280,7 +290,12 @@ def test_cache_key_changes_with_resolved_model_id(config):
 
 def test_cache_key_changes_with_prompt_version(config):
     candidates = [_candidate("A")]
-    config_v1 = config
+    config_v1 = RerankConfig(
+        provider=config.provider,
+        model=config.model,
+        temperature=config.temperature,
+        prompt_version="rerank-v1",
+    )
     config_v2 = RerankConfig(
         provider=config.provider,
         model=config.model,
@@ -295,7 +310,7 @@ def test_cache_key_changes_with_prompt_version(config):
 def test_cache_key_changes_with_temperature(config):
     candidates = [_candidate("A")]
     config_hot = RerankConfig(
-        provider=config.provider, model=config.model, temperature=0.7, prompt_version="rerank-v1"
+        provider=config.provider, model=config.model, temperature=0.7, prompt_version="rerank-v2"
     )
     key_cold = rerank_cache_key("q", candidates, "model-x", config)
     key_hot = rerank_cache_key("q", candidates, "model-x", config_hot)
