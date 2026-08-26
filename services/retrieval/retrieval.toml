@@ -1,0 +1,71 @@
+# path: services/retrieval/retrieval.toml
+#
+# ExpenseFlow retrieval service configuration.
+#
+# This is the retrieval service's own config file (loaded via the
+# standard-library tomllib, no new dependency), for settings that are
+# policy/threshold/model-selection values rather than per-environment
+# connection details -- those stay in environment variables (see
+# .env.example and services/pipeline/config.py for the existing
+# convention). PostgreSQL connection details (DATABASE_URI) are supplied
+# the same way every other service in this repository gets them; this
+# service does not introduce a second database or a separate vector
+# database -- embeddings are stored in the existing PostgreSQL instance
+# (see docs/adr/0006-service-boundaries-and-anti-shared-db.md and
+# docs/adr/0009-storage-per-bounded-context.md for why no new store is
+# introduced without an ADR).
+#
+# The chunker (chunker.py), embedding loader (embed.py), and hybrid
+# retriever (retrieve.py -- keyword + dense legs fused with RRF) are
+# implemented; only the reranker ([rerank] below) is not yet -- see
+# prompt-journal for the corresponding entries.
+
+[chunking]
+# Hierarchical chunking: split by document structure first (e.g. section /
+# heading boundaries), then by paragraph, then fall back to a fixed-size
+# token window only for oversized leaf nodes. Preserves parent/child
+# relationships so a retrieved child chunk can carry its section context.
+strategy = "hierarchical"
+max_tokens = 512
+min_tokens = 64
+overlap_tokens = 64
+
+[embedding]
+# OpenAI text-embedding-3-small, fixed at its native 1536-dimension output
+# (this model also supports dimension truncation via the API's `dimensions`
+# param -- explicitly not used here so the stored vector column always
+# matches the model's native size).
+provider = "openai"
+model = "text-embedding-3-small"
+dimensions = 1536
+
+[retrieval]
+# Reciprocal Rank Fusion constant used to combine ranked result lists
+# (e.g. dense vector search + sparse/lexical search) into one fused
+# ranking: score(d) = sum(1 / (k + rank_i(d))) over each input ranking.
+# k = 60 is the standard/default constant from the original RRF paper
+# (Cormack, Clarke & Buettcher 2009) and is not tuned per-corpus here.
+rrf_k = 60
+top_k = 5
+
+# Candidates pulled from EACH leg (keyword, dense) before fusion, not the
+# final result count (top_k above is that). This corpus has only 43
+# chunks total, so 20 per leg already covers roughly half the corpus --
+# generous enough that RRF has real overlapping/non-overlapping rankings
+# to fuse from both legs, while still being a real top-N cutoff (not "all
+# rows") so this stays representative of how a larger corpus would be
+# queried. Retrieve.py's tests assert this value is honored as a hard
+# per-leg limit.
+candidates_per_leg = 20
+
+[rerank]
+# gpt-4o-mini as the configured reranker model family. Reranking is a
+# second pass over the RRF-fused top candidates, not a replacement for
+# the retrieval step above.
+provider = "openai"
+model = "gpt-4o-mini"
+
+[cache]
+# Local on-disk cache for embedding/rerank calls during development and
+# eval runs. Never committed -- see .gitignore.
+directory = ".cache/"

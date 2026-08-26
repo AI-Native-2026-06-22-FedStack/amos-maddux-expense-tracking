@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -14,6 +15,9 @@ def _load_config() -> dict[str, Any]:
 _CONFIG = _load_config()
 SENSITIVE_LOG_CENSOR = _CONFIG["censor"]
 SENSITIVE_LOG_KEYS = frozenset(key.lower() for key in _CONFIG["python"]["keys"])
+EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+SSN_PATTERN = re.compile(r"\b\d{3}-?\d{2}-?\d{4}\b")
+CARD_PATTERN = re.compile(r"\b(?:\d[ -]?){13,16}\b")
 
 
 def redact_sensitive_fields(
@@ -39,4 +43,14 @@ def _redact_value(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(_redact_value(item) for item in value)
 
+    if isinstance(value, str):
+        return _redact_string(value)
+
     return value
+
+
+def _redact_string(value: str) -> str:
+    redacted = EMAIL_PATTERN.sub(SENSITIVE_LOG_CENSOR, value)
+    redacted = SSN_PATTERN.sub(SENSITIVE_LOG_CENSOR, redacted)
+    redacted = CARD_PATTERN.sub(SENSITIVE_LOG_CENSOR, redacted)
+    return redacted

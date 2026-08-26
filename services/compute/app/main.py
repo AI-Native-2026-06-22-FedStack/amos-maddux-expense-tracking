@@ -7,6 +7,7 @@ import structlog
 from fastapi import Depends, FastAPI, HTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.assist import AssistRequest, AssistResponse, AssistService, get_assist_service
 from app.auth import CurrentUser, get_current_user
 from app.coding import DbSession, code_expense_report, load_mileage_reimbursement_rate
 from app.db import get_db_session
@@ -133,6 +134,15 @@ def code_gl_items(
     validate_gl_coding_response_contract(response)
 
     return response
+
+
+@app.post("/v1/assist", response_model=AssistResponse)
+def assist_policy_question(
+    request: AssistRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    assist_service: AssistService = Depends(get_assist_service),
+) -> AssistResponse:
+    return assist_service.answer(request, current_user)
 
 
 def read_headers(scope: Scope) -> dict[str, str]:

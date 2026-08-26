@@ -12,6 +12,7 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Button } from "../atoms/Button";
 import { ErrorState } from "../atoms/StateMessage";
 import { useAuthSession } from "../auth";
+import { AssistPanel } from "../components/AssistPanel";
 import { Sidebar, type SidebarPage } from "../components/Sidebar";
 import type { UserRole } from "../domain";
 import { CaseQueue } from "../screens/CaseQueue";
@@ -293,6 +294,7 @@ function AppShell({ queryClient }: { queryClient: QueryClient }) {
         </header>
         <main className={styles.contentSection} aria-label="Expense Report workspace">
           <Outlet />
+          <AssistPanel />
         </main>
       </div>
     </div>

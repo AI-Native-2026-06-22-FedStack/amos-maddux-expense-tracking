@@ -1,0 +1,88 @@
+name: AI quality
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ragas-policy-gate:
+    name: AI quality / RAGAS policy gate
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: expenseflow
+          POSTGRES_PASSWORD: synthetic-ci-db-password
+          POSTGRES_DB: expenseflow
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U expenseflow -d expenseflow"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      DATABASE_URI: postgres://expenseflow:synthetic-ci-db-password@localhost:5432/expenseflow
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          cache-dependency-glob: services/retrieval/uv.lock
+
+      - name: Sync retrieval dependencies
+        working-directory: services/retrieval
+        run: uv sync --locked
+
+      - name: Detect OpenAI API key
+        id: openai-key
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::OPENAI_API_KEY is not configured for this PR run; running adapter checks only."
+          fi
+
+      - name: Apply retrieval schema
+        if: steps.openai-key.outputs.available == 'true'
+        run: psql "$DATABASE_URI" -v ON_ERROR_STOP=1 -f services/retrieval/db/migrations/0001_corpus_chunks.sql
+
+      - name: Apply HNSW index migration
+        if: steps.openai-key.outputs.available == 'true'
+        run: psql "$DATABASE_URI" -v ON_ERROR_STOP=1 -f apps/api/db/migrations/0004_policy_corpus_embedding_hnsw.sql
+
+      - name: Load policy corpus embeddings
+        if: steps.openai-key.outputs.available == 'true'
+        working-directory: services/retrieval
+        run: uv run python embed.py
+
+      - name: Run full reviewed RAGAS calibration gate
+        if: steps.openai-key.outputs.available == 'true'
+        working-directory: services/retrieval
+        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl --response-mode reference
+
+      - name: Run full reviewed RAGAS generated quality gate
+        if: steps.openai-key.outputs.available == 'true'
+        working-directory: services/retrieval
+        run: uv run python eval/ragas_gate.py --eval eval/eval_set.jsonl --response-mode generated
+
+      - name: Validate RAGAS adapter without paid model calls
+        if: steps.openai-key.outputs.available != 'true'
+        working-directory: services/retrieval
+        run: |
+          uv run python -m pytest eval/test_ragas_gate.py -q
+          uv run ruff check eval/ragas_gate.py eval/rag_pipeline.py

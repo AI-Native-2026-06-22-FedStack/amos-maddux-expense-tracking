@@ -12,6 +12,7 @@ dependencies = [
   "pwdlib[argon2]",
   "httpx",
   "jsonschema",
+  "openai>=2.8.1",
   "psycopg[binary]",
   "structlog",
   "uvicorn>=0.51.0",
@@ -38,7 +39,7 @@ dev = [
 override-dependencies = ["cryptography>=50.0.0"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "../retrieval/eval"]
 testpaths = ["tests"]
 
 [tool.ruff]

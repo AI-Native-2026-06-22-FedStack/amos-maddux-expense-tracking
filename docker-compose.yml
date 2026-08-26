@@ -1,6 +1,13 @@
 services:
   postgres:
-    image: postgres:17-alpine
+    # pgvector/pgvector:pg17 -- drop-in build of the official postgres:17
+    # image (same PostgreSQL major version) with the pgvector extension
+    # preinstalled. Needed by services/retrieval's corpus_chunks table
+    # (vector(1536) column, see services/retrieval/db/migrations); no
+    # separate vector database is introduced -- see
+    # docs/adr/0006-service-boundaries-and-anti-shared-db.md and
+    # docs/adr/0009-storage-per-bounded-context.md.
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-expenseflow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synthetic-compose-db-password}

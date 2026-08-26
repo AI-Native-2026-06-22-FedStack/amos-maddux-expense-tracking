@@ -1,0 +1,10 @@
+# RAGAS quality gates for reviewed ExpenseFlow policy-question evals.
+
+[judge]
+provider = "openai"
+model = "gpt-4o-mini"
+
+[metrics]
+faithfulness = 0.85
+answer_relevancy = 0.85
+context_precision = 0.80
